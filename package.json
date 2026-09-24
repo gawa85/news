@@ -8,7 +8,7 @@
     "demo": "npm run build && node dist/src/demo.js",
     "test": "npm run build && node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
     "test:sqlite": "npm run build && TEST_STORE=sqlite node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
-    "test:postgres": "npm run build && TEST_STORE=postgres node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
+    "test:postgres": "npm run build && node dist/tests/helpers/reset-postgres.js && TEST_STORE=postgres node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
     "demo:platform": "npm run build && node --no-warnings dist/src/demo-platform.js",
     "start": "node dist/src/entry/server.js",
     "mcp": "node dist/src/entry/mcp-stdio.js",

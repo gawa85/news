@@ -18,5 +18,8 @@ export const PARAMETERS: ParameterDefinition[] = [
   { key: "evidence.monitor_days", description: "Días que se vuelve a mirar una nota archivada con seguimiento.", type: "number", default: 30, min: 1, max: 365, unit: "días" },
   { key: "evidence.recheck_hours", description: "Cada cuántas horas se vuelve a mirar una nota en seguimiento.", type: "number", default: 24, min: 1, max: 168, unit: "horas" },
   { key: "evidence.max_per_day", description: "Copias de notas por persona por día.", type: "number", default: 50, min: 1, max: 1000 },
+  { key: "digest.hour", description: "Hora local a la que sale el resumen.", type: "number", default: 8, min: 0, max: 23, unit: "hora" },
+  { key: "digest.weekday", description: "Día del resumen semanal (1 = lunes … 7 = domingo).", type: "number", default: 1, min: 1, max: 7 },
+  { key: "digest.send_empty", description: "Mandar el resumen aunque no haya novedades.", type: "boolean", default: false },
   { key: "support.first_response_hours_default", description: "Horas para la primera respuesta de soporte (planes sin prioridad).", type: "number", default: 48, min: 1, max: 240, unit: "horas" },
 ];

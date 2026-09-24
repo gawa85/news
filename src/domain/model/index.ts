@@ -42,3 +42,4 @@ export * from "./support";
 export * from "./legal";
 export * from "./promptSafety";
 export * from "./evidence";
+export * from "./digest";

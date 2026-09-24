@@ -3,7 +3,7 @@
 #   docker compose up -d --build          API en http://localhost:8090 (API_PORT) + PostgreSQL
 #   docker compose run --rm test          pruebas en memoria
 #   docker compose run --rm -e TEST_STORE=sqlite test
-#   docker compose run --rm -e TEST_STORE=postgres test
+#   docker compose run --rm test npm run test:postgres   (vacía la base de pruebas antes)
 #   docker compose run --rm test npm run demo:platform
 #
 # Variables propias: copiá .env.example a .env; Compose lo usa para los ${...} de este archivo.
@@ -11,6 +11,10 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Docker trae 64 MB de memoria compartida: PostgreSQL la usa en consultas grandes.
+    shm_size: 256mb
+    # Las pruebas corren archivos en paralelo y cada una arma su plataforma (con su pool).
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

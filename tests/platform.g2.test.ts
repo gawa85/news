@@ -67,7 +67,7 @@ describe("Cola de trabajos", () => {
     assert.equal(first, SCHEDULES.length, "una por cada trabajo periódico");
     assert.equal(await t.p.jobs.scheduler.tick(), 0, "mismo momento: nada nuevo");
     t.clock.advance(15 * 60_000);
-    assert.equal(await t.p.jobs.scheduler.tick(), 2, "a los 15 min: sólo las de cada 15 min");
+    assert.equal(await t.p.jobs.scheduler.tick(), SCHEDULES.filter((s) => s.everyMinutes === 15).length, "a los 15 min: sólo las de cada 15 min");
     // El worker toma de a tandas: se corre hasta vaciar la cola.
     let ran = 0;
     for (let i = 0; i < 5; i++) {
@@ -75,7 +75,7 @@ describe("Cola de trabajos", () => {
       assert.equal(r.dead, 0);
       ran += r.ran;
     }
-    assert.equal(ran, SCHEDULES.length + 2);
+    assert.equal(ran, SCHEDULES.length + SCHEDULES.filter((s) => s.everyMinutes === 15).length);
   });
 });
 

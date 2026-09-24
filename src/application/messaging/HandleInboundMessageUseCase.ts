@@ -30,6 +30,7 @@ import type { LegalService } from "../legal/Legal";
 import type { VoiceNoteService } from "../inclusion/VoiceNotes";
 import type { ScreenshotService } from "../inclusion/Screenshots";
 import type { EvidenceService } from "../evidence/Evidence";
+import type { DigestService } from "../digest/Digests";
 
 const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
 const OPT_IN_WORDS = ["alta", "start"];
@@ -58,6 +59,7 @@ export interface InboundExtras {
   voice?: VoiceNoteService;
   screenshots?: ScreenshotService;
   evidence?: EvidenceService;
+  digests?: DigestService;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -330,6 +332,18 @@ export class HandleInboundMessageUseCase {
       case "support_list": {
         const list = await this.need(this.extras.support, "El soporte").listMine(user.id);
         return { kind: "info", title: "Tus tickets", summary: list.length ? undefined : "No tenés tickets. Escribí /soporte y tu consulta.", sections: list.slice(0, 5).map((t) => ({ heading: `${t.id} · ${t.status}`, lines: [t.subject] })), links: [] };
+      }
+      case "digest_now":
+        return this.need(this.extras.digests, "El resumen").preview(user);
+      case "digest_set": {
+        await this.prefs().update({ actorId: user.id, values: { digest: cmd.frequency } });
+        if (cmd.frequency === "off") return this.composer.info("Listo: sin resumen.");
+        const { plan } = await this.access.planOf(user);
+        const weeklyOnly = cmd.frequency === "daily" && !plan.features.includes("daily_digest");
+        return this.composer.info(
+          weeklyOnly ? "Listo: te mando el resumen semanal." : `Listo: te mando un resumen ${cmd.frequency === "daily" ? "todos los días" : "cada semana"}.`,
+          weeklyOnly ? "El resumen diario viene con el plan Personal o superior." : "Escribí /resumen para ver tus novedades ahora.",
+        );
       }
       case "archive_url": {
         const E = this.need(this.extras.evidence, "El archivo de evidencias");

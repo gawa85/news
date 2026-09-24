@@ -94,4 +94,6 @@ export type Command =
   | { type: "support"; text: string }
   | { type: "support_list" }
   | { type: "archive_url"; url: string; monitor: boolean }
+  | { type: "digest_now" }
+  | { type: "digest_set"; frequency: import("./preferences").DigestFrequency }
   | { type: "help" };

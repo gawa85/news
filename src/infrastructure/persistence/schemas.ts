@@ -63,7 +63,7 @@ import type { Branding, Coupon, CouponRedemption, ReferralCode, ReferralUse } fr
 import type { ConsentRecord } from "../../domain/model";
 import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttempt, QuizItem, Ticket } from "../../domain/model";
 
-import type { EvidenceSnapshot } from "../../domain/model";
+import type { DigestDelivery, EvidenceSnapshot } from "../../domain/model";
 
 /** Copia archivada guardada en la base (evidencias). */
 export interface EvidenceBlobRecord {
@@ -459,8 +459,17 @@ export const schemas = {
   } satisfies CollectionSchema<ReportSchedule>,
   categories: { name: "categories", idOf: (c: Category) => c.id, indexes: {} } satisfies CollectionSchema<Category>,
   topics: { name: "topics", idOf: (t: Topic) => t.id, indexes: { categoryId: { type: "text", get: (t: Topic) => t.categoryId } } } satisfies CollectionSchema<Topic>,
-  userPreferences: { name: "user_preferences", idOf: (p: UserPreferences) => p.userId, indexes: {} } satisfies CollectionSchema<UserPreferences>,
-  orgPreferences: { name: "org_preference_defaults", idOf: (p: OrgPreferenceDefaults) => p.organizationId, indexes: {} } satisfies CollectionSchema<OrgPreferenceDefaults>,
+  userPreferences: {
+    name: "user_preferences",
+    idOf: (p: UserPreferences) => p.userId,
+    /** Para encontrar a quién le toca el resumen sin recorrer todas las preferencias. */
+    indexes: { digest: { type: "text", get: (p: UserPreferences) => p.values.digest ?? null } },
+  } satisfies CollectionSchema<UserPreferences>,
+  orgPreferences: {
+    name: "org_preference_defaults",
+    idOf: (p: OrgPreferenceDefaults) => p.organizationId,
+    indexes: { digest: { type: "text", get: (p: OrgPreferenceDefaults) => p.values.digest ?? null } },
+  } satisfies CollectionSchema<OrgPreferenceDefaults>,
   topicFollows: {
     name: "topic_follows",
     idOf: (f: TopicFollow) => f.id,
@@ -557,6 +566,15 @@ export const schemas = {
       checkedAt: { type: "text", get: (s: EvidenceSnapshot) => s.lastCheckedAt ?? s.capturedAt },
     },
   } satisfies CollectionSchema<EvidenceSnapshot>,
+  digestDeliveries: {
+    name: "digest_deliveries",
+    idOf: (d: DigestDelivery) => d.id,
+    indexes: {
+      userId: { type: "text", get: (d: DigestDelivery) => d.userId },
+      status: { type: "text", get: (d: DigestDelivery) => d.status },
+      to: { type: "text", get: (d: DigestDelivery) => d.to },
+    },
+  } satisfies CollectionSchema<DigestDelivery>,
   evidenceBlobs: {
     name: "evidence_blobs",
     idOf: (b: EvidenceBlobRecord) => b.key,

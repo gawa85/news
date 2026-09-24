@@ -93,6 +93,7 @@ export class PersonalDataService {
       }
       // Las del seguimiento automático, pagadas por la persona (cuenta individual).
       for (const e of await r.evidence.findBySubject(user.id)) await r.evidence.save({ ...e, subjectId: "borrado", monitorUntil: undefined });
+      await r.digests.deleteByUser(user.id);
       // Sus estadísticas personales se borran; en las globales sólo queda un seudónimo irreversible.
       await r.stats.deleteScope("user", user.id);
       await r.credentials.deleteByUser(user.id);

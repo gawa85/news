@@ -150,6 +150,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const consents = f.collection(schemas.consents);
   const evidence = f.collection(schemas.evidence);
   const evidenceBlobs = f.collection(schemas.evidenceBlobs);
+  const digests = f.collection(schemas.digestDeliveries);
   const latestBy = <T extends { version: number }>(items: T[], key: (x: T) => string) => {
     const m = new Map<string, T>();
     for (const x of items) if ((m.get(key(x))?.version ?? -1) < x.version) m.set(key(x), x);
@@ -509,6 +510,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       },
       findOrg: (orgId) => orgPrefs.get(orgId),
       saveOrg: (d) => orgPrefs.upsert(d),
+      findUsersWithDigest: () => userPrefs.find({ where: { digest: { in: ["daily", "weekly"] } } }),
+      findOrgsWithDigest: () => orgPrefs.find({ where: { digest: { in: ["daily", "weekly"] } } }),
       findFollowers: async (topicId) => {
         const ids = (await follows.find({ where: { topicId } })).map((x) => x.userId);
         return ids.length ? userPrefs.find({ where: { id: { in: ids } } }) : [];
@@ -606,6 +609,14 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     evidenceBlobs: {
       put: (b) => evidenceBlobs.upsert(b),
       get: (key) => evidenceBlobs.get(key),
+    },
+    digests: {
+      insert: (d) => digests.insert(d),
+      save: (d) => digests.upsert(d),
+      findLastSent: async (userId) =>
+        (await digests.find({ where: { userId, status: { in: ["sent", "deferred"] } }, orderBy: { field: "to", direction: "desc" }, limit: 1 }))[0],
+      findByUser: (userId, limit) => digests.find({ where: { userId }, orderBy: { field: "to", direction: "desc" }, limit }),
+      deleteByUser: (userId) => digests.deleteWhere({ where: { userId } }),
     },
     reportSchedules: {
       findById: (id) => schedules.get(id),

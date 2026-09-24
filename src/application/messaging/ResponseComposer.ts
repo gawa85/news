@@ -6,6 +6,7 @@ import {
   type Correction,
   type CredibilityReport,
   type EvidenceSnapshot,
+  type Digest,
   type Rebuttal,
   type Plan,
   type ResponseContent,
@@ -148,6 +149,7 @@ export class ResponseComposer {
           "/jugar → ¿esto es humo? (practicá) · /progreso · /aula <código> <apodo>",
           "/invitar → tu código para invitar · /codigo <código> → usar una invitación",
           "/soporte <tu consulta> → hablar con una persona · /tickets",
+          "/resumen → tus novedades ya · /resumen diario | semanal | no → recibirlo solo",
           "/guardar <link> [seguir] → copia de la nota con sello de tiempo (y aviso si la editan o la borran)",
           "/reglas · /plan · /ayuda · BAJA (dejar de recibir avisos)",
         ],
@@ -201,6 +203,23 @@ export class ResponseComposer {
         lines: c.topics.map((t) => `${followed.includes(t.name) ? "✓ " : ""}${t.name}${t.synonyms.length ? ` (también: ${t.synonyms.slice(0, 3).join(", ")})` : ""}`),
       })),
       links: [],
+    };
+  }
+
+  /** Resumen diario o semanal: una sección por parte, con sus links. */
+  digest(d: Digest): ResponseContent {
+    const day = (x: Date) => x.toISOString().slice(0, 10).split("-").reverse().join("/");
+    const empty = d.sections.length === 0;
+    return {
+      kind: "info",
+      title: `Tu resumen ${d.kind === "daily" ? "diario" : "semanal"} de Sin Humo`,
+      summary: empty ? "Sin novedades en este período." : `Del ${day(d.period.from)} al ${day(d.period.to)}.`,
+      sections: d.sections.map((s) => ({
+        heading: s.title,
+        lines: [...s.items.map((i) => (i.url ? `${i.text} ${i.url}` : i.text)), ...(s.more ? [`…y ${s.more} más.`] : [])],
+      })),
+      links: [],
+      footer: "Para cambiarlo: /resumen diario · /resumen semanal · /resumen no",
     };
   }
 

@@ -30,6 +30,9 @@ export interface IPreferencesRepository {
   saveOrg(d: OrgPreferenceDefaults): Promise<void>;
   /** Quienes siguen un tema (para avisos y campañas). */
   findFollowers(topicId: string): Promise<UserPreferences[]>;
+  /** Personas y organizaciones que pidieron un resumen (diario o semanal). */
+  findUsersWithDigest(): Promise<UserPreferences[]>;
+  findOrgsWithDigest(): Promise<OrgPreferenceDefaults[]>;
 }
 
 /** Preferencias efectivas de una persona (con los valores de su organización aplicados). */

@@ -99,9 +99,16 @@ import { AudioReplyService } from "../application/inclusion/AudioReplies";
 import { VoiceNoteService } from "../application/inclusion/VoiceNotes";
 import { ScreenshotService } from "../application/inclusion/Screenshots";
 import { EvidenceService, type EvidenceProviders } from "../application/evidence/Evidence";
+import { DigestAudience, DigestService } from "../application/digest/Digests";
+import {
+  CirculatingNarrativesDigestSource,
+  CorrectionsDigestSource,
+  FollowedTopicsDigestSource,
+  WatchedNotesDigestSource,
+} from "../application/digest/DigestSources";
 import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
-import type { IInboundMediaFetcher, IOcr, ISpeechToText } from "../domain/ports";
+import type { IDigestSource, IInboundMediaFetcher, IOcr, ISpeechToText } from "../domain/ports";
 import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "../infrastructure/inclusion/InclusionAdapters";
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
 import { FEATURE_FLAGS } from "../config/flags";
@@ -172,6 +179,8 @@ export interface PlatformConfig {
    * sin sello de tiempo ni copia pública (se activan pasando sus adaptadores).
    */
   evidence?: Partial<EvidenceProviders>;
+  /** Partes extra del resumen (se agregan al final de las de siempre). */
+  digestSources?: IDigestSource[];
   /** Lectura fácil (por defecto, reglas; con IA: LLMPlainLanguageRewriter). */
   plainLanguage?: IPlainLanguageRewriter;
   /** Mesa de ayuda externa opcional (Zendesk…). */
@@ -430,6 +439,17 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     authz, access, params, domainEvents, queue, ids, clock, logger,
   );
+  // Resumen: cada parte es una fuente; el orden de la lista es el orden del mensaje.
+  const digests = new DigestService(
+    [
+      new WatchedNotesDigestSource(repos.evidence),
+      new FollowedTopicsDigestSource(repos.articles, repos.outlets, repos.taxonomy),
+      new CirculatingNarrativesDigestSource(repos.narratives, repos.taxonomy),
+      new CorrectionsDigestSource(repos.corrections, repos.outlets),
+      ...(cfg.digestSources ?? []),
+    ],
+    repos.digests, new DigestAudience(repos.preferences, repos.users), preferences, access, countries, notifications, composer, params, flags, clock, logger,
+  );
 
   // ---- Auditoría y exportación ----
   const auditQuery = new AuditQueryUseCase(repos.audit, repos.users, authz);
@@ -475,7 +495,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     inbound: new HandleInboundMessageUseCase(
       repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
-      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence },
+      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence, digests },
     ),
     content: {
       connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
@@ -511,6 +531,7 @@ export function buildPlatform(cfg: PlatformConfig) {
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
           evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
           evidence_recheck: async () => void (await evidence.recheckDue()),
+          send_digests: async () => void (await digests.runDue()),
           [DEFERRED_NOTIFICATION_JOB]: async (p) => {
             const u = await repos.users.findById(String(p.userId));
             if (!u || u.status !== "active") return;
@@ -536,6 +557,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     flags,
     support,
     evidence,
+    digests,
     legal,
     backups,
     environment: cfg.environment?.name ?? "development",

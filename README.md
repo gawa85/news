@@ -19,7 +19,7 @@ docker compose logs -f api
 
 docker compose run --rm test                         # pruebas en memoria
 docker compose run --rm -e TEST_STORE=sqlite test    # ...en SQLite
-docker compose run --rm -e TEST_STORE=postgres test  # ...en PostgreSQL (base sinhumo_test)
+docker compose run --rm test npm run test:postgres   # ...en PostgreSQL (vacía antes la base sinhumo_test)
 docker compose run --rm test npm run demo:platform
 
 docker compose exec api node dist/src/entry/backup-cli.js listar

@@ -206,7 +206,8 @@ describe("Reportes programados por mail", () => {
 
     t.clock.set(new Date(s.nextRunAt.getTime() + 60_000));
     await t.p.jobs.scheduler.tick();
-    await t.p.jobs.worker().runOnce();
+    // El worker toma de a tandas (hay más tareas periódicas que el tamaño de la tanda): hasta vaciar.
+    for (let i = 0; i < 5 && (await t.p.jobs.worker().runOnce()).ran > 0; i++);
     const mail = t.mail.sent.find((m) => m.to === "ana@ejemplo.com");
     assert.ok(mail, "llegó el mail");
     assert.equal(mail.subject, "Sin Humo · Mi semana");

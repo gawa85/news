@@ -515,6 +515,19 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - La copia se descarga siempre como **adjunto** (`nosniff` y CSP `sandbox`): el HTML archivado nunca corre en nuestro dominio.
   - **Acceso**: el permiso `evidence:capture` y la funcionalidad `evidence_archive` (planes Profesional y superiores), con tope diario `evidence.max_per_day`. Cada persona ve lo suyo y lo de su organización. Los verificadores tienen `evidence:read_all`.
   - **Datos personales**: las copias se incluyen al exportar. Al borrar la cuenta, las copias de páginas públicas se conservan, pero sin dueño y sin seguimiento.
+- **Resumen diario o semanal** (`DigestService`): se pide con `/resumen diario | semanal | no`, y `/resumen` muestra las novedades en el momento. Cada parte es una fuente que implementa `IDigestSource`; sumar una parte es sumar una clase a la lista, y también se pueden pasar partes extra con `digestSources` (OCP). Las partes de siempre son:
+  1. `WatchedNotesDigestSource`: **notas que vigilás**, con ediciones silenciosas ("antes → después") y borrados detectados por el archivo de evidencias. Así se le avisa a la persona.
+  2. `FollowedTopicsDigestSource`: notas nuevas en sus temas.
+  3. `CirculatingNarrativesDigestSource`: las cadenas que más circulan, en sus temas si sigue alguno.
+  4. `CorrectionsDigestSource`: fe de erratas publicadas por los medios.
+
+  Reglas:
+  - **Hora local** de cada persona, tomada de su horario de silencio o de su país (`utcOffsetMinutes`). Sale a la hora `digest.hour`; el semanal, el día `digest.weekday`. Si el servidor estuvo caído, sale apenas vuelve (`domain/rules/digest.ts`).
+  - **Uno solo por persona y período**, aunque haya varios servidores: el registro `digest_deliveries` usa el id `persona:período` y la base rechaza el segundo.
+  - Cuenta **desde el último resumen enviado**, como mucho dos períodos atrás. Si no hay novedades, no se manda (`digest.send_empty`).
+  - Se envía con `notifyUser`: respeta el horario de silencio (lo posterga), el orden de canales, la marca blanca, la ventana de WhatsApp (afuera, con la plantilla `resumen_sin_humo`, que **hay que aprobar en Meta**) y el límite por destinatario.
+  - `DigestAudience` encuentra a quién le toca por índices: personas que lo pidieron y miembros de organizaciones que lo tienen por defecto. Si la organización lo bloquea, ninguno puede apagarlo.
+  - El **diario** es de los planes pagos (`daily_digest`); en el plan gratis se manda el semanal. Función en prueba `digest` para el apagado de emergencia. Una parte que falla no tira abajo el resumen.
 - **Instrucciones escondidas** ("prompt injection"): textos que le dan órdenes a la IA que los analiza. Llegan en mensajes, capturas, audios y notas web, a veces en texto invisible. Hay tres capas, cada una detrás de una interfaz:
   1. **Limpiar** (`ITextSanitizer` → `UnicodeTextSanitizer`): saca los invisibles (ancho cero, controles bidireccionales, guion blando) y **decodifica el texto escondido en etiquetas Unicode** para inspeccionarlo. Respeta los emojis compuestos (ZWJ) y las banderas.
   2. **Detectar** (`IPromptInjectionDetector`): `RuleBasedInjectionDetector` (reglas en español e inglés, `domain/rules/promptInjection.ts`) y, opcional, `LLMInjectionDetector` (`PROMPT_GUARD_LLM=1`). `PromptSafetyGuard` junta las señales: se suma **por tipo**, así que repetir la frase no infla el puntaje. Con 50 puntos o más el riesgo es alto; con 20, bajo, y sólo se registra en la métrica `sinhumo_prompt_injection_total`. Las reglas evitan el lenguaje de noticias ("el Gobierno **ignoró** las reglas" no es una orden), y hay una prueba contra falsos positivos con el set de evaluación y las notas de la demo.
@@ -540,6 +553,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Una parte nueva en el resumen (p. ej. "tu uso de la semana") | Clase `IDigestSource` en la lista de `buildPlatform` o en `digestSources` |
 | Archivar con un navegador sin cabeza (páginas con JavaScript) | Otra clase `IPageCapturer` |
 | Otro archivo público (archive.today) o sello (certificador licenciado) | `IExternalArchive` / `ITimestampAuthority` |
 | Otro detector de instrucciones escondidas (un servicio externo) | Otra clase `IPromptInjectionDetector`, sumada a la lista del guardián |

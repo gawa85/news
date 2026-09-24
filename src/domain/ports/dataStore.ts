@@ -14,6 +14,7 @@ import type { IBrandingRepository, ICouponRepository, IReferralRepository } from
 import type { IConsentRepository, IFeatureFlagRepository, ILearningRepository, ITicketRepository } from "./inclusion";
 import type { IJobRepository } from "./jobs";
 import type { IEvidenceRepository } from "./evidence";
+import type { IDigestDeliveryRepository } from "./digest";
 import type { ICatalogRepository, IQualityRepository } from "./catalogData";
 import type { ICampaignRepository, INarrativeRepository, IPerspectiveRepository, IRoomRepository } from "./participation";
 import type { ICostRepository } from "./observability";
@@ -136,6 +137,7 @@ export interface Repositories {
   evidence: IEvidenceRepository;
   /** Copias archivadas guardadas en la base (cuando no hay disco ni S3 configurado). */
   evidenceBlobs: IEvidenceBlobRepository;
+  digests: IDigestDeliveryRepository;
 }
 
 export interface IEvidenceBlobRepository {

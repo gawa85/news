@@ -77,6 +77,12 @@ export class SpanishCommandParser implements ICommandParser {
         return rest ? { type: "support", text: rest } : { type: "support_list" };
       case "tickets":
         return { type: "support_list" };
+      case "resumen": {
+        if (/^(diari[oa]|todos los d[ií]as|daily)$/i.test(rest)) return { type: "digest_set", frequency: "daily" };
+        if (/^(semanal|una vez por semana|weekly)$/i.test(rest)) return { type: "digest_set", frequency: "weekly" };
+        if (/^(no|off|apagar|ninguno|nunca)$/i.test(rest)) return { type: "digest_set", frequency: "off" };
+        return { type: "digest_now" };
+      }
       case "guardar":
       case "archivar":
         // "/guardar <link> seguir" → además la vuelve a mirar para detectar ediciones o borrados.

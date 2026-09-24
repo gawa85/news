@@ -34,3 +34,4 @@ export * from "./inclusion";
 export * from "./ops";
 export * from "./promptSafety";
 export * from "./evidence";
+export * from "./digest";

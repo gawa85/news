@@ -27,6 +27,7 @@ export const FEATURES = [
   "voice_notes", // entender notas de voz (audio a texto)
   "screenshots", // leer capturas de pantalla (OCR)
   "evidence_archive", // copias de notas con huella, sello de tiempo y seguimiento de ediciones
+  "daily_digest", // resumen diario (el semanal está en todos los planes)
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];

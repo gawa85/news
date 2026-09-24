@@ -29,7 +29,7 @@ export const ROLES: Role[] = [
 ];
 
 const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules", "voice_notes", "screenshots"];
-const PERSONAL: Feature[] = [...BASIC, "origin_trace", "credibility_meter", "alerts", "ai_engine", "source_connections", "audio_replies"];
+const PERSONAL: Feature[] = [...BASIC, "origin_trace", "credibility_meter", "alerts", "ai_engine", "source_connections", "audio_replies", "daily_digest"];
 const PRO: Feature[] = [...PERSONAL, "credibility_timeline", "export", "api_access", "webhooks", "public_replies", "campaigns", "scheduled_reports", "evidence_archive"];
 
 export const PLANS: Plan[] = [
@@ -120,6 +120,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   voice_notes: "Entiende notas de voz",
   screenshots: "Lee capturas de pantalla",
   evidence_archive: "Archivo de evidencias: copias de notas con sello de tiempo y aviso de ediciones",
+  daily_digest: "Resumen diario (el semanal viene en todos los planes)",
 };
 
 /**
@@ -150,6 +151,7 @@ export const SCHEDULES: import("../domain/model").RecurringSchedule[] = [
   { name: "support_sla", jobType: "support_sla", everyMinutes: 60 },
   { name: "media_cleanup", jobType: "media_cleanup", everyMinutes: 1_440 },
   { name: "evidence_recheck", jobType: "evidence_recheck", everyMinutes: 60 },
+  { name: "send_digests", jobType: "send_digests", everyMinutes: 15 },
   { name: "backup_daily", jobType: "backup_daily", everyMinutes: 1_440 },
   { name: "backup_verify", jobType: "backup_verify", everyMinutes: 10_080 },
   { name: "collect_impact", jobType: "collect_impact", everyMinutes: 360 },
