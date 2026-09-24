@@ -90,6 +90,7 @@ export async function platformFromEnv() {
     store,
     core: {
       ai: env("ANTHROPIC_API_KEY") ? { provider: "anthropic", apiKey: env("ANTHROPIC_API_KEY")!, model: env("ANTHROPIC_MODEL", "claude-sonnet-5")! } : { provider: "rules" },
+      promptSafety: { llmDetector: env("PROMPT_GUARD_LLM") === "1" },
       fetcher: "http",
       seed: { ...demoSeed, searchableArticles: env("LOAD_DEMO_DATA") === "1" ? demoSeed.searchableArticles : [], fetchableArticles: [] },
       logger,

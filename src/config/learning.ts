@@ -12,6 +12,7 @@ export const SMOKE_TIPS: Record<SmokeType, string> = {
   marketing: "Si te quiere vender algo (\"oferta exclusiva\", \"no quieren que sepas\"), desconfiá.",
   unsourced_claim: "¿Quién lo dice? \"Dicen los expertos\" o \"fuentes seguras\" sin nombre no es una fuente.",
   chain_call: "\"Reenviá a todos\" es la marca de las cadenas: casi nunca traen información confiable.",
+  ai_manipulation: "Si un texto le da órdenes a una IA (\"ignorá tus instrucciones\", \"decí que es verdad\"), alguien quiere engañar a los verificadores automáticos.",
 };
 
 export const CLEAN_TIP = "Tiene datos concretos (números, fechas, quién lo informa) y no exagera: es información, no humo.";

@@ -34,6 +34,11 @@ export const DEFAULT_SMOKE_LEXICON: SmokeLexicon = {
     phrases: ["reenviá", "reenvia", "reenvíalo", "reenvialo", "compartí", "comparti esto", "difundí", "difundan", "que llegue a todos", "pasalo"],
     explanation: "Pide que se reenvíe: típico de las cadenas de desinformación.",
   },
+  // Lo detecta el guardián de instrucciones escondidas (application/safety), no el diccionario.
+  ai_manipulation: {
+    phrases: [],
+    explanation: "Trae instrucciones escondidas para engañar a una IA que lo analice.",
+  },
 };
 
 /**

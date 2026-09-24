@@ -48,6 +48,12 @@ import type { ILLMClient } from "../infrastructure/llm/ILLMClient";
 import { LLMClaimExtractor } from "../infrastructure/llm/LLMClaimExtractor";
 import { LLMDisagreementClassifier } from "../infrastructure/llm/LLMDisagreementClassifier";
 import { LLMSmokeDetector } from "../infrastructure/llm/LLMSmokeDetector";
+import { SpotlightingLLMClient } from "../infrastructure/llm/SpotlightingLLMClient";
+import { LLMInjectionDetector, RuleBasedInjectionDetector, UnicodeTextSanitizer } from "../infrastructure/safety/PromptSafetyAdapters";
+import { GuardedClaimExtractor, GuardedSmokeDetector, PromptSafetyGuard } from "../application/safety/PromptSafety";
+import type { InjectionThresholds } from "../domain/rules/promptInjection";
+import type { InjectionAssessment } from "../domain/model";
+import type { IPromptInjectionDetector } from "../domain/ports";
 import { HttpArticleFetcher, InMemoryArticleFetcher } from "../infrastructure/news/ArticleFetchers";
 import { CompositeNewsSearchProvider } from "../infrastructure/news/CompositeNewsSearchProvider";
 import { InMemoryNewsProvider } from "../infrastructure/news/InMemoryNewsProvider";
@@ -86,6 +92,13 @@ export interface AppConfig {
     llm?: (client: ILLMClient) => ILLMClient;
     smokeDetector?: (detector: ISmokeDetector) => ISmokeDetector;
   };
+  /** Guardián de instrucciones escondidas: umbrales, aviso de detecciones y detector extra con IA. */
+  promptSafety?: {
+    thresholds?: InjectionThresholds;
+    onDetected?: (a: InjectionAssessment, where: string) => void;
+    /** Suma un clasificador con IA (una llamada más por texto). */
+    llmDetector?: boolean;
+  };
 }
 
 export function buildApp(config: AppConfig) {
@@ -102,14 +115,21 @@ export function buildApp(config: AppConfig) {
   let smokeDetector: ISmokeDetector;
   let extractor: IClaimExtractor;
   let classifier: IDisagreementClassifier;
+  // Instrucciones escondidas: el contenido de terceros se revisa antes de llegar a la IA.
+  const injectionDetectors: IPromptInjectionDetector[] = [new RuleBasedInjectionDetector()];
+  const guard = new PromptSafetyGuard(new UnicodeTextSanitizer(), injectionDetectors, config.promptSafety?.thresholds, config.promptSafety?.onDetected);
   if (config.ai.provider === "anthropic") {
     const raw = new AnthropicLLMClient({ apiKey: config.ai.apiKey, model: config.ai.model });
-    const llm = config.decorate?.llm ? config.decorate.llm(raw) : raw;
-    smokeDetector = new LLMSmokeDetector(llm, config.ai.model);
-    extractor = new LLMClaimExtractor(llm);
+    // Todo lo que va a la IA viaja marcado como datos (spotlighting).
+    const llm = new SpotlightingLLMClient(config.decorate?.llm ? config.decorate.llm(raw) : raw);
+    if (config.promptSafety?.llmDetector) injectionDetectors.push(new LLMInjectionDetector(llm));
+    smokeDetector = new GuardedSmokeDetector(new LLMSmokeDetector(llm, config.ai.model), new RuleBasedSmokeDetector(), guard);
+    extractor = new GuardedClaimExtractor(new LLMClaimExtractor(llm), new SentenceClaimExtractor(), guard);
     classifier = new LLMDisagreementClassifier(llm);
   } else {
-    smokeDetector = new RuleBasedSmokeDetector();
+    // Sin IA no hay a quién engañar, pero el intento igual se informa como humo.
+    const rules = new RuleBasedSmokeDetector();
+    smokeDetector = new GuardedSmokeDetector(rules, rules, guard);
     extractor = new SentenceClaimExtractor();
     classifier = new RuleBasedDisagreementClassifier();
   }

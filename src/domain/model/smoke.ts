@@ -5,7 +5,8 @@ export type SmokeType =
   | "alarmism"
   | "marketing"
   | "unsourced_claim"
-  | "chain_call";
+  | "chain_call"
+  | "ai_manipulation";
 
 export const SMOKE_LABELS: Record<SmokeType, string> = {
   inflated_adjective: "Adjetivo inflado",
@@ -15,6 +16,7 @@ export const SMOKE_LABELS: Record<SmokeType, string> = {
   marketing: "Lenguaje de marketing",
   unsourced_claim: "Afirmación sin fuente",
   chain_call: "Pedido de reenvío",
+  ai_manipulation: "Intento de manipular a la IA",
 };
 
 export interface SmokeFinding {

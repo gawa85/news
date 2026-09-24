@@ -493,6 +493,12 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - se elige con `OCR_PROVIDER`;
   - funcionalidad y función en prueba `screenshots`, en todos los planes. La imagen no se guarda. Si no hay texto suficiente, se avisa: analizar fotos sin texto es el punto 3 del grupo 3.
 
+- **Instrucciones escondidas** ("prompt injection"): textos que le dan órdenes a la IA que los analiza. Llegan en mensajes, capturas, audios y notas web, a veces en texto invisible. Hay tres capas, cada una detrás de una interfaz:
+  1. **Limpiar** (`ITextSanitizer` → `UnicodeTextSanitizer`): saca los invisibles (ancho cero, controles bidireccionales, guion blando) y **decodifica el texto escondido en etiquetas Unicode** para inspeccionarlo. Respeta los emojis compuestos (ZWJ) y las banderas.
+  2. **Detectar** (`IPromptInjectionDetector`): `RuleBasedInjectionDetector` (reglas en español e inglés, `domain/rules/promptInjection.ts`) y, opcional, `LLMInjectionDetector` (`PROMPT_GUARD_LLM=1`). `PromptSafetyGuard` junta las señales: se suma **por tipo**, así que repetir la frase no infla el puntaje. Con 50 puntos o más el riesgo es alto; con 20, bajo, y sólo se registra en la métrica `sinhumo_prompt_injection_total`. Las reglas evitan el lenguaje de noticias ("el Gobierno **ignoró** las reglas" no es una orden), y hay una prueba contra falsos positivos con el set de evaluación y las notas de la demo.
+  3. **Aislar** (`SpotlightingLLMClient`, decorador de `ILLMClient`): todo contenido que va a la IA viaja entre marcas con un código aleatorio por llamada, que quien escribe no puede adivinar ni cerrar, y las instrucciones avisan que lo de adentro son datos. Protege a **todos** los adaptadores con IA sin tocarlos (OCP).
+  - Política (decoradores `GuardedSmokeDetector` y `GuardedClaimExtractor`): con riesgo alto, el texto **no va a la IA** y se analiza con reglas. El intento se informa como humo de tipo **"Intento de manipular a la IA"**: quien le habla a los verificadores automáticos quiere engañar. Esto funciona también sin IA.
+
 ## Base de datos
 
 `IDataStore` = repositorios + transacciones + migraciones. Los repositorios se escriben **una sola vez** sobre `IDocumentCollection` (documento JSON + columnas indexadas), y cada motor implementa solo esa colección:
@@ -512,6 +518,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Otro detector de instrucciones escondidas (un servicio externo) | Otra clase `IPromptInjectionDetector`, sumada a la lista del guardián |
 | Gmail o Microsoft 365 por API en vez de IMAP | Otra clase `IContentSource` de tipo "email" |
 | Un foro o sitio nuevo | `IReplyPublisher` + `IImpactCollector` |
 | Reseñas de otra plataforma | `IReviewSource` |

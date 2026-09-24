@@ -192,6 +192,13 @@ export function buildPlatform(cfg: PlatformConfig) {
       llm: (c) => new MeteredLLMClient(c, costs),
       smokeDetector: (d) => new CachedSmokeDetector(d, cache, metrics),
     },
+    promptSafety: {
+      ...cfg.core.promptSafety,
+      onDetected: (a, where) => {
+        metrics.increment("sinhumo_prompt_injection_total", { risk: a.risk, where });
+        cfg.core.promptSafety?.onDetected?.(a, where);
+      },
+    },
   });
   const { ids, logger } = core;
   const forums = { discourse: [], wordpress: [], sites: [], ...cfg.forums };
