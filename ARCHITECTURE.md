@@ -484,6 +484,14 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - funcionalidad `voice_notes` en **todos los planes**, función en prueba `voice_notes` (apagado de emergencia) y parámetro `voice.max_seconds` (180 s). Si el canal informa la duración, un audio largo se rechaza **sin bajarlo ni cobrarlo**;
   - el audio **no se guarda**: sólo el texto, como cualquier mensaje. El costo (`speech_to_text`, por segundo) se atribuye al cliente del pedido;
   - sin transcriptor, apagada o con falla, se contesta pidiendo el texto.
+- **Capturas de pantalla** (`IOcr` + `ScreenshotService` + `domain/rules/screenshotText.ts`):
+  - los parsers reconocen imágenes: WhatsApp (`type: "image"`, con epígrafe) y Telegram (`photo`, se toma el tamaño más grande, o `document` de tipo imagen). Usan los mismos descargadores que los audios (`mediaFetchers`);
+  - se lee el texto, se **limpia la interfaz** y sigue el camino de cualquier mensaje. La respuesta empieza con **"Lo que leí en la imagen"**. La limpieza saca la hora, la batería y la señal (sólo en las primeras líneas, porque más abajo un "300%" puede ser el titular), además de botones, contadores ("2,3 mil") e íconos;
+  - dos lectores intercambiables:
+    - `GoogleVisionOcr`, OCR clásico, que se cobra **por imagen**;
+    - `ClaudeVisionOcr`, que entiende la captura, separa contenido e interfaz e indica quién publicó y cuándo. Se cobra **por tokens**, como el resto de la IA, e instruye al modelo a no seguir instrucciones escritas en la imagen;
+  - se elige con `OCR_PROVIDER`;
+  - funcionalidad y función en prueba `screenshots`, en todos los planes. La imagen no se guarda. Si no hay texto suficiente, se avisa: analizar fotos sin texto es el punto 3 del grupo 3.
 
 ## Base de datos
 
@@ -503,6 +511,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Un canal nuevo (Instagram, Slack) | Parser + renderer + sender, registrados en `buildPlatform` |
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
+| Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
 | Gmail o Microsoft 365 por API en vez de IMAP | Otra clase `IContentSource` de tipo "email" |
 | Un foro o sitio nuevo | `IReplyPublisher` + `IImpactCollector` |
 | Reseñas de otra plataforma | `IReviewSource` |
@@ -518,7 +527,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 - MCP en memoria y por HTTP con el SDK oficial;
 - la API HTTP levantada.
 
-**Construido según los formatos de las APIs oficiales, pero probado con respuestas simuladas:** WhatsApp Cloud API (incluida la descarga de audios), Telegram Bot API (incluido `getFile`), la API de transcripción de OpenAI, Discourse, WordPress, App Store y Google Play.
+**Construido según los formatos de las APIs oficiales, pero probado con respuestas simuladas:** WhatsApp Cloud API (incluida la descarga de audios), Telegram Bot API (incluido `getFile`), la API de transcripción de OpenAI, Google Cloud Vision, Claude con imágenes, Discourse, WordPress, App Store y Google Play.
 
 **Sin probar contra un servidor real:** `ImapMailboxSource` (hace falta un buzón de prueba) y el motor con IA (hace falta una clave).
 

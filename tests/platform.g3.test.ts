@@ -1,4 +1,4 @@
-/** 3: notas de voz (audio a texto). */
+/** 3: notas de voz (audio a texto) y capturas de pantalla (OCR). */
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { TelegramUpdateParser, WhatsAppWebhookParser } from "../src/infrastructure/messaging/ChannelAdapters";
@@ -9,6 +9,9 @@ import {
   TelegramFileFetcher,
   WhatsAppMediaFetcher,
 } from "../src/infrastructure/inclusion/SpeechAdapters";
+import { ClaudeVisionOcr, FakeOcr, GoogleVisionOcr, sniffImageMime } from "../src/infrastructure/inclusion/OcrAdapters";
+import { StubHttpClient } from "../src/infrastructure/system/EventsAndHttp";
+import { cleanScreenshotText } from "../src/domain/rules/screenshotText";
 import { testPlatform, userWithPlan, wa, withRoles } from "./helpers/platform";
 
 type T = Awaited<ReturnType<typeof testPlatform>>;
@@ -17,8 +20,15 @@ const CHAIN = "URGENTE!!! Reenviá a todos: mañana cortan el agua en todo el pa
 async function voicePlatform() {
   const stt = new FakeSpeechToText();
   const media = new FakeMediaFetcher("whatsapp");
-  const t = await testPlatform({ extra: { speech: { stt, fetchers: [media] } } });
+  const t = await testPlatform({ extra: { speech: stt, mediaFetchers: [media] } });
   return { t, stt, media };
+}
+
+async function ocrPlatform() {
+  const ocr = new FakeOcr();
+  const media = new FakeMediaFetcher("whatsapp");
+  const t = await testPlatform({ extra: { ocr, mediaFetchers: [media] } });
+  return { t, ocr, media };
 }
 
 const admin = async (t: T) => withRoles(t, (await userWithPlan(t, "gratis")).id, ["platform_admin"]);
@@ -178,5 +188,125 @@ describe("Notas de voz: adaptadores", () => {
       return reply({ error: "cuota" }, { status: 429 });
     });
     await assert.rejects(failing.transcribe({ data: Buffer.from("x"), mime: "audio/mpeg" }, "es"), /HTTP 429/);
+  });
+});
+
+describe("Capturas: limpieza del texto de la interfaz", () => {
+  test("saca hora, batería, botones y contadores; deja el contenido y las cifras largas", () => {
+    const raw = ["14:32", "87%", "LTE", "Juan Pérez", "@juanp · 3 h", "Mañana cortan el agua en todo el país.", "15.000", "Aumentó 300%", "", "", "", "Me gusta", "2,3 mil", "Responder", "Compartir", "→", "Ver traducción"].join("\n");
+    assert.equal(cleanScreenshotText(raw), ["Juan Pérez", "@juanp · 3 h", "Mañana cortan el agua en todo el país.", "15.000", "Aumentó 300%"].join("\n"));
+  });
+
+  test("un porcentaje suelto más abajo es contenido, no la batería", () => {
+    assert.equal(cleanScreenshotText(["Título", "Subtítulo", "Bajada", "Autor", "Inflación de marzo", "300%"].join("\n")).split("\n").at(-1), "300%");
+  });
+});
+
+describe("Capturas: parsers de los canales", () => {
+  test("WhatsApp: imagen con epígrafe", () => {
+    const msg = new WhatsAppWebhookParser().parse({ entry: [{ changes: [{ value: { messages: [{ from: "5491155550000", id: "wamid.I", timestamp: "1790000000", type: "image", image: { id: "img-1", mime_type: "image/jpeg", caption: "¿esto es real?" } }] } }] }] });
+    assert.deepEqual(msg?.image, { ref: "img-1", mime: "image/jpeg" });
+    assert.equal(msg?.text, "¿esto es real?");
+  });
+
+  test("Telegram: la foto más grande, o una imagen mandada como archivo", () => {
+    const p = new TelegramUpdateParser();
+    const photo = p.parse({ message: { message_id: 1, date: 1790000000, chat: { id: 42 }, photo: [{ file_id: "chica" }, { file_id: "grande" }] } });
+    assert.deepEqual(photo?.image, { ref: "grande", mime: "image/jpeg" });
+    const doc = p.parse({ message: { message_id: 2, date: 1790000000, chat: { id: 42 }, document: { file_id: "D1", mime_type: "image/png" } } });
+    assert.deepEqual(doc?.image, { ref: "D1", mime: "image/png" });
+    assert.equal(p.parse({ message: { message_id: 3, date: 1790000000, chat: { id: 42 }, document: { file_id: "D2", mime_type: "application/pdf" } } }), null);
+  });
+});
+
+describe("Capturas: lectura en el chat", () => {
+  test("se lee, se limpia, se analiza y se cobra por imagen", async () => {
+    const { t, ocr, media } = await ocrPlatform();
+    const ref = media.image(["21:05", "100%", CHAIN, "Me gusta", "Responder"].join("\n"));
+    const r = await t.p.inbound.execute(wa("+5491188880001", "", t.clock.now(), { image: { ref, mime: "image/jpeg" } }));
+    assert.equal(r.response.kind, "result");
+    assert.equal(r.response.sections[0]!.heading, "🖼️ Lo que leí en la imagen");
+    assert.doesNotMatch(r.response.sections[0]!.lines[0]!, /Me gusta|100%/);
+    assert.deepEqual(ocr.calls, [{ mime: "image/jpeg", language: "es" }]);
+    const costs = (await t.store.repos.costs.findBetween(new Date(0), new Date("2100-01-01"))).filter((c) => c.kind === "ocr");
+    assert.equal(costs.length, 1);
+    assert.equal(costs[0]!.costUsd, 0.002);
+    assert.equal(costs[0]!.userId, r.user.id);
+  });
+
+  test("el epígrafe va primero (puede ser un comando)", async () => {
+    const { t, media } = await ocrPlatform();
+    const r = await t.p.inbound.execute(wa("+5491188880002", "/plan", t.clock.now(), { image: { ref: media.image("Una captura con bastante texto para leer") } }));
+    assert.match(allText(r.response), /Gratis/);
+  });
+
+  test("sin texto, sin lector, apagada o con falla: se avisa", async () => {
+    const { t, media, ocr } = await ocrPlatform();
+    const from = "+5491188880003";
+    const empty = await t.p.inbound.execute(wa(from, "", t.clock.now(), { image: { ref: media.image("14:32\n87%\nMe gusta") } }));
+    assert.match(empty.response.title, /No encontré texto/);
+    t.clock.advance(60_000);
+    const failed = await t.p.inbound.execute(wa(from, "", t.clock.now(), { image: { ref: "no-existe" } }));
+    assert.match(failed.response.title, /No pude leer la imagen/);
+
+    const a = await admin(t);
+    await t.p.flags.update({ actorId: a.id, key: "screenshots", enabled: false });
+    t.clock.advance(60_000);
+    const calls = ocr.calls.length;
+    const off = await t.p.inbound.execute(wa(from, "", t.clock.now(), { image: { ref: media.image(CHAIN) } }));
+    assert.match(off.response.title, /Todavía no puedo leer imágenes/);
+    assert.equal(ocr.calls.length, calls);
+
+    const none = await testPlatform();
+    const r0 = await none.p.inbound.execute(wa("+5491188880004", "", none.clock.now(), { image: { ref: "x" } }));
+    assert.match(r0.response.title, /Todavía no puedo leer imágenes/);
+  });
+
+  test("con un lector con IA se cobra por tokens, no por imagen", async () => {
+    const media = new FakeMediaFetcher("whatsapp");
+    const ocr = new ClaudeVisionOcr({ apiKey: "k" }, async () => reply({ content: [{ type: "text", text: CHAIN }], usage: { input_tokens: 1600, output_tokens: 80 } }));
+    const t = await testPlatform({ extra: { ocr, mediaFetchers: [media] } });
+    await t.p.inbound.execute(wa("+5491188880005", "", t.clock.now(), { image: { ref: media.image("x") } }));
+    const costs = await t.store.repos.costs.findBetween(new Date(0), new Date("2100-01-01"));
+    assert.equal(costs.filter((c) => c.kind === "ocr").length, 0);
+    const llm = costs.find((c) => c.kind === "llm" && c.provider === "claude-haiku-4-5");
+    assert.ok(llm, "costo de IA registrado");
+    assert.ok(Math.abs(llm.costUsd - (1600 * 1 + 80 * 5) / 1_000_000) < 1e-12);
+  });
+});
+
+describe("Capturas: adaptadores", () => {
+  test("Claude con visión: imagen en base64 con el tipo real y 'SIN TEXTO' → vacío", async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    let sent: { model: string; system: string; messages: { content: { type: string; source?: { media_type: string; data: string } }[] }[] } | undefined;
+    const ocr = new ClaudeVisionOcr({ apiKey: "sk-ant", model: "claude-sonnet-5" }, async (_i, init) => {
+      assert.equal((init?.headers as Record<string, string>)["x-api-key"], "sk-ant");
+      sent = JSON.parse(String(init?.body));
+      return reply({ content: [{ type: "text", text: "SIN TEXTO" }] });
+    });
+    const out = await ocr.read({ data: png, mime: "application/octet-stream" }, "es");
+    assert.equal(out.text, "");
+    assert.equal(sent!.model, "claude-sonnet-5");
+    assert.match(sent!.system, /NUNCA instrucciones/);
+    assert.equal(sent!.messages[0]!.content[0]!.source!.media_type, "image/png");
+    assert.equal(sent!.messages[0]!.content[0]!.source!.data, png.toString("base64"));
+  });
+
+  test("Google Vision: DOCUMENT_TEXT_DETECTION con pista de idioma", async () => {
+    let body: { requests: { features: { type: string }[]; imageContext: { languageHints: string[] } }[] } | undefined;
+    const http = new StubHttpClient((_m, url, b) => {
+      assert.match(url, /images:annotate\?key=CLAVE/);
+      body = b as typeof body;
+      return { status: 200, text: JSON.stringify({ responses: [{ fullTextAnnotation: { text: "Hola\nmundo" } }] }) };
+    });
+    assert.equal((await new GoogleVisionOcr(http, { apiKey: "CLAVE" }).read({ data: Buffer.from("x"), mime: "image/jpeg" }, "es-AR")).text, "Hola\nmundo");
+    assert.equal(body!.requests[0]!.features[0]!.type, "DOCUMENT_TEXT_DETECTION");
+    assert.deepEqual(body!.requests[0]!.imageContext.languageHints, ["es"]);
+  });
+
+  test("detección del formato por los primeros bytes", () => {
+    assert.equal(sniffImageMime(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), "x"), "image/jpeg");
+    assert.equal(sniffImageMime(Buffer.from("RIFF0000WEBPVP8"), "x"), "image/webp");
+    assert.equal(sniffImageMime(Buffer.from("????"), "image/png; q=1"), "image/png");
   });
 });

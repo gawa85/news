@@ -122,6 +122,12 @@ export class FakeMediaFetcher implements IInboundMediaFetcher {
     return id;
   }
 
+  /** Agrega una captura falsa con ese texto y devuelve su id. */
+  image(text: string, id = `media-${this.files.size + 1}`): string {
+    this.files.set(id, { data: Buffer.from(`IMG:${text}`), mime: "image/jpeg" });
+    return id;
+  }
+
   async fetch(ref: string, maxBytes: number): Promise<{ data: Buffer; mime: string }> {
     const f = this.files.get(ref);
     if (!f) throw new Error(`No existe el archivo ${ref}.`);

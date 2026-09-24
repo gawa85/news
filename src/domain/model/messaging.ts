@@ -18,8 +18,10 @@ export interface InboundMessage {
    * `text` trae sólo el epígrafe, si lo hay). `ref` es el id del archivo en el canal.
    */
   audio?: { ref: string; mime?: string; seconds?: number };
-  /** El texto salió de transcribir el audio. */
-  transcribed?: boolean;
+  /** Imagen (captura de pantalla): se lee su texto antes de interpretar el mensaje. */
+  image?: { ref: string; mime?: string };
+  /** El texto salió de una nota de voz o de una imagen. */
+  extractedFrom?: "voice" | "image";
 }
 
 /**

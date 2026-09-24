@@ -20,6 +20,7 @@ interface WhatsAppWebhook {
           text?: { body: string };
           /** Nota de voz (`voice: true`) o archivo de audio. La duración no viene en el webhook. */
           audio?: { id: string; mime_type?: string; voice?: boolean };
+          image?: { id: string; mime_type?: string; caption?: string };
           context?: { forwarded?: boolean; frequently_forwarded?: boolean };
         }[];
       };
@@ -35,13 +36,15 @@ export class WhatsAppWebhookParser implements IInboundParser {
     const m = value?.messages?.[0];
     const isText = m?.type === "text" && !!m.text;
     const isAudio = m?.type === "audio" && !!m.audio?.id;
-    if (!m || (!isText && !isAudio)) return null; // estados de entrega, imágenes, etc.
+    const isImage = m?.type === "image" && !!m.image?.id;
+    if (!m || (!isText && !isAudio && !isImage)) return null; // estados de entrega, videos, stickers, etc.
     return {
       channel: this.channel,
       from: `+${m.from.replace(/^\+/, "")}`,
       displayName: value?.contacts?.[0]?.profile?.name,
-      text: m.text?.body ?? "",
+      text: m.text?.body ?? m.image?.caption ?? "",
       ...(isAudio ? { audio: { ref: m.audio!.id, mime: m.audio!.mime_type } } : {}),
+      ...(isImage ? { image: { ref: m.image!.id, mime: m.image!.mime_type } } : {}),
       externalId: m.id,
       receivedAt: new Date(Number(m.timestamp) * 1000),
       forwarded: !!m.context?.forwarded || !!m.context?.frequently_forwarded,
@@ -101,6 +104,10 @@ interface TelegramUpdate {
     caption?: string;
     voice?: TelegramAudio;
     audio?: TelegramAudio;
+    /** La misma foto en varios tamaños (el último es el más grande). */
+    photo?: { file_id: string; file_size?: number }[];
+    /** Imagen mandada "como archivo" (sin comprimir). */
+    document?: { file_id: string; mime_type?: string };
     chat: { id: number };
     from?: { first_name?: string; username?: string };
     forward_origin?: unknown;
@@ -120,13 +127,16 @@ export class TelegramUpdateParser implements IInboundParser {
   parse(payload: unknown): InboundMessage | null {
     const m = (payload as TelegramUpdate)?.message;
     const audio = m?.voice ?? m?.audio;
-    if (!m || (!m.text && !audio)) return null;
+    const photo = m?.photo?.at(-1);
+    const image = photo ? { ref: photo.file_id, mime: "image/jpeg" } :m?.document?.mime_type?.startsWith("image/") ? { ref: m.document.file_id, mime: m.document.mime_type } : undefined;
+    if (!m || (!m.text && !audio && !image)) return null;
     return {
       channel: this.channel,
       from: String(m.chat.id),
       displayName: m.from?.first_name ?? m.from?.username,
       text: m.text ?? m.caption ?? "",
       ...(audio ? { audio: { ref: audio.file_id, mime: audio.mime_type, seconds: audio.duration } } : {}),
+      ...(image ? { image } : {}),
       externalId: String(m.message_id),
       receivedAt: new Date(m.date * 1000),
       forwarded: !!m.forward_origin || !!m.forward_date,

@@ -97,7 +97,8 @@ import { SupportService } from "../application/support/Support";
 import { FeatureFlagService } from "../application/flags/FeatureFlags";
 import { AudioReplyService } from "../application/inclusion/AudioReplies";
 import { VoiceNoteService } from "../application/inclusion/VoiceNotes";
-import type { IInboundMediaFetcher, ISpeechToText } from "../domain/ports";
+import { ScreenshotService } from "../application/inclusion/Screenshots";
+import type { IInboundMediaFetcher, IOcr, ISpeechToText } from "../domain/ports";
 import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "../infrastructure/inclusion/InclusionAdapters";
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
 import { FEATURE_FLAGS } from "../config/flags";
@@ -157,8 +158,12 @@ export interface PlatformConfig {
   dns?: IDnsTxtResolver;
   /** Texto a voz (sin esto, no hay respuestas en audio). */
   tts?: ITextToSpeech;
-  /** Audio a texto y descarga de audios por canal (sin esto, no se entienden las notas de voz). */
-  speech?: { stt: ISpeechToText; fetchers: IInboundMediaFetcher[] };
+  /** Descarga de archivos recibidos por cada canal (audios, capturas). */
+  mediaFetchers?: IInboundMediaFetcher[];
+  /** Audio a texto (sin esto, no se entienden las notas de voz). */
+  speech?: ISpeechToText;
+  /** Lectura de capturas (sin esto, no se leen imágenes). */
+  ocr?: IOcr;
   /** Lectura fácil (por defecto, reglas; con IA: LLMPlainLanguageRewriter). */
   plainLanguage?: IPlainLanguageRewriter;
   /** Mesa de ayuda externa opcional (Zendesk…). */
@@ -382,9 +387,16 @@ export function buildPlatform(cfg: PlatformConfig) {
   const ttsPrice = PRICE_TABLE.textToSpeechPerMillionCharsUsd ?? 0;
   const audio = cfg.tts ? new AudioReplyService(cfg.tts, media, 1500, 7 * 24 * 3600, (chars) => costs.units("text_to_speech", cfg.tts!.id, { characters: chars }, (chars / 1_000_000) * ttsPrice)) : undefined;
   const sttPrice = PRICE_TABLE.speechToTextPerMinuteUsd;
+  const mediaFetchers = cfg.mediaFetchers ?? [];
   const voice = cfg.speech
-    ? new VoiceNoteService(cfg.speech.stt, cfg.speech.fetchers, () => params.number("voice.max_seconds"),
-        (seconds) => costs.units("speech_to_text", cfg.speech!.stt.id, { seconds }, (seconds / 60) * sttPrice))
+    ? new VoiceNoteService(cfg.speech, mediaFetchers, () => params.number("voice.max_seconds"),
+        (seconds) => costs.units("speech_to_text", cfg.speech!.id, { seconds }, (seconds / 60) * sttPrice))
+    : undefined;
+  const screenshots = cfg.ocr
+    ? new ScreenshotService(cfg.ocr, mediaFetchers, {
+        perImage: (provider) => costs.units("ocr", provider, { images: 1 }, PRICE_TABLE.ocrPerImageUsd),
+        llm: (model, input, output) => costs.llm(model, input, output),
+      })
     : undefined;
   const plainLanguage = cfg.plainLanguage ?? new RuleBasedPlainLanguage();
   const learning = new LearningService(repos.learning, repos.users, authz, access, domainEvents, ids, clock, { byType: SMOKE_TIPS, clean: CLEAN_TIP });
@@ -438,7 +450,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     inbound: new HandleInboundMessageUseCase(
       repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
-      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice },
+      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots },
     ),
     content: {
       connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
@@ -493,7 +505,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
     commerce: { service: commerce, referrals, branding, countries },
-    inclusion: { learning, audio, plainLanguage, media, voice },
+    inclusion: { learning, audio, plainLanguage, media, voice, screenshots },
     flags,
     support,
     legal,

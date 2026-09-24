@@ -44,6 +44,16 @@ export interface ISpeechToText {
   transcribe(audio: { data: Buffer; mime: string }, language: string): Promise<{ text: string; seconds?: number }>;
 }
 
+/** Lee el texto de una imagen (Google Vision, Claude con visión…). */
+export interface IOcr {
+  readonly id: string;
+  read(image: { data: Buffer; mime: string }, language: string): Promise<{
+    text: string;
+    /** Lectores con IA: tokens consumidos (se costean como IA, no por imagen). */
+    usage?: { model: string; inputTokens: number; outputTokens: number };
+  }>;
+}
+
 /** Baja un archivo recibido por un canal (la nota de voz de WhatsApp o Telegram). */
 export interface IInboundMediaFetcher {
   readonly channel: import("../model").ChannelType;

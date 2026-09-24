@@ -28,6 +28,7 @@ import type { BrandingService, ReferralService } from "../commerce/Commerce";
 import type { AudioReplyService } from "../inclusion/AudioReplies";
 import type { LegalService } from "../legal/Legal";
 import type { VoiceNoteService } from "../inclusion/VoiceNotes";
+import type { ScreenshotService } from "../inclusion/Screenshots";
 
 const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
 const OPT_IN_WORDS = ["alta", "start"];
@@ -54,6 +55,7 @@ export interface InboundExtras {
   flags?: IFeatureFlags;
   legal?: LegalService;
   voice?: VoiceNoteService;
+  screenshots?: ScreenshotService;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -105,26 +107,51 @@ export class HandleInboundMessageUseCase {
   }
 
   private async respond(user: User, msg: InboundMessage): Promise<ResponseContent> {
-    if (!msg.audio) return this.respondText(user, msg);
-    const heard = await this.listen(user, msg);
-    if (typeof heard !== "string") return heard;
+    if (!msg.audio && !msg.image) return this.respondText(user, msg);
+    const from = msg.audio ? "voice" : "image";
+    const extracted = from === "voice" ? await this.listen(user, msg) : await this.look(user, msg);
+    if (typeof extracted !== "string") return extracted;
     // El epígrafe (si lo hay) va primero: puede traer un comando ("/fuentes …").
     const caption = msg.text.trim();
-    const r = await this.respondText(user, { ...msg, text: caption ? `${caption}\n${heard}` : heard, transcribed: true });
-    // Primero, lo que se entendió: así la persona puede ver si la transcripción está bien.
-    const quote = heard.length > 400 ? `${heard.slice(0, 399)}…` : heard;
-    return { ...r, sections: [{ heading: "🎙️ Lo que entendí del audio", lines: [`“${quote}”`] }, ...r.sections] };
+    const r = await this.respondText(user, { ...msg, text: caption ? `${caption}\n${extracted}` : extracted, extractedFrom: from });
+    // Primero, lo que se entendió: así la persona puede ver si se leyó bien.
+    const quote = extracted.length > 400 ? `${extracted.slice(0, 399)}…` : extracted;
+    const heading = from === "voice" ? "🎙️ Lo que entendí del audio" : "🖼️ Lo que leí en la imagen";
+    return { ...r, sections: [{ heading, lines: [`“${quote}”`] }, ...r.sections] };
+  }
+
+  /** ¿Está habilitada esta función para la persona? (plan + función en prueba) */
+  private async enabled(user: User, key: "voice_notes" | "screenshots"): Promise<"ok" | "off" | "plan"> {
+    const { plan } = await this.access.planOf(user);
+    const flagOn = this.extras.flags ? await this.extras.flags.isEnabled(key, { userId: user.id, organizationId: user.organizationId, planId: plan.id, country: user.country }) : true;
+    if (!flagOn) return "off";
+    return plan.features.includes(key) ? "ok" : "plan";
+  }
+
+  private async language(user: User): Promise<string> {
+    return this.extras.preferences ? (await this.extras.preferences.effective(user)).language : "es";
+  }
+
+  /** Lee el texto de la captura. Devuelve el texto o, si no se puede, la respuesta para la persona. */
+  private async look(user: User, msg: InboundMessage): Promise<string | ResponseContent> {
+    const screenshots = this.extras.screenshots;
+    const state = screenshots ? await this.enabled(user, "screenshots") : "off";
+    if (!screenshots || state === "off") return this.composer.info("Todavía no puedo leer imágenes.", "Mandame el texto y lo analizo.");
+    if (state === "plan") return this.composer.info("Tu plan no incluye la lectura de capturas.", "Mandame el texto y lo analizo.");
+    const r = await screenshots.read(msg, await this.language(user));
+    if (r.ok) return r.text;
+    return r.reason === "no_text"
+      ? this.composer.info("No encontré texto para analizar en la imagen.", "Por ahora leo capturas con texto (mensajes, publicaciones, notas). Si querés, escribime lo que dice.")
+      : this.composer.info("No pude leer la imagen.", "Probá de nuevo en un rato o mandame el texto.");
   }
 
   /** Transcribe la nota de voz. Devuelve el texto o, si no se puede, la respuesta para la persona. */
   private async listen(user: User, msg: InboundMessage): Promise<string | ResponseContent> {
     const voice = this.extras.voice;
-    const { plan } = await this.access.planOf(user);
-    const flagOn = this.extras.flags ? await this.extras.flags.isEnabled("voice_notes", { userId: user.id, organizationId: user.organizationId, planId: plan.id, country: user.country }) : true;
-    if (!voice || !flagOn) return this.composer.info("Todavía no puedo escuchar audios.", "Mandame el texto y lo analizo.");
-    if (!plan.features.includes("voice_notes")) return this.composer.info("Tu plan no incluye notas de voz.", "Mandame el texto y lo analizo.");
-    const language = this.extras.preferences ? (await this.extras.preferences.effective(user)).language : "es";
-    const r = await voice.transcribe(msg, language);
+    const state = voice ? await this.enabled(user, "voice_notes") : "off";
+    if (!voice || state === "off") return this.composer.info("Todavía no puedo escuchar audios.", "Mandame el texto y lo analizo.");
+    if (state === "plan") return this.composer.info("Tu plan no incluye notas de voz.", "Mandame el texto y lo analizo.");
+    const r = await voice.transcribe(msg, await this.language(user));
     if (r.ok) return r.text;
     const minutes = r.maxSeconds >= 120 ? `${Math.floor(r.maxSeconds / 60)} minutos` : `${r.maxSeconds} segundos`;
     switch (r.reason) {
@@ -335,7 +362,7 @@ export class HandleInboundMessageUseCase {
       publishedAt: msg.receivedAt,
       receivedAt: msg.receivedAt,
       attachments: [],
-      metadata: { channel: msg.channel, ...(msg.forwardedManyTimes ? { "forwarded-many-times": "true" } : {}), ...(msg.transcribed ? { "voice-note": "true" } : {}) },
+      metadata: { channel: msg.channel, ...(msg.forwardedManyTimes ? { "forwarded-many-times": "true" } : {}), ...(msg.extractedFrom ? { "extracted-from": msg.extractedFrom } : {}) },
       forwardedFrom: msg.forwarded ? {} : undefined,
     };
   }

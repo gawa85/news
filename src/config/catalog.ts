@@ -28,7 +28,7 @@ export const ROLES: Role[] = [
   { id: "platform_admin", name: "Administrador de la plataforma", description: "Todos los permisos.", scope: "platform", permissions: [...PERMISSIONS] },
 ];
 
-const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules", "voice_notes"];
+const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules", "voice_notes", "screenshots"];
 const PERSONAL: Feature[] = [...BASIC, "origin_trace", "credibility_meter", "alerts", "ai_engine", "source_connections", "audio_replies"];
 const PRO: Feature[] = [...PERSONAL, "credibility_timeline", "export", "api_access", "webhooks", "public_replies", "campaigns", "scheduled_reports"];
 
@@ -118,6 +118,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   learning_mode: "Modo aprendizaje para escuelas",
   audio_replies: "Respuestas en audio",
   voice_notes: "Entiende notas de voz",
+  screenshots: "Lee capturas de pantalla",
 };
 
 /**
@@ -125,7 +126,10 @@ export const FEATURE_LABELS: Record<Feature, string> = {
  * vigentes de cada proveedor (IA por millón de tokens, WhatsApp por mensaje, etc.).
  */
 export const PRICE_TABLE: import("../domain/model").PriceTable = {
-  llm: { default: { inputPerMillionTokensUsd: 3, outputPerMillionTokensUsd: 15 } },
+  llm: {
+    default: { inputPerMillionTokensUsd: 3, outputPerMillionTokensUsd: 15 },
+    "claude-haiku-4-5": { inputPerMillionTokensUsd: 1, outputPerMillionTokensUsd: 5 },
+  },
   perMessageUsd: { whatsapp: 0.01, telegram: 0, email: 0.0002, sms: 0.05 },
   speechToTextPerMinuteUsd: 0.006,
   textToSpeechPerMillionCharsUsd: 16,

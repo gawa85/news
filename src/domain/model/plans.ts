@@ -25,6 +25,7 @@ export const FEATURES = [
   "learning_mode", // aulas del modo aprendizaje ("¿esto es humo?")
   "audio_replies", // respuestas en audio
   "voice_notes", // entender notas de voz (audio a texto)
+  "screenshots", // leer capturas de pantalla (OCR)
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];
