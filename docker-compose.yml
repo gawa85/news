@@ -1,0 +1,73 @@
+# Sin Humo en Docker (desarrollo local).
+#
+#   docker compose up -d --build          API en http://localhost:8090 (API_PORT) + PostgreSQL
+#   docker compose run --rm test          pruebas en memoria
+#   docker compose run --rm -e TEST_STORE=sqlite test
+#   docker compose run --rm -e TEST_STORE=postgres test
+#   docker compose run --rm test npm run demo:platform
+#
+# Variables propias: copiá .env.example a .env; Compose lo usa para los ${...} de este archivo.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sinhumo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sinhumo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      target: runtime
+    # Para pasar más variables (IA, WhatsApp, SMTP...), agregalas acá como ${NOMBRE:-}
+    # o descomentá env_file teniendo un .env creado.
+    # env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      NODE_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/sinhumo
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:-clave-de-desarrollo-no-usar-en-produccion}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8090}
+      LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-1}
+      BACKUP_DIR: /backups
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-frase-de-desarrollo-no-usar-en-produccion}
+    ports:
+      - "${API_PORT:-8090}:8080"
+    volumes:
+      - backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  test:
+    build:
+      context: .
+      target: dev
+    profiles: ["test"]
+    environment:
+      TEST_STORE: ${TEST_STORE:-memory}
+      TEST_DATABASE_URL: postgres://postgres:postgres@postgres:5432/sinhumo_test
+    volumes:
+      # El código se monta en vivo: no hace falta reconstruir la imagen para cada cambio.
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./tsconfig.json:/app/tsconfig.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npm", "test"]
+
+volumes:
+  pgdata:
+  backups:

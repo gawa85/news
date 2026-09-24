@@ -1,0 +1,1 @@
+ssh centos@54.158.192.246 -i /c/Users/federicob/Downloads/test3 'oathtool --totp=sha256 --digits=6 `python3 /home/centos/entrust-identityguard-tools/generate-otp.py 66988-20005 3643-6804-6548-4216 40006-47844 | head -n1 `' > /dev/clipboard

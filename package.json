@@ -1,0 +1,38 @@
+{
+  "name": "sin-humo",
+  "version": "0.1.0",
+  "description": "Detector de humo, comparador de fuentes y medidor de credibilidad de noticias. Arquitectura SOLID / hexagonal.",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "demo": "npm run build && node dist/src/demo.js",
+    "test": "npm run build && node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
+    "test:sqlite": "npm run build && TEST_STORE=sqlite node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
+    "test:postgres": "npm run build && TEST_STORE=postgres node --no-warnings --test --test-force-exit \"dist/tests/*.test.js\"",
+    "demo:platform": "npm run build && node --no-warnings dist/src/demo-platform.js",
+    "start": "node dist/src/entry/server.js",
+    "mcp": "node dist/src/entry/mcp-stdio.js",
+    "backup": "node --no-warnings dist/src/entry/backup-cli.js"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^22.0.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pdfkit": "^0.17.6",
+    "@types/smtp-server": "^3.5.13",
+    "typescript": "^6.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1139.0",
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "@types/pg": "^8.23.1",
+    "exceljs": "^4.4.0",
+    "imapflow": "^1.7.8",
+    "mailparser": "^3.9.28",
+    "nodemailer": "^7.0.13",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.23.0",
+    "smtp-server": "^3.19.13",
+    "zod": "^4.6.5"
+  }
+}
