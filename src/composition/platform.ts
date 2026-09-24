@@ -98,6 +98,9 @@ import { FeatureFlagService } from "../application/flags/FeatureFlags";
 import { AudioReplyService } from "../application/inclusion/AudioReplies";
 import { VoiceNoteService } from "../application/inclusion/VoiceNotes";
 import { ScreenshotService } from "../application/inclusion/Screenshots";
+import { EvidenceService, type EvidenceProviders } from "../application/evidence/Evidence";
+import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
+import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
 import type { IInboundMediaFetcher, IOcr, ISpeechToText } from "../domain/ports";
 import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "../infrastructure/inclusion/InclusionAdapters";
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
@@ -164,6 +167,11 @@ export interface PlatformConfig {
   speech?: ISpeechToText;
   /** Lectura de capturas (sin esto, no se leen imágenes). */
   ocr?: IOcr;
+  /**
+   * Archivo de evidencias. Por defecto: descarga HTTP con protección SSRF y copias en la base,
+   * sin sello de tiempo ni copia pública (se activan pasando sus adaptadores).
+   */
+  evidence?: Partial<EvidenceProviders>;
   /** Lectura fácil (por defecto, reglas; con IA: LLMPlainLanguageRewriter). */
   plainLanguage?: IPlainLanguageRewriter;
   /** Mesa de ayuda externa opcional (Zendesk…). */
@@ -412,6 +420,16 @@ export function buildPlatform(cfg: PlatformConfig) {
     : undefined;
   const legal = new LegalService(LEGAL_DOCUMENTS, repos.consents, clock, cfg.publicBaseUrl);
   const support = new SupportService(repos.tickets, repos.users, authz, access, params, domainEvents, ids, clock, logger, tell("soporte_respuesta"), cfg.supportDesk);
+  const evidence = new EvidenceService(
+    repos.evidence,
+    {
+      capturer: cfg.evidence?.capturer ?? new HttpPageCapturer(),
+      blobs: cfg.evidence?.blobs ?? new DatabaseEvidenceBlobStore(repos.evidenceBlobs),
+      timestamp: cfg.evidence?.timestamp,
+      archives: cfg.evidence?.archives,
+    },
+    authz, access, params, domainEvents, queue, ids, clock, logger,
+  );
 
   // ---- Auditoría y exportación ----
   const auditQuery = new AuditQueryUseCase(repos.audit, repos.users, authz);
@@ -457,7 +475,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     inbound: new HandleInboundMessageUseCase(
       repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
-      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots },
+      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence },
     ),
     content: {
       connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
@@ -491,6 +509,8 @@ export function buildPlatform(cfg: PlatformConfig) {
             if (r && !r.verification?.ok) throw new Error(`La última copia no se pudo restaurar: ${r.verification?.detail}`);
           },
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
+          evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
+          evidence_recheck: async () => void (await evidence.recheckDue()),
           [DEFERRED_NOTIFICATION_JOB]: async (p) => {
             const u = await repos.users.findById(String(p.userId));
             if (!u || u.status !== "active") return;
@@ -515,6 +535,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     inclusion: { learning, audio, plainLanguage, media, voice, screenshots },
     flags,
     support,
+    evidence,
     legal,
     backups,
     environment: cfg.environment?.name ?? "development",
@@ -539,7 +560,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     verification: p.verification, personalData: p.privacy.personalData, billingProfile: p.billing.setProfile,
     invoices: p.store.repos.invoices, costReport: p.costs.report, participation: p.participation,
     catalog: p.catalog, quality: p.quality, stats: p.stats, config: p.config,
-    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, changePlan: p.users.changePlan, legal: p.legal, backups: p.backups, environment: p.environment,
+    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, backups: p.backups, environment: p.environment,
     metrics: p.metrics instanceof PrometheusMetrics ? { render: () => (p.metrics as PrometheusMetrics).render(), token: opts.metricsToken ?? "" } : undefined,
   };
 }

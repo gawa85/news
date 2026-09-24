@@ -76,6 +76,9 @@ export const DOMAIN_EVENTS = [
   "support.ticket_updated",
   "learning.classroom_created",
   "ops.backup_accessed",
+  "evidence.captured",
+  "evidence.changed",
+  "evidence.gone",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number];

@@ -61,6 +61,7 @@
  *  Soporte:  GET/POST /v1/support/tickets   POST /v1/support/tickets/:id/(messages|reply|rate)   GET /v1/support/queue
  *  Funciones en prueba:  GET /v1/flags   PATCH /v1/flags/:key
  *  Audios firmados:  GET /media/:id?exp=&sig=
+ *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups (ops:backup)   GET /health (con el ambiente)
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
  *  Métricas (Prometheus, con token):  GET /metrics
@@ -107,6 +108,7 @@ import type { TaxonomyService } from "../../application/config/Taxonomy";
 import type { BrandingService, CommerceService, ReferralService } from "../../application/commerce/Commerce";
 import type { LearningService } from "../../application/learning/Learning";
 import type { SupportService } from "../../application/support/Support";
+import type { EvidenceService } from "../../application/evidence/Evidence";
 import type { FeatureFlagService } from "../../application/flags/FeatureFlags";
 import type { ChangePlanUseCase } from "../../application/users/PlansUseCases";
 import type { LegalService } from "../../application/legal/Legal";
@@ -156,6 +158,7 @@ export interface HttpApiDeps {
   inclusion: { learning: LearningService; media: IMediaStore };
   flags: FeatureFlagService;
   support: SupportService;
+  evidence: EvidenceService;
   changePlan: ChangePlanUseCase;
   legal: LegalService;
   backups?: BackupService;
@@ -409,6 +412,24 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     const classM = path.match(/^\/v1\/classrooms\/([^/]+)\/report$/);
     if (req.method === "GET" && classM) return json(res, 200, await deps.inclusion.learning.report({ teacherId: who.userId, classroomId: decodeURIComponent(classM[1]!) }));
+    const evM = path.match(/^\/v1\/evidence\/([^/]+)(?:\/(verify|content))?$/);
+    if (req.method === "GET" && evM) {
+      const id = decodeURIComponent(evM[1]!);
+      if (evM[2] === "verify") return json(res, 200, await deps.evidence.verify(who.userId, id));
+      if (evM[2] === "content") {
+        const kind = url.searchParams.get("kind") === "text" ? "text" : "raw";
+        const f = await deps.evidence.content(who.userId, id, kind);
+        // Se descarga, nunca se muestra: el HTML archivado no puede correr en nuestro dominio.
+        return void res.writeHead(200, {
+          "content-type": kind === "text" ? f.mime : "application/octet-stream",
+          "content-disposition": `attachment; filename="evidencia-${id.replace(/[^\w-]/g, "")}.${kind === "text" ? "txt" : "bin"}"`,
+          "x-content-type-options": "nosniff",
+          "content-security-policy": "sandbox; default-src 'none'",
+          "content-length": String(f.data.length),
+        }).end(f.data);
+      }
+      return json(res, 200, await deps.evidence.get(who.userId, id));
+    }
     const tkt = path.match(/^\/v1\/support\/tickets\/([^/]+)\/(messages|reply|rate)$/);
     if (req.method === "POST" && tkt) {
       const ticketId = decodeURIComponent(tkt[1]!);
@@ -571,6 +592,12 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/classrooms/join":
         return json(res, 200, await deps.inclusion.learning.join({ userId: who.userId, code: str(b.code, "code"), alias: str(b.alias, "alias") }));
       // ---- Soporte ----
+      case "POST /v1/evidence":
+        return json(res, 201, (await deps.evidence.capture({ actorId: who.userId, url: str(b.url, "url"), monitor: b.monitor === true })).snapshot);
+      case "GET /v1/evidence": {
+        const u = url.searchParams.get("url");
+        return json(res, 200, u ? await deps.evidence.history(who.userId, u) : await deps.evidence.listMine(who.userId, Number(url.searchParams.get("limit") ?? 50)));
+      }
       case "GET /v1/support/tickets":
         return json(res, 200, await deps.support.listMine(who.userId));
       case "POST /v1/support/tickets":

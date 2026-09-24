@@ -148,6 +148,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const flags = f.collection(schemas.featureFlags);
   const media = f.collection(schemas.media);
   const consents = f.collection(schemas.consents);
+  const evidence = f.collection(schemas.evidence);
+  const evidenceBlobs = f.collection(schemas.evidenceBlobs);
   const latestBy = <T extends { version: number }>(items: T[], key: (x: T) => string) => {
     const m = new Map<string, T>();
     for (const x of items) if ((m.get(key(x))?.version ?? -1) < x.version) m.set(key(x), x);
@@ -590,6 +592,20 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       put: (m: MediaRecord) => media.upsert(m),
       get: (id: string) => media.get(id),
       deleteExpired: (now: Date) => media.deleteWhere({ where: { expiresAt: { lte: now } } }),
+    },
+    evidence: {
+      save: (s) => evidence.upsert(s),
+      findById: (id) => evidence.get(id),
+      findByUrlKey: (urlKey) => evidence.find({ where: { urlKey }, orderBy: { field: "capturedAt", direction: "asc" } }),
+      findByRequester: (userId, limit) => evidence.find({ where: { requestedBy: userId }, orderBy: { field: "capturedAt", direction: "desc" }, limit }),
+      countByRequesterSince: (userId, since) => evidence.count({ where: { requestedBy: userId, capturedAt: { gte: since } } }),
+      findBySubject: (subjectId) => evidence.find({ where: { subjectId } }),
+      findDueForRecheck: (now, checkedBefore, limit) =>
+        evidence.find({ where: { current: 1, monitorUntil: { gte: now }, checkedAt: { lte: checkedBefore } }, orderBy: { field: "checkedAt", direction: "asc" }, limit }),
+    },
+    evidenceBlobs: {
+      put: (b) => evidenceBlobs.upsert(b),
+      get: (key) => evidenceBlobs.get(key),
     },
     reportSchedules: {
       findById: (id) => schedules.get(id),

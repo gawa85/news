@@ -14,5 +14,9 @@ export const PARAMETERS: ParameterDefinition[] = [
   { key: "referrals.welcome_percent", description: "Descuento de bienvenida (primer pago) para quien llega invitado.", type: "number", default: 20, min: 0, max: 100, unit: "%" },
   { key: "referrals.max_rewards_per_year", description: "Premios máximos por año para quien invita.", type: "number", default: 12, min: 0, max: 100 },
   { key: "voice.max_seconds", description: "Duración máxima de una nota de voz que se transcribe (más larga, se pide el texto).", type: "number", default: 180, min: 10, max: 900, unit: "segundos" },
+  { key: "evidence.max_mb", description: "Tamaño máximo de una página que se archiva.", type: "number", default: 10, min: 1, max: 50, unit: "MB" },
+  { key: "evidence.monitor_days", description: "Días que se vuelve a mirar una nota archivada con seguimiento.", type: "number", default: 30, min: 1, max: 365, unit: "días" },
+  { key: "evidence.recheck_hours", description: "Cada cuántas horas se vuelve a mirar una nota en seguimiento.", type: "number", default: 24, min: 1, max: 168, unit: "horas" },
+  { key: "evidence.max_per_day", description: "Copias de notas por persona por día.", type: "number", default: 50, min: 1, max: 1000 },
   { key: "support.first_response_hours_default", description: "Horas para la primera respuesta de soporte (planes sin prioridad).", type: "number", default: 48, min: 1, max: 240, unit: "horas" },
 ];

@@ -13,6 +13,7 @@ import type { IBusinessRuleRepository, IPreferencesRepository, ITaxonomyReposito
 import type { IBrandingRepository, ICouponRepository, IReferralRepository } from "./commerce";
 import type { IConsentRepository, IFeatureFlagRepository, ILearningRepository, ITicketRepository } from "./inclusion";
 import type { IJobRepository } from "./jobs";
+import type { IEvidenceRepository } from "./evidence";
 import type { ICatalogRepository, IQualityRepository } from "./catalogData";
 import type { ICampaignRepository, INarrativeRepository, IPerspectiveRepository, IRoomRepository } from "./participation";
 import type { ICostRepository } from "./observability";
@@ -132,6 +133,14 @@ export interface Repositories {
   featureFlags: IFeatureFlagRepository;
   media: IMediaRepository;
   consents: IConsentRepository;
+  evidence: IEvidenceRepository;
+  /** Copias archivadas guardadas en la base (cuando no hay disco ni S3 configurado). */
+  evidenceBlobs: IEvidenceBlobRepository;
+}
+
+export interface IEvidenceBlobRepository {
+  put(b: { key: string; mime: string; dataBase64: string }): Promise<void>;
+  get(key: string): Promise<{ key: string; mime: string; dataBase64: string } | undefined>;
 }
 
 /** Archivos propios (audios) guardados en la base, con vencimiento. */

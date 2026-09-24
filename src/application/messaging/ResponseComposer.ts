@@ -5,6 +5,7 @@ import {
   type ContentAnalysis,
   type Correction,
   type CredibilityReport,
+  type EvidenceSnapshot,
   type Rebuttal,
   type Plan,
   type ResponseContent,
@@ -147,6 +148,7 @@ export class ResponseComposer {
           "/jugar → ¿esto es humo? (practicá) · /progreso · /aula <código> <apodo>",
           "/invitar → tu código para invitar · /codigo <código> → usar una invitación",
           "/soporte <tu consulta> → hablar con una persona · /tickets",
+          "/guardar <link> [seguir] → copia de la nota con sello de tiempo (y aviso si la editan o la borran)",
           "/reglas · /plan · /ayuda · BAJA (dejar de recibir avisos)",
         ],
       }],
@@ -200,6 +202,30 @@ export class ResponseComposer {
       })),
       links: [],
     };
+  }
+
+  /** Resultado de archivar una nota: huella, fecha, seguimiento y qué cambió desde la copia anterior. */
+  evidence(s: EvidenceSnapshot): ResponseContent {
+    const when = `${s.capturedAt.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    if (s.status === "failed") return { kind: "error", title: "No pude guardar la copia", summary: s.error ?? "La página no respondió.", sections: [], links: [] };
+    if (s.status === "gone") {
+      return { kind: "info", title: "La página ya no existe", summary: `Quedó registrado que el ${when} respondió ${s.httpStatus}. Código: ${s.id}.`, sections: [], links: [] };
+    }
+    const sections: ResponseContent["sections"] = [{
+      lines: [
+        `Fecha: ${when}`,
+        `Huella (SHA-256): ${s.rawSha256!.slice(0, 16)}…`,
+        `Código: ${s.id}`,
+        ...(s.monitorUntil ? [`La vuelvo a mirar hasta el ${s.monitorUntil.toISOString().slice(0, 10)} para detectar si la editan o la borran.`] : []),
+      ],
+    }];
+    if (s.change && (s.change.added.length || s.change.removed.length)) {
+      sections.push({
+        heading: "Cambió desde la copia anterior",
+        lines: [...s.change.removed.slice(0, 3).map((x) => `− ${x}`), ...s.change.added.slice(0, 3).map((x) => `+ ${x}`)],
+      });
+    }
+    return { kind: "info", title: "Guardé una copia de la nota", summary: s.title, sections, links: [], footer: "El sello de tiempo y la copia pública se agregan en unos minutos." };
   }
 
   info(title: string, summary?: string): ResponseContent {

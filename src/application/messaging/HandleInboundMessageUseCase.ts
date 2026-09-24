@@ -29,6 +29,7 @@ import type { AudioReplyService } from "../inclusion/AudioReplies";
 import type { LegalService } from "../legal/Legal";
 import type { VoiceNoteService } from "../inclusion/VoiceNotes";
 import type { ScreenshotService } from "../inclusion/Screenshots";
+import type { EvidenceService } from "../evidence/Evidence";
 
 const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
 const OPT_IN_WORDS = ["alta", "start"];
@@ -56,6 +57,7 @@ export interface InboundExtras {
   legal?: LegalService;
   voice?: VoiceNoteService;
   screenshots?: ScreenshotService;
+  evidence?: EvidenceService;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -328,6 +330,11 @@ export class HandleInboundMessageUseCase {
       case "support_list": {
         const list = await this.need(this.extras.support, "El soporte").listMine(user.id);
         return { kind: "info", title: "Tus tickets", summary: list.length ? undefined : "No tenés tickets. Escribí /soporte y tu consulta.", sections: list.slice(0, 5).map((t) => ({ heading: `${t.id} · ${t.status}`, lines: [t.subject] })), links: [] };
+      }
+      case "archive_url": {
+        const E = this.need(this.extras.evidence, "El archivo de evidencias");
+        if (!cmd.url) throw new ValidationError("Mandame /guardar y el link de la nota (y \"seguir\" si querés que la vigile).");
+        return this.composer.evidence((await E.capture({ actorId: user.id, url: cmd.url, monitor: cmd.monitor })).snapshot);
       }
       case "my_preferences": {
         const p = await this.prefs().effective(user);

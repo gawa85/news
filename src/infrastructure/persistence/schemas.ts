@@ -63,6 +63,15 @@ import type { Branding, Coupon, CouponRedemption, ReferralCode, ReferralUse } fr
 import type { ConsentRecord } from "../../domain/model";
 import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttempt, QuizItem, Ticket } from "../../domain/model";
 
+import type { EvidenceSnapshot } from "../../domain/model";
+
+/** Copia archivada guardada en la base (evidencias). */
+export interface EvidenceBlobRecord {
+  key: string;
+  mime: string;
+  dataBase64: string;
+}
+
 /** Archivo propio (audio de respuesta) guardado en la base, con vencimiento. */
 export interface MediaRecord {
   id: string;
@@ -533,6 +542,26 @@ export const schemas = {
     idOf: (m: MediaRecord) => m.id,
     indexes: { expiresAt: { type: "text", get: (m: MediaRecord) => m.expiresAt } },
   } satisfies CollectionSchema<MediaRecord>,
+  evidence: {
+    name: "evidence_snapshots",
+    idOf: (s: EvidenceSnapshot) => s.id,
+    indexes: {
+      urlKey: { type: "text", get: (s: EvidenceSnapshot) => s.urlKey },
+      requestedBy: { type: "text", get: (s: EvidenceSnapshot) => s.requestedBy },
+      subjectId: { type: "text", get: (s: EvidenceSnapshot) => s.subjectId },
+      capturedAt: { type: "text", get: (s: EvidenceSnapshot) => s.capturedAt },
+      /** 1 = la captura vigente de esa URL. */
+      current: { type: "number", get: (s: EvidenceSnapshot) => (s.supersededBy ? 0 : 1) },
+      /** Sin seguimiento: época 0 (nunca entra en "monitorUntil >= ahora"). */
+      monitorUntil: { type: "text", get: (s: EvidenceSnapshot) => s.monitorUntil ?? new Date(0) },
+      checkedAt: { type: "text", get: (s: EvidenceSnapshot) => s.lastCheckedAt ?? s.capturedAt },
+    },
+  } satisfies CollectionSchema<EvidenceSnapshot>,
+  evidenceBlobs: {
+    name: "evidence_blobs",
+    idOf: (b: EvidenceBlobRecord) => b.key,
+    indexes: {},
+  } satisfies CollectionSchema<EvidenceBlobRecord>,
   feedback: {
     name: "analysis_feedback",
     idOf: (f: AnalysisFeedback) => f.id,

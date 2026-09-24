@@ -106,6 +106,6 @@ export function createSqliteStore(path = ":memory:"): IDataStore {
   return new SqlDataStore(new SqliteClient(path), sqliteDialect);
 }
 
-export function createPostgresStore(connectionString: string): IDataStore {
-  return new SqlDataStore(new PostgresClient(connectionString), postgresDialect);
+export function createPostgresStore(connectionString: string, maxConnections?: number): IDataStore {
+  return new SqlDataStore(new PostgresClient(connectionString, maxConnections), postgresDialect);
 }

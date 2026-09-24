@@ -9,6 +9,9 @@ import { seedCore } from "../composition/container";
 import { demoSeed } from "../demo/seedData";
 import type { IBackupSink, IDataStore, IEmailTransport, IHttpClient, IInboundMediaFetcher, IMessageSender, IOcr, ISpeechToText } from "../domain/ports";
 import { ClaudeVisionOcr, GoogleVisionOcr } from "../infrastructure/inclusion/OcrAdapters";
+import type { EvidenceProviders } from "../application/evidence/Evidence";
+import { SinkEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
+import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastructure/evidence/EvidenceAdapters";
 import { OpenAiCompatibleSpeechToText, TelegramFileFetcher, WhatsAppMediaFetcher } from "../infrastructure/inclusion/SpeechAdapters";
 import { profileFor, validateEnvironment } from "../composition/environment";
 import { FileSystemBackupSink, S3BackupSink } from "../infrastructure/ops/BackupSinks";
@@ -51,6 +54,21 @@ function mediaFetchersFromEnv(): IInboundMediaFetcher[] {
 function speechFromEnv(): ISpeechToText | undefined {
   if (!env("SPEECH_TO_TEXT_API_KEY")) return undefined;
   return new OpenAiCompatibleSpeechToText({ apiKey: env("SPEECH_TO_TEXT_API_KEY")!, baseUrl: env("SPEECH_TO_TEXT_BASE_URL") || undefined, model: env("SPEECH_TO_TEXT_MODEL") || undefined });
+}
+
+/** Archivo de evidencias: dónde se guardan las copias, sello de tiempo y copia pública. */
+function evidenceFromEnv(http: IHttpClient): Partial<EvidenceProviders> {
+  const blobs = env("EVIDENCE_S3_BUCKET")
+    ? new SinkEvidenceBlobStore(new S3BackupSink({
+        bucket: env("EVIDENCE_S3_BUCKET")!, region: env("EVIDENCE_S3_REGION"), endpoint: env("EVIDENCE_S3_ENDPOINT"),
+        accessKeyId: env("EVIDENCE_S3_ACCESS_KEY_ID") ?? "", secretAccessKey: env("EVIDENCE_S3_SECRET_ACCESS_KEY") ?? "", prefix: env("EVIDENCE_S3_PREFIX"),
+      }))
+    : env("EVIDENCE_DIR") ? new SinkEvidenceBlobStore(new FileSystemBackupSink(env("EVIDENCE_DIR")!)) : undefined;
+  return {
+    ...(blobs ? { blobs } : {}),
+    timestamp: env("EVIDENCE_TSA_URL") ? new Rfc3161TimestampAuthority({ url: env("EVIDENCE_TSA_URL")! }) : undefined,
+    archives: env("EVIDENCE_WAYBACK") === "1" ? [new WaybackMachineArchive(http, env("EVIDENCE_WAYBACK_AUTH") || undefined)] : [],
+  };
 }
 
 /** Capturas: OCR_PROVIDER=claude (usa ANTHROPIC_API_KEY) | google (GOOGLE_VISION_API_KEY). Sin elegir, el que tenga clave. */
@@ -121,6 +139,7 @@ export async function platformFromEnv() {
     mediaFetchers: mediaFetchersFromEnv(),
     speech: speechFromEnv(),
     ocr: ocrFromEnv(http),
+    evidence: evidenceFromEnv(http),
     supportDesk: env("ZENDESK_SUBDOMAIN")
       ? new ZendeskSupportDesk(http, { subdomain: env("ZENDESK_SUBDOMAIN")!, email: env("ZENDESK_EMAIL") ?? "", apiToken: env("ZENDESK_API_TOKEN") ?? "" })
       : undefined,

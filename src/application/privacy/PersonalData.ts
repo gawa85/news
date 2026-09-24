@@ -49,6 +49,7 @@ export class PersonalDataService {
       sessions: (await r.sessions.findByUser(user.id)).map((s) => ({ method: s.method, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, userAgent: s.userAgent, revoked: s.revoked })),
       invoices: await r.invoices.findBySubject(self),
       activity: await r.audit.find({ actorId: user.id, limit: 10_000 }),
+      archivedPages: (await r.evidence.findByRequester(user.id, 10_000)).map((e) => ({ id: e.id, url: e.url, capturedAt: e.capturedAt, status: e.status, sha256: e.rawSha256, monitorUntil: e.monitorUntil })),
     };
     await this.events.emit("personal_data.exported", { userId: user.id, organizationId: user.organizationId });
     return data;
@@ -85,6 +86,13 @@ export class PersonalDataService {
       for (const t of await r.tickets.findByRequester(user.id)) {
         await r.tickets.save({ ...t, requesterId: "borrado", subject: "(borrado a pedido)", messages: t.messages.map((m) => (m.role === "requester" ? { ...m, authorId: "borrado", text: "(borrado a pedido)" } : m)) });
       }
+      // Las copias de páginas públicas se conservan (son evidencia, no datos de la persona), pero
+      // sin saber quién las pidió y sin seguimiento a su nombre. `requestedBy` no está en la huella.
+      for (const e of await r.evidence.findByRequester(user.id, 100_000)) {
+        await r.evidence.save({ ...e, requestedBy: "borrado", subjectId: e.subjectId === user.id ? "borrado" : e.subjectId, monitorUntil: undefined });
+      }
+      // Las del seguimiento automático, pagadas por la persona (cuenta individual).
+      for (const e of await r.evidence.findBySubject(user.id)) await r.evidence.save({ ...e, subjectId: "borrado", monitorUntil: undefined });
       // Sus estadísticas personales se borran; en las globales sólo queda un seudónimo irreversible.
       await r.stats.deleteScope("user", user.id);
       await r.credentials.deleteByUser(user.id);

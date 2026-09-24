@@ -26,6 +26,7 @@ export const FEATURES = [
   "audio_replies", // respuestas en audio
   "voice_notes", // entender notas de voz (audio a texto)
   "screenshots", // leer capturas de pantalla (OCR)
+  "evidence_archive", // copias de notas con huella, sello de tiempo y seguimiento de ediciones
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];

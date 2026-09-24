@@ -51,6 +51,8 @@ export const PERMISSIONS = [
   "support:handle", // atender tickets de soporte
   "learning:teach", // crear aulas y ver el progreso de sus estudiantes
   "ops:backup", // copias de seguridad (listar, crear, verificar)
+  "evidence:capture", // guardar copias de notas con huella y sello de tiempo
+  "evidence:read_all", // ver todas las copias archivadas (verificadores)
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

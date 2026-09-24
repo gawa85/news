@@ -493,6 +493,28 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - se elige con `OCR_PROVIDER`;
   - funcionalidad y función en prueba `screenshots`, en todos los planes. La imagen no se guarda. Si no hay texto suficiente, se avisa: analizar fotos sin texto es el punto 3 del grupo 3.
 
+- **Archivo de evidencias** (`EvidenceService`): guarda una copia de una nota tal como estaba, para probar qué se publicó aunque después la editen en silencio o la borren. Se pide con `/guardar <link> [seguir]` o con `POST /v1/evidence`. Cada pieza está detrás de un puerto:
+
+  | Puerto | Adaptadores |
+  |---|---|
+  | `IPageCapturer` | `HttpPageCapturer` (con protección **SSRF**), `FakePageCapturer` |
+  | `IEvidenceBlobStore` | `DatabaseEvidenceBlobStore` (por defecto), `SinkEvidenceBlobStore` (adapta cualquier `IBackupSink`: disco, S3/R2) |
+  | `ITimestampAuthority` | `Rfc3161TimestampAuthority` (FreeTSA o un certificador licenciado) |
+  | `IExternalArchive` | `WaybackMachineArchive` |
+  | `IEvidenceRepository` | sobre `IDocumentCollection`, igual que el resto |
+
+  - **Huellas**: SHA-256 del archivo tal como llegó y del texto normalizado. La segunda sirve para comparar versiones sin el ruido del HTML.
+  - **Cadena**: cada registro incluye la huella del anterior de la misma URL (`domain/rules/evidence.ts`). `GET /v1/evidence/:id/verify` recalcula las huellas del registro, de toda la cadena y de las copias guardadas. Si alguien toca un registro viejo en la base, se detecta. Quién pidió la copia **no** entra en la huella: es un dato personal que se borra a pedido sin romper la cadena.
+  - **Sello de tiempo RFC 3161** y copia en la Wayback Machine, por la cola (trabajo `evidence_seal`). Si la autoridad de sellado falla, se reintenta. El token completo queda guardado para verificarlo por fuera con `openssl ts -verify`.
+  - **Seguimiento** (`evidence_recheck`, cada hora): las notas marcadas se vuelven a mirar cada `evidence.recheck_hours` durante `evidence.monitor_days`.
+    - Si no cambió, no se crea otra captura; sólo se anota que se miró.
+    - Si la editaron, queda una captura nueva con las **frases agregadas y quitadas** y se emite el evento `evidence.changed`.
+    - Si la borraron (404/410), queda registrado y se emite `evidence.gone`.
+  - **SSRF**: la URL la manda cualquier persona. Se aceptan sólo http(s) en puertos 80/443, sin usuario ni clave, y con nombres que resuelvan **únicamente** a IPs públicas: se bloquean las redes privadas, la dirección local, las de enlace (incluida 169.254.169.254, los metadatos de la nube), CGNAT, multicast y los rangos de documentación, en IPv4 y en IPv6. Cada redirección se vuelve a controlar, y el cuerpo se corta al pasar `evidence.max_mb`.
+    - Límite conocido: el "DNS rebinding". En producción, conviene salir por un proxy que sólo permita IPs públicas.
+  - La copia se descarga siempre como **adjunto** (`nosniff` y CSP `sandbox`): el HTML archivado nunca corre en nuestro dominio.
+  - **Acceso**: el permiso `evidence:capture` y la funcionalidad `evidence_archive` (planes Profesional y superiores), con tope diario `evidence.max_per_day`. Cada persona ve lo suyo y lo de su organización. Los verificadores tienen `evidence:read_all`.
+  - **Datos personales**: las copias se incluyen al exportar. Al borrar la cuenta, las copias de páginas públicas se conservan, pero sin dueño y sin seguimiento.
 - **Instrucciones escondidas** ("prompt injection"): textos que le dan órdenes a la IA que los analiza. Llegan en mensajes, capturas, audios y notas web, a veces en texto invisible. Hay tres capas, cada una detrás de una interfaz:
   1. **Limpiar** (`ITextSanitizer` → `UnicodeTextSanitizer`): saca los invisibles (ancho cero, controles bidireccionales, guion blando) y **decodifica el texto escondido en etiquetas Unicode** para inspeccionarlo. Respeta los emojis compuestos (ZWJ) y las banderas.
   2. **Detectar** (`IPromptInjectionDetector`): `RuleBasedInjectionDetector` (reglas en español e inglés, `domain/rules/promptInjection.ts`) y, opcional, `LLMInjectionDetector` (`PROMPT_GUARD_LLM=1`). `PromptSafetyGuard` junta las señales: se suma **por tipo**, así que repetir la frase no infla el puntaje. Con 50 puntos o más el riesgo es alto; con 20, bajo, y sólo se registra en la métrica `sinhumo_prompt_injection_total`. Las reglas evitan el lenguaje de noticias ("el Gobierno **ignoró** las reglas" no es una orden), y hay una prueba contra falsos positivos con el set de evaluación y las notas de la demo.
@@ -518,6 +540,8 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Archivar con un navegador sin cabeza (páginas con JavaScript) | Otra clase `IPageCapturer` |
+| Otro archivo público (archive.today) o sello (certificador licenciado) | `IExternalArchive` / `ITimestampAuthority` |
 | Otro detector de instrucciones escondidas (un servicio externo) | Otra clase `IPromptInjectionDetector`, sumada a la lista del guardián |
 | Gmail o Microsoft 365 por API en vez de IMAP | Otra clase `IContentSource` de tipo "email" |
 | Un foro o sitio nuevo | `IReplyPublisher` + `IImpactCollector` |

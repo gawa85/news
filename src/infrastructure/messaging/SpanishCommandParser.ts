@@ -77,6 +77,10 @@ export class SpanishCommandParser implements ICommandParser {
         return rest ? { type: "support", text: rest } : { type: "support_list" };
       case "tickets":
         return { type: "support_list" };
+      case "guardar":
+      case "archivar":
+        // "/guardar <link> seguir" → además la vuelve a mirar para detectar ediciones o borrados.
+        return { type: "archive_url", url: rest.match(URL_RE)?.[0] ?? "", monitor: /\b(seguir|seguimiento|vigilar|monitorear)\b/i.test(rest) };
       case "humo":
       case "analizar":
         return rest ? { type: "analyze_content", text: rest } : { type: "help" };

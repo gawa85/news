@@ -22,7 +22,8 @@ async function createTestStore(): Promise<IDataStore> {
     const admin = new PostgresClient(url, 1);
     await admin.run(`CREATE SCHEMA ${schema}`);
     await admin.close();
-    return createPostgresStore(`${url}?options=${encodeURIComponent(`-c search_path=${schema}`)}`);
+    // Pool chico: cada test arma su plataforma y el servidor tiene un tope de conexiones.
+    return createPostgresStore(`${url}?options=${encodeURIComponent(`-c search_path=${schema}`)}`, 3);
   }
   return createMemoryStore();
 }

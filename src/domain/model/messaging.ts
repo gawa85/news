@@ -93,4 +93,5 @@ export type Command =
   | { type: "referral_code"; code: string }
   | { type: "support"; text: string }
   | { type: "support_list" }
+  | { type: "archive_url"; url: string; monitor: boolean }
   | { type: "help" };

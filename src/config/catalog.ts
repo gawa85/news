@@ -9,7 +9,7 @@ import { PERMISSIONS } from "../domain/model";
 const USE: Permission[] = [
   "smoke:analyze", "sources:compare", "origin:trace", "credibility:view", "credibility:timeline",
   "content:analyze", "sources:connect", "rules:own", "alerts:own", "replies:private", "api_keys:manage", "webhooks:manage",
-  "perspectives:write", "rooms:use",
+  "perspectives:write", "rooms:use", "evidence:capture",
 ];
 
 export const ROLES: Role[] = [
@@ -20,7 +20,7 @@ export const ROLES: Role[] = [
     id: "org_admin", name: "Administrador de organización", description: "Gestiona miembros, roles, plan y reglas de la organización.", scope: "organization",
     permissions: [...USE, "replies:publish_public", "replies:moderate", "audit:read", "users:read_org", "users:manage_org", "subscriptions:manage_org", "rules:org", "campaigns:manage", "campaigns:review", "stats:org", "learning:teach"],
   },
-  { id: "fact_checker", name: "Verificador", description: "Verifica afirmaciones y resuelve réplicas de los medios.", scope: "platform", permissions: [...USE, "verdicts:write", "rebuttal:resolve", "corrections:publish", "quality:manage", "taxonomy:manage"] },
+  { id: "fact_checker", name: "Verificador", description: "Verifica afirmaciones y resuelve réplicas de los medios.", scope: "platform", permissions: [...USE, "verdicts:write", "rebuttal:resolve", "corrections:publish", "quality:manage", "taxonomy:manage", "evidence:read_all"] },
   { id: "outlet_rep", name: "Representante de medio", description: "Ejerce el derecho a réplica sobre las evaluaciones de su medio.", scope: "platform", permissions: ["credibility:view", "credibility:timeline", "rebuttal:write"] },
   { id: "teacher", name: "Docente", description: "Crea aulas del modo aprendizaje y ve el progreso (por apodo) de sus estudiantes.", scope: "organization", permissions: ["smoke:analyze", "content:analyze", "sources:compare", "learning:teach"] },
   { id: "support_agent", name: "Soporte", description: "Atiende los tickets de soporte.", scope: "platform", permissions: ["support:handle"] },
@@ -30,7 +30,7 @@ export const ROLES: Role[] = [
 
 const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules", "voice_notes", "screenshots"];
 const PERSONAL: Feature[] = [...BASIC, "origin_trace", "credibility_meter", "alerts", "ai_engine", "source_connections", "audio_replies"];
-const PRO: Feature[] = [...PERSONAL, "credibility_timeline", "export", "api_access", "webhooks", "public_replies", "campaigns", "scheduled_reports"];
+const PRO: Feature[] = [...PERSONAL, "credibility_timeline", "export", "api_access", "webhooks", "public_replies", "campaigns", "scheduled_reports", "evidence_archive"];
 
 export const PLANS: Plan[] = [
   {
@@ -119,6 +119,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   audio_replies: "Respuestas en audio",
   voice_notes: "Entiende notas de voz",
   screenshots: "Lee capturas de pantalla",
+  evidence_archive: "Archivo de evidencias: copias de notas con sello de tiempo y aviso de ediciones",
 };
 
 /**
@@ -148,6 +149,7 @@ export const SCHEDULES: import("../domain/model").RecurringSchedule[] = [
   { name: "send_reports", jobType: "send_reports", everyMinutes: 60 },
   { name: "support_sla", jobType: "support_sla", everyMinutes: 60 },
   { name: "media_cleanup", jobType: "media_cleanup", everyMinutes: 1_440 },
+  { name: "evidence_recheck", jobType: "evidence_recheck", everyMinutes: 60 },
   { name: "backup_daily", jobType: "backup_daily", everyMinutes: 1_440 },
   { name: "backup_verify", jobType: "backup_verify", everyMinutes: 10_080 },
   { name: "collect_impact", jobType: "collect_impact", everyMinutes: 360 },
