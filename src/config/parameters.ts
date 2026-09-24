@@ -13,5 +13,6 @@ export const PARAMETERS: ParameterDefinition[] = [
   { key: "referrals.window_days", description: "Días desde el alta en que se puede usar un código de invitación.", type: "number", default: 14, min: 1, max: 90, unit: "días" },
   { key: "referrals.welcome_percent", description: "Descuento de bienvenida (primer pago) para quien llega invitado.", type: "number", default: 20, min: 0, max: 100, unit: "%" },
   { key: "referrals.max_rewards_per_year", description: "Premios máximos por año para quien invita.", type: "number", default: 12, min: 0, max: 100 },
+  { key: "voice.max_seconds", description: "Duración máxima de una nota de voz que se transcribe (más larga, se pide el texto).", type: "number", default: 180, min: 10, max: 900, unit: "segundos" },
   { key: "support.first_response_hours_default", description: "Horas para la primera respuesta de soporte (planes sin prioridad).", type: "number", default: 48, min: 1, max: 240, unit: "horas" },
 ];

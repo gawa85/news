@@ -38,6 +38,19 @@ export interface ITextToSpeech {
   synthesize(text: string, language: string): Promise<{ data: Buffer; mime: string; seconds?: number }>;
 }
 
+/** Audio a texto (Whisper, Groq, Google, un servidor propio…). */
+export interface ISpeechToText {
+  readonly id: string;
+  transcribe(audio: { data: Buffer; mime: string }, language: string): Promise<{ text: string; seconds?: number }>;
+}
+
+/** Baja un archivo recibido por un canal (la nota de voz de WhatsApp o Telegram). */
+export interface IInboundMediaFetcher {
+  readonly channel: import("../model").ChannelType;
+  /** Rechaza (ValidationError) si el archivo supera `maxBytes`. */
+  fetch(ref: string, maxBytes: number): Promise<{ data: Buffer; mime: string }>;
+}
+
 /** Archivos propios con link firmado y vencimiento (audios de respuesta). */
 export interface IMediaStore {
   put(data: Buffer, mime: string, ttlSeconds: number): Promise<{ id: string; url: string }>;

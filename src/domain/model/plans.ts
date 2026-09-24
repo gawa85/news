@@ -24,6 +24,7 @@ export const FEATURES = [
   "white_label", // marca propia: logo, colores, dominio y remitente
   "learning_mode", // aulas del modo aprendizaje ("¿esto es humo?")
   "audio_replies", // respuestas en audio
+  "voice_notes", // entender notas de voz (audio a texto)
 ] as const;
 
 export type Feature = (typeof FEATURES)[number];

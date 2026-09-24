@@ -474,6 +474,17 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - en el chat, el primer mensaje trae el aviso con los links;
   - **riesgo de difamación** (`domain/rules/defamation.ts` + `DefamationAwareModerator`): los textos públicos que atribuyen delitos, mentiras deliberadas u "operaciones" a un medio o a sus dueños van a revisión humana, con sugerencia de reescritura. Las campañas guardan la nota de riesgo para quien revisa.
 
+## Contenido más allá del texto (grupo 3)
+
+- **Notas de voz** (`ISpeechToText` + `IInboundMediaFetcher` + `VoiceNoteService`):
+  - los parsers de WhatsApp (`type: "audio"`) y Telegram (`voice`, `audio`) ya no descartan los audios: el mensaje llega con `audio: { ref, mime, seconds? }`;
+  - antes de interpretar el mensaje, `HandleInboundMessageUseCase` baja el audio del canal (`WhatsAppMediaFetcher`, `TelegramFileFetcher`) y lo transcribe. Si hay epígrafe, va antes de la transcripción. Desde ahí sigue el camino de cualquier texto: comandos, análisis, cupos;
+  - la respuesta empieza con **"Lo que entendí del audio"**, para que la persona vea si la transcripción está bien;
+  - transcriptor: `OpenAiCompatibleSpeechToText` (OpenAI, Groq o un servidor propio con la misma API). Se activa con `SPEECH_TO_TEXT_API_KEY`;
+  - funcionalidad `voice_notes` en **todos los planes**, función en prueba `voice_notes` (apagado de emergencia) y parámetro `voice.max_seconds` (180 s). Si el canal informa la duración, un audio largo se rechaza **sin bajarlo ni cobrarlo**;
+  - el audio **no se guarda**: sólo el texto, como cualquier mensaje. El costo (`speech_to_text`, por segundo) se atribuye al cliente del pedido;
+  - sin transcriptor, apagada o con falla, se contesta pidiendo el texto.
+
 ## Base de datos
 
 `IDataStore` = repositorios + transacciones + migraciones. Los repositorios se escriben **una sola vez** sobre `IDocumentCollection` (documento JSON + columnas indexadas), y cada motor implementa solo esa colección:
@@ -491,6 +502,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | IA en lugar de reglas | `ANTHROPIC_API_KEY` en el entorno, o `ai: { provider: "anthropic" }` |
 | Un canal nuevo (Instagram, Slack) | Parser + renderer + sender, registrados en `buildPlatform` |
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
+| Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Gmail o Microsoft 365 por API en vez de IMAP | Otra clase `IContentSource` de tipo "email" |
 | Un foro o sitio nuevo | `IReplyPublisher` + `IImpactCollector` |
 | Reseñas de otra plataforma | `IReviewSource` |
@@ -506,7 +518,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 - MCP en memoria y por HTTP con el SDK oficial;
 - la API HTTP levantada.
 
-**Construido según los formatos de las APIs oficiales, pero probado con respuestas simuladas:** WhatsApp Cloud API, Telegram Bot API, Discourse, WordPress, App Store y Google Play.
+**Construido según los formatos de las APIs oficiales, pero probado con respuestas simuladas:** WhatsApp Cloud API (incluida la descarga de audios), Telegram Bot API (incluido `getFile`), la API de transcripción de OpenAI, Discourse, WordPress, App Store y Google Play.
 
 **Sin probar contra un servidor real:** `ImapMailboxSource` (hace falta un buzón de prueba) y el motor con IA (hace falta una clave).
 

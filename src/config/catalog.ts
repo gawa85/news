@@ -28,7 +28,7 @@ export const ROLES: Role[] = [
   { id: "platform_admin", name: "Administrador de la plataforma", description: "Todos los permisos.", scope: "platform", permissions: [...PERMISSIONS] },
 ];
 
-const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules"];
+const BASIC: Feature[] = ["smoke_analysis", "content_analysis", "source_comparison", "url_rules", "voice_notes"];
 const PERSONAL: Feature[] = [...BASIC, "origin_trace", "credibility_meter", "alerts", "ai_engine", "source_connections", "audio_replies"];
 const PRO: Feature[] = [...PERSONAL, "credibility_timeline", "export", "api_access", "webhooks", "public_replies", "campaigns", "scheduled_reports"];
 
@@ -117,6 +117,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   white_label: "Marca blanca: tu logo, tus colores, tu dominio",
   learning_mode: "Modo aprendizaje para escuelas",
   audio_replies: "Respuestas en audio",
+  voice_notes: "Entiende notas de voz",
 };
 
 /**

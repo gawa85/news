@@ -27,6 +27,7 @@ import type { SupportService } from "../support/Support";
 import type { BrandingService, ReferralService } from "../commerce/Commerce";
 import type { AudioReplyService } from "../inclusion/AudioReplies";
 import type { LegalService } from "../legal/Legal";
+import type { VoiceNoteService } from "../inclusion/VoiceNotes";
 
 const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
 const OPT_IN_WORDS = ["alta", "start"];
@@ -52,6 +53,7 @@ export interface InboundExtras {
   plainLanguage?: IPlainLanguageRewriter;
   flags?: IFeatureFlags;
   legal?: LegalService;
+  voice?: VoiceNoteService;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -103,6 +105,39 @@ export class HandleInboundMessageUseCase {
   }
 
   private async respond(user: User, msg: InboundMessage): Promise<ResponseContent> {
+    if (!msg.audio) return this.respondText(user, msg);
+    const heard = await this.listen(user, msg);
+    if (typeof heard !== "string") return heard;
+    // El epígrafe (si lo hay) va primero: puede traer un comando ("/fuentes …").
+    const caption = msg.text.trim();
+    const r = await this.respondText(user, { ...msg, text: caption ? `${caption}\n${heard}` : heard, transcribed: true });
+    // Primero, lo que se entendió: así la persona puede ver si la transcripción está bien.
+    const quote = heard.length > 400 ? `${heard.slice(0, 399)}…` : heard;
+    return { ...r, sections: [{ heading: "🎙️ Lo que entendí del audio", lines: [`“${quote}”`] }, ...r.sections] };
+  }
+
+  /** Transcribe la nota de voz. Devuelve el texto o, si no se puede, la respuesta para la persona. */
+  private async listen(user: User, msg: InboundMessage): Promise<string | ResponseContent> {
+    const voice = this.extras.voice;
+    const { plan } = await this.access.planOf(user);
+    const flagOn = this.extras.flags ? await this.extras.flags.isEnabled("voice_notes", { userId: user.id, organizationId: user.organizationId, planId: plan.id, country: user.country }) : true;
+    if (!voice || !flagOn) return this.composer.info("Todavía no puedo escuchar audios.", "Mandame el texto y lo analizo.");
+    if (!plan.features.includes("voice_notes")) return this.composer.info("Tu plan no incluye notas de voz.", "Mandame el texto y lo analizo.");
+    const language = this.extras.preferences ? (await this.extras.preferences.effective(user)).language : "es";
+    const r = await voice.transcribe(msg, language);
+    if (r.ok) return r.text;
+    const minutes = r.maxSeconds >= 120 ? `${Math.floor(r.maxSeconds / 60)} minutos` : `${r.maxSeconds} segundos`;
+    switch (r.reason) {
+      case "too_long":
+        return this.composer.info(`El audio es muy largo: puedo escuchar hasta ${minutes}.`, "Mandame un audio más corto o el texto.");
+      case "empty":
+        return this.composer.info("No escuché nada en el audio.", "¿Lo podés mandar de nuevo o escribirlo?");
+      default:
+        return this.composer.info("No pude escuchar el audio.", "Probá de nuevo en un rato o mandame el texto.");
+    }
+  }
+
+  private async respondText(user: User, msg: InboundMessage): Promise<ResponseContent> {
     const text = msg.text.trim().toLowerCase();
     if (OPT_OUT_WORDS.includes(text)) {
       await this.optOuts.save({ channel: msg.channel, address: msg.from, at: msg.receivedAt, reason: "pedido del usuario" });
@@ -300,7 +335,7 @@ export class HandleInboundMessageUseCase {
       publishedAt: msg.receivedAt,
       receivedAt: msg.receivedAt,
       attachments: [],
-      metadata: { channel: msg.channel, ...(msg.forwardedManyTimes ? { "forwarded-many-times": "true" } : {}) },
+      metadata: { channel: msg.channel, ...(msg.forwardedManyTimes ? { "forwarded-many-times": "true" } : {}), ...(msg.transcribed ? { "voice-note": "true" } : {}) },
       forwardedFrom: msg.forwarded ? {} : undefined,
     };
   }

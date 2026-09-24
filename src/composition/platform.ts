@@ -96,6 +96,8 @@ import { LearningService, seedQuizItems } from "../application/learning/Learning
 import { SupportService } from "../application/support/Support";
 import { FeatureFlagService } from "../application/flags/FeatureFlags";
 import { AudioReplyService } from "../application/inclusion/AudioReplies";
+import { VoiceNoteService } from "../application/inclusion/VoiceNotes";
+import type { IInboundMediaFetcher, ISpeechToText } from "../domain/ports";
 import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "../infrastructure/inclusion/InclusionAdapters";
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
 import { FEATURE_FLAGS } from "../config/flags";
@@ -155,6 +157,8 @@ export interface PlatformConfig {
   dns?: IDnsTxtResolver;
   /** Texto a voz (sin esto, no hay respuestas en audio). */
   tts?: ITextToSpeech;
+  /** Audio a texto y descarga de audios por canal (sin esto, no se entienden las notas de voz). */
+  speech?: { stt: ISpeechToText; fetchers: IInboundMediaFetcher[] };
   /** Lectura fácil (por defecto, reglas; con IA: LLMPlainLanguageRewriter). */
   plainLanguage?: IPlainLanguageRewriter;
   /** Mesa de ayuda externa opcional (Zendesk…). */
@@ -377,6 +381,11 @@ export function buildPlatform(cfg: PlatformConfig) {
   const media = new SignedMediaStore(repos.media, `${cfg.vaultMasterKey}:media`, cfg.publicBaseUrl, clock);
   const ttsPrice = PRICE_TABLE.textToSpeechPerMillionCharsUsd ?? 0;
   const audio = cfg.tts ? new AudioReplyService(cfg.tts, media, 1500, 7 * 24 * 3600, (chars) => costs.units("text_to_speech", cfg.tts!.id, { characters: chars }, (chars / 1_000_000) * ttsPrice)) : undefined;
+  const sttPrice = PRICE_TABLE.speechToTextPerMinuteUsd;
+  const voice = cfg.speech
+    ? new VoiceNoteService(cfg.speech.stt, cfg.speech.fetchers, () => params.number("voice.max_seconds"),
+        (seconds) => costs.units("speech_to_text", cfg.speech!.stt.id, { seconds }, (seconds / 60) * sttPrice))
+    : undefined;
   const plainLanguage = cfg.plainLanguage ?? new RuleBasedPlainLanguage();
   const learning = new LearningService(repos.learning, repos.users, authz, access, domainEvents, ids, clock, { byType: SMOKE_TIPS, clean: CLEAN_TIP });
   const backups = cfg.backups
@@ -429,7 +438,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     inbound: new HandleInboundMessageUseCase(
       repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
-      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal },
+      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice },
     ),
     content: {
       connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
@@ -484,7 +493,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
     commerce: { service: commerce, referrals, branding, countries },
-    inclusion: { learning, audio, plainLanguage, media },
+    inclusion: { learning, audio, plainLanguage, media, voice },
     flags,
     support,
     legal,

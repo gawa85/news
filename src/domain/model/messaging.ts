@@ -13,6 +13,13 @@ export interface InboundMessage {
   forwarded?: boolean;
   /** WhatsApp marca los mensajes "reenviados muchas veces" (cadenas). */
   forwardedManyTimes?: boolean;
+  /**
+   * Nota de voz o audio: se transcribe antes de interpretar el mensaje (hasta entonces
+   * `text` trae sólo el epígrafe, si lo hay). `ref` es el id del archivo en el canal.
+   */
+  audio?: { ref: string; mime?: string; seconds?: number };
+  /** El texto salió de transcribir el audio. */
+  transcribed?: boolean;
 }
 
 /**

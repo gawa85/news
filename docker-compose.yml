@@ -40,6 +40,9 @@ services:
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:-clave-de-desarrollo-no-usar-en-produccion}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8090}
       LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-1}
+      SPEECH_TO_TEXT_API_KEY: ${SPEECH_TO_TEXT_API_KEY:-}
+      SPEECH_TO_TEXT_BASE_URL: ${SPEECH_TO_TEXT_BASE_URL:-}
+      SPEECH_TO_TEXT_MODEL: ${SPEECH_TO_TEXT_MODEL:-}
       BACKUP_DIR: /backups
       BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-frase-de-desarrollo-no-usar-en-produccion}
     ports:

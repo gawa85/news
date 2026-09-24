@@ -7,7 +7,8 @@ import { PostHogProductAnalytics } from "../infrastructure/stats/StatsAdapters";
 import { GoogleCloudTextToSpeech, ZendeskSupportDesk } from "../infrastructure/inclusion/InclusionAdapters";
 import { seedCore } from "../composition/container";
 import { demoSeed } from "../demo/seedData";
-import type { IBackupSink, IDataStore, IEmailTransport, IMessageSender } from "../domain/ports";
+import type { IBackupSink, IDataStore, IEmailTransport, IInboundMediaFetcher, IMessageSender, ISpeechToText } from "../domain/ports";
+import { OpenAiCompatibleSpeechToText, TelegramFileFetcher, WhatsAppMediaFetcher } from "../infrastructure/inclusion/SpeechAdapters";
 import { profileFor, validateEnvironment } from "../composition/environment";
 import { FileSystemBackupSink, S3BackupSink } from "../infrastructure/ops/BackupSinks";
 import { RecordingEmailTransport, NodemailerSmtpTransport } from "../infrastructure/mail/MailAdapters";
@@ -35,6 +36,16 @@ export function backupSinkFromEnv(): IBackupSink | undefined {
     });
   }
   return env("BACKUP_DIR") ? new FileSystemBackupSink(env("BACKUP_DIR")!) : undefined;
+}
+
+/** Notas de voz: transcriptor compatible con OpenAI + descarga de audios de los canales configurados. */
+function speechFromEnv(): { stt: ISpeechToText; fetchers: IInboundMediaFetcher[] } | undefined {
+  if (!env("SPEECH_TO_TEXT_API_KEY")) return undefined;
+  const fetchers: IInboundMediaFetcher[] = [];
+  if (env("WHATSAPP_TOKEN")) fetchers.push(new WhatsAppMediaFetcher({ accessToken: env("WHATSAPP_TOKEN")! }));
+  if (env("TELEGRAM_BOT_TOKEN")) fetchers.push(new TelegramFileFetcher(env("TELEGRAM_BOT_TOKEN")!));
+  const stt = new OpenAiCompatibleSpeechToText({ apiKey: env("SPEECH_TO_TEXT_API_KEY")!, baseUrl: env("SPEECH_TO_TEXT_BASE_URL") || undefined, model: env("SPEECH_TO_TEXT_MODEL") || undefined });
+  return { stt, fetchers };
 }
 
 export async function platformFromEnv() {
@@ -93,6 +104,7 @@ export async function platformFromEnv() {
       ? { sink: backupSinkFromEnv()!, passphrase: env("BACKUP_PASSPHRASE")!, scratch: () => createMemoryStore() }
       : undefined,
     tts: env("GOOGLE_TTS_API_KEY") ? new GoogleCloudTextToSpeech(http, { apiKey: env("GOOGLE_TTS_API_KEY")! }) : undefined,
+    speech: speechFromEnv(),
     supportDesk: env("ZENDESK_SUBDOMAIN")
       ? new ZendeskSupportDesk(http, { subdomain: env("ZENDESK_SUBDOMAIN")!, email: env("ZENDESK_EMAIL") ?? "", apiToken: env("ZENDESK_API_TOKEN") ?? "" })
       : undefined,

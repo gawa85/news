@@ -18,6 +18,8 @@ interface WhatsAppWebhook {
           timestamp: string;
           type: string;
           text?: { body: string };
+          /** Nota de voz (`voice: true`) o archivo de audio. La duración no viene en el webhook. */
+          audio?: { id: string; mime_type?: string; voice?: boolean };
           context?: { forwarded?: boolean; frequently_forwarded?: boolean };
         }[];
       };
@@ -31,12 +33,15 @@ export class WhatsAppWebhookParser implements IInboundParser {
   parse(payload: unknown): InboundMessage | null {
     const value = (payload as WhatsAppWebhook)?.entry?.[0]?.changes?.[0]?.value;
     const m = value?.messages?.[0];
-    if (!m || m.type !== "text" || !m.text) return null; // estados de entrega, imágenes, etc.
+    const isText = m?.type === "text" && !!m.text;
+    const isAudio = m?.type === "audio" && !!m.audio?.id;
+    if (!m || (!isText && !isAudio)) return null; // estados de entrega, imágenes, etc.
     return {
       channel: this.channel,
       from: `+${m.from.replace(/^\+/, "")}`,
       displayName: value?.contacts?.[0]?.profile?.name,
-      text: m.text.body,
+      text: m.text?.body ?? "",
+      ...(isAudio ? { audio: { ref: m.audio!.id, mime: m.audio!.mime_type } } : {}),
       externalId: m.id,
       receivedAt: new Date(Number(m.timestamp) * 1000),
       forwarded: !!m.context?.forwarded || !!m.context?.frequently_forwarded,
@@ -92,6 +97,10 @@ interface TelegramUpdate {
     message_id: number;
     date: number;
     text?: string;
+    /** Epígrafe de un audio. */
+    caption?: string;
+    voice?: TelegramAudio;
+    audio?: TelegramAudio;
     chat: { id: number };
     from?: { first_name?: string; username?: string };
     forward_origin?: unknown;
@@ -99,17 +108,25 @@ interface TelegramUpdate {
   };
 }
 
+interface TelegramAudio {
+  file_id: string;
+  duration?: number;
+  mime_type?: string;
+}
+
 export class TelegramUpdateParser implements IInboundParser {
   readonly channel = "telegram" as const;
 
   parse(payload: unknown): InboundMessage | null {
     const m = (payload as TelegramUpdate)?.message;
-    if (!m?.text) return null;
+    const audio = m?.voice ?? m?.audio;
+    if (!m || (!m.text && !audio)) return null;
     return {
       channel: this.channel,
       from: String(m.chat.id),
       displayName: m.from?.first_name ?? m.from?.username,
-      text: m.text,
+      text: m.text ?? m.caption ?? "",
+      ...(audio ? { audio: { ref: audio.file_id, mime: audio.mime_type, seconds: audio.duration } } : {}),
       externalId: String(m.message_id),
       receivedAt: new Date(m.date * 1000),
       forwarded: !!m.forward_origin || !!m.forward_date,
