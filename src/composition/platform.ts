@@ -322,8 +322,10 @@ export function buildPlatform(cfg: PlatformConfig) {
   );
 
   // ---- Canales ----
+  // Fuera de producción, sólo se envía a la lista del equipo. No hace falta con un transporte
+  // de mail que no sale de la máquina (el de desarrollo, que escribe los mails en el log).
   const guarded = (s: IMessageSender): IMessageSender =>
-    cfg.environment?.sandbox ? new SandboxGuardSender(s, cfg.environment.sandbox.allowlist, cfg.environment.sandbox.prefix, logger) : s;
+    cfg.environment?.sandbox && !(s.channel === "email" && cfg.mail.transport.localOnly) ? new SandboxGuardSender(s, cfg.environment.sandbox.allowlist, cfg.environment.sandbox.prefix, logger) : s;
   const compliant = (s: IMessageSender) =>
     new CompliantMessageSender(new CostRecordingSender(guarded(s), costs), guard, { unsubscribeUrl: `${cfg.publicBaseUrl}/baja`, ...(cfg.wait ? { wait: cfg.wait } : {}) }, () => clock.now());
   const channels = new ChannelRegistry({

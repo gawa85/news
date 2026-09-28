@@ -304,6 +304,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     // Portada y precios: planes para personas y medios del catálogo.
     if (req.method === "GET" && path === "/public/plans") return json(res, 200, await need(deps.account).publicPlans());
     if (req.method === "GET" && path === "/public/outlets") return json(res, 200, await need(deps.account).publicOutlets());
+    // Pantalla de acceso: qué proveedores hay (Google…) y qué captcha mostrar.
+    if (req.method === "GET" && path === "/public/auth-options") return json(res, 200, { providers: deps.auth.providerIds(), captcha: deps.captcha ?? null });
     // Qué captcha mostrar en las pantallas de alta y acceso (sólo la clave pública).
     if (req.method === "GET" && path === "/public/captcha") return json(res, 200, deps.captcha ?? { provider: null });
 

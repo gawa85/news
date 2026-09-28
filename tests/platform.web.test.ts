@@ -93,6 +93,10 @@ describe("Web: sesión y seguridad", () => {
     assert.equal((await call("/v1/analyze", { method: "POST", body: JSON.stringify({ text: "x", url: "no es un link" }) })).status, 400);
   });
 
+  test("opciones de acceso: proveedores configurados y captcha", async () => {
+    assert.deepEqual(await (await fetch(`${base}/public/auth-options`)).json(), { providers: ["google"], captcha: null });
+  });
+
   test("públicos: planes para personas (con etiquetas) y medios ordenados", async () => {
     const plans = (await (await fetch(`${base}/public/plans`)).json()) as { id: string; features: { label: string }[] }[];
     assert.deepEqual(plans.map((p) => p.id), ["gratis", "personal", "profesional"]);

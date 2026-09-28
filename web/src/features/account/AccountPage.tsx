@@ -1,0 +1,274 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router";
+import { useApi } from "../../api/ApiContext";
+import type { Digest, Preferences, ResponseFormat } from "../../api/types";
+import { formatPrice, limitText } from "../../domain/labels";
+import { useSession } from "../../session/SessionContext";
+import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
+import { useAction, useAsync } from "../../ui/useAsync";
+import { TopicSuggestions, useTopicNames } from "../shared/catalog";
+
+const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web" };
+
+/** MI CUENTA: plan y uso, preferencias, temas, sesión y mis datos. */
+export function AccountPage() {
+  const { me } = useSession();
+  if (!me) return null;
+  return (
+    <Page title="Mi cuenta">
+      <div className="grid-2">
+        <section className="card" aria-labelledby="datos">
+          <h2 id="datos">Tus datos</h2>
+          <p>
+            <strong>{me.name}</strong>
+          </p>
+          <ul>
+            {me.channels.map((c) => (
+              <li key={`${c.type}:${c.address}`}>
+                {CHANNELS[c.type] ?? c.type}: <span className="mono">{c.address}</span> {c.verified && <span className="badge badge--fact">verificado</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="card" aria-labelledby="plan">
+          <h2 id="plan">Tu plan: {me.plan.name}</h2>
+          {me.plan.price && <p className="muted">{formatPrice(me.plan.price)}</p>}
+          <ul>
+            <li>
+              Análisis hoy: {me.usage.analyses} de {limitText(me.plan.limits.analysesPerDay, "por día")}
+            </li>
+            <li>
+              Comparaciones este mes: {me.usage.comparisons} de {limitText(me.plan.limits.comparisonsPerMonth, "por mes")}
+            </li>
+          </ul>
+          <Link className="btn btn--secondary" to="/planes">
+            Cambiar de plan
+          </Link>
+        </section>
+      </div>
+      <PreferencesForm />
+      <FollowedTopics />
+      <SessionAndData />
+    </Page>
+  );
+}
+
+function PreferencesForm() {
+  const api = useApi();
+  const { can } = useSession();
+  const prefs = useAsync(() => api.preferences(), [api]);
+  const [draft, setDraft] = useState<Preferences>();
+  const save = useAction(async (p: Preferences) => {
+    const saved = await api.updatePreferences({ responseFormat: p.responseFormat, language: p.language, digest: p.digest, audioReplies: p.audioReplies, quietHours: p.quietHours });
+    prefs.setData(saved);
+    return true;
+  });
+  useEffect(() => {
+    if (prefs.data) setDraft(prefs.data);
+  }, [prefs.data]);
+
+  if (prefs.loading && !draft) return <Spinner />;
+  if (!draft) return <ErrorAlert error={prefs.error} />;
+  const locked = (k: keyof Preferences) => draft.source[k] === "locked";
+  const set = (p: Partial<Preferences>) => {
+    save.reset();
+    setDraft({ ...draft, ...p });
+  };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void save.run(draft);
+  };
+
+  return (
+    <section className="card" aria-labelledby="prefs">
+      <h2 id="prefs">Cómo te respondemos</h2>
+      <p className="muted">Vale para la web, WhatsApp, Telegram y mail.</p>
+      <form className="stack" onSubmit={submit}>
+        <fieldset disabled={locked("responseFormat")}>
+          <legend>Formato de las respuestas {locked("responseFormat") && "(lo fija tu organización)"}</legend>
+          {(
+            [
+              ["detailed", "Detallado", "Todo el análisis."],
+              ["short", "Corto", "Lo principal, para leer rápido."],
+              ["easy_read", "Lectura fácil", "Frases cortas y palabras simples."],
+            ] as [ResponseFormat, string, string][]
+          ).map(([v, label, hint]) => (
+            <label key={v} className="checkbox">
+              <input type="radio" name="formato" value={v} checked={draft.responseFormat === v} onChange={() => set({ responseFormat: v })} />
+              <span>
+                <strong>{label}</strong> <span className="muted">— {hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        <div className="grid-2">
+          <Field label="Idioma" hint={locked("language") ? "Lo fija tu organización." : undefined}>
+            {(p) => (
+              <select {...p} className="select" value={draft.language} disabled={locked("language")} onChange={(e) => set({ language: e.target.value })}>
+                <option value="es">Español</option>
+                <option value="pt">Português</option>
+                <option value="en">English</option>
+              </select>
+            )}
+          </Field>
+          <Field label="Resumen de novedades" hint={!can("daily_digest") ? "El diario viene con el plan Personal; en el gratis se manda el semanal." : undefined}>
+            {(p) => (
+              <select {...p} className="select" value={draft.digest} disabled={locked("digest")} onChange={(e) => set({ digest: e.target.value as Digest })}>
+                <option value="off">No quiero</option>
+                <option value="weekly">Semanal</option>
+                <option value="daily">Diario</option>
+              </select>
+            )}
+          </Field>
+        </div>
+
+        <label className="checkbox">
+          <input type="checkbox" checked={draft.audioReplies} disabled={locked("audioReplies")} onChange={(e) => set({ audioReplies: e.target.checked })} />
+          <span>
+            Además del texto, mandame las respuestas en audio (WhatsApp y Telegram)
+            {!can("audio_replies") && <span className="muted"> — viene con el plan Personal</span>}
+          </span>
+        </label>
+
+        <fieldset disabled={locked("quietHours")}>
+          <legend>Horario de silencio</legend>
+          <label className="checkbox">
+            <input type="checkbox" checked={!!draft.quietHours} onChange={(e) => set({ quietHours: e.target.checked ? { from: "22:00", to: "08:00", utcOffsetMinutes: -180 } : null })} />
+            <span>No me mandes avisos a la noche (te llegan cuando termina)</span>
+          </label>
+          {draft.quietHours && (
+            <div className="grid-2">
+              <Field label="Desde">{(p) => <input {...p} className="input" type="time" value={draft.quietHours!.from} onChange={(e) => set({ quietHours: { ...draft.quietHours!, from: e.target.value } })} />}</Field>
+              <Field label="Hasta">{(p) => <input {...p} className="input" type="time" value={draft.quietHours!.to} onChange={(e) => set({ quietHours: { ...draft.quietHours!, to: e.target.value } })} />}</Field>
+            </div>
+          )}
+        </fieldset>
+
+        <ErrorAlert error={save.error} />
+        {save.result && <Notice tone="ok">Listo, guardamos tus preferencias.</Notice>}
+        <div className="row">
+          <button className="btn" type="submit" disabled={save.pending}>
+            {save.pending ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function FollowedTopics() {
+  const api = useApi();
+  const { names, all } = useTopicNames();
+  const prefs = useAsync(() => api.preferences(), [api]);
+  const [topic, setTopic] = useState("");
+  const follow = useAction(async (t: string) => {
+    await api.follow(t);
+    setTopic("");
+    await prefs.reload();
+    return true;
+  });
+  const unfollow = useAction(async (t: string) => {
+    await api.unfollow(t);
+    await prefs.reload();
+    return true;
+  });
+  const followed = prefs.data?.followedTopics ?? [];
+  return (
+    <section className="card" aria-labelledby="temas-seguidos">
+      <h2 id="temas-seguidos">Temas que seguís</h2>
+      <p className="muted">Te avisamos las novedades de estos temas en tu resumen.</p>
+      {followed.length === 0 ? (
+        <p>Todavía no seguís ningún tema.</p>
+      ) : (
+        <ul className="row" style={{ listStyle: "none", padding: 0 }}>
+          {followed.map((id) => (
+            <li key={id} className="badge badge--neutral">
+              {names.get(id) ?? id}
+              <button type="button" className="btn btn--ghost btn--small" onClick={() => void unfollow.run(id)} aria-label={`Dejar de seguir ${names.get(id) ?? id}`}>
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (topic.trim()) void follow.run(topic.trim());
+        }}
+      >
+        <Field label="Seguir un tema">{(p) => <input {...p} className="input" list="temas-todos" value={topic} onChange={(e) => setTopic(e.target.value)} />}</Field>
+        <TopicSuggestions id="temas-todos" topics={all} />
+        <button className="btn btn--secondary" type="submit" disabled={follow.pending || !topic.trim()} style={{ alignSelf: "end" }}>
+          Seguir
+        </button>
+      </form>
+      <ErrorAlert error={follow.error ?? unfollow.error} />
+    </section>
+  );
+}
+
+const CONFIRM = "BORRAR MIS DATOS";
+
+function SessionAndData() {
+  const api = useApi();
+  const { logout } = useSession();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState("");
+  const out = useAction(async (everywhere: boolean) => {
+    await logout(everywhere);
+    navigate("/");
+    return true;
+  });
+  const remove = useAction(async () => {
+    await api.deleteAccount(confirm);
+    await logout();
+    navigate("/");
+    return true;
+  });
+  return (
+    <div className="grid-2">
+      <section className="card stack" aria-labelledby="sesion">
+        <h2 id="sesion">Sesión</h2>
+        <div className="row">
+          <button type="button" className="btn btn--secondary" onClick={() => void out.run(false)} disabled={out.pending}>
+            Salir
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={() => void out.run(true)} disabled={out.pending}>
+            Salir en todos los dispositivos
+          </button>
+        </div>
+        <ErrorAlert error={out.error} />
+      </section>
+      <section className="card stack" aria-labelledby="mis-datos">
+        <h2 id="mis-datos">Tus datos personales</h2>
+        <p>
+          <a href={api.myDataUrl()} download>
+            Bajar todos mis datos
+          </a>{" "}
+          <span className="muted">(archivo JSON)</span>
+        </p>
+        <details>
+          <summary>Borrar mi cuenta</summary>
+          <form
+            className="stack"
+            style={{ marginTop: "var(--space-3)" }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void remove.run();
+            }}
+          >
+            <p>Se borran tus análisis, preferencias, reglas y alertas. No se puede deshacer.</p>
+            <Field label={`Para confirmar, escribí ${CONFIRM}`}>{(p) => <input {...p} className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />}</Field>
+            <ErrorAlert error={remove.error} />
+            <button className="btn btn--danger" type="submit" disabled={confirm !== CONFIRM || remove.pending}>
+              Borrar mi cuenta
+            </button>
+          </form>
+        </details>
+      </section>
+    </div>
+  );
+}

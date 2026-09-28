@@ -220,6 +220,11 @@ export class AuthService {
     return (await this.users.findByChannel("email", email)) ?? (await this.register.execute({ name, channel: { type: "email", address: email, verified: true } }));
   }
 
+  /** Proveedores de acceso configurados (para que la web muestre sólo los botones que andan). */
+  providerIds(): string[] {
+    return this.providers.map((p) => p.id);
+  }
+
   private provider(id: string): IOAuthProvider {
     const p = this.providers.find((x) => x.id === id);
     if (!p) throw new ValidationError(`Proveedor de inicio de sesión desconocido: ${id}.`);

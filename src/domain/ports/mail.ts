@@ -21,6 +21,8 @@ export interface EmailEnvelope {
 
 export interface IEmailTransport {
   send(mail: EmailEnvelope): Promise<DeliveryResult>;
+  /** true = los mails no salen de la máquina (desarrollo): no hace falta la lista de destinatarios de prueba. */
+  readonly localOnly?: boolean;
 }
 
 export interface InboundMailEnvelope {

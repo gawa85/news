@@ -1,6 +1,8 @@
 # Sin Humo en Docker (desarrollo local).
 #
-#   docker compose up -d --build          API en http://localhost:8090 (API_PORT) + PostgreSQL
+#   docker compose up -d --build          web en http://localhost:8090 (WEB_PORT) + API + PostgreSQL
+#                                         (la API también directo en http://localhost:8091, API_PORT)
+#   docker compose run --rm web-test      pruebas de la web
 #   docker compose run --rm test          pruebas en memoria
 #   docker compose run --rm -e TEST_STORE=sqlite test
 #   docker compose run --rm test npm run test:postgres   (vacía la base de pruebas antes)
@@ -55,7 +57,8 @@ services:
       CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-turnstile}
       CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY:-}
       CAPTCHA_SECRET: ${CAPTCHA_SECRET:-}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      # La web (nginx) está delante en la red de Docker: se le cree X-Forwarded-For.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.16.0.0/12}
       TRANSLATOR: ${TRANSLATOR:-}
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
       GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
@@ -67,12 +70,29 @@ services:
       BACKUP_DIR: /backups
       BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-frase-de-desarrollo-no-usar-en-produccion}
     ports:
-      - "${API_PORT:-8090}:8080"
+      - "${API_PORT:-8091}:8080"
     volumes:
       - backups:/backups
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Web de personas: nginx sirve la aplicación y reenvía /v1, /auth, /public… a la API
+  # (mismo origen: la sesión es una cookie y la API rechaza pedidos de otros sitios).
+  web:
+    build:
+      context: ./web
+      target: runtime
+    ports:
+      - "${WEB_PORT:-8090}:8080"
+    depends_on:
+      - api
+
+  web-test:
+    build:
+      context: ./web
+      target: test
+    profiles: ["test"]
 
   test:
     build:

@@ -1,0 +1,107 @@
+/*
+ * Tokens de diseño de Sin Humo. Todo color que se usa sale de acá (modo claro y oscuro).
+ * Contrastes: texto ≥ 4,5:1 sobre su fondo; bordes de controles ≥ 3:1 (WCAG 2.2 AA).
+ */
+:root {
+  color-scheme: light;
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #f0f1ee;
+  --text: #1b2430;
+  --text-muted: #525b68;
+  --border: #d9dcd6;
+  --border-strong: #8a929c;
+
+  --brand: #0f766e;
+  --brand-hover: #115e59;
+  --brand-text: #ffffff;
+  --brand-soft: #e3f3ef;
+  --brand-ink: #0d5c55;
+
+  /* Humo: ámbar. Dato: verde. Peligro: rojo. */
+  --smoke: #9a4a07;
+  --smoke-soft: #fdf1e2;
+  --fact: #1a6b35;
+  --fact-soft: #e5f4ea;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --info-soft: #e8eefb;
+  --info: #274b9e;
+
+  --focus: #1d4ed8;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 16px rgb(16 24 40 / 6%);
+
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --content: 72rem;
+  --reading: 44rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e1318;
+    --surface: #151c23;
+    --surface-2: #1b242d;
+    --text: #e7ebef;
+    --text-muted: #a3adb9;
+    --border: #2a3540;
+    --border-strong: #6b7784;
+
+    --brand: #2cc4b0;
+    --brand-hover: #5ad8c7;
+    --brand-text: #05211d;
+    --brand-soft: #0f2f2b;
+    --brand-ink: #7ce3d5;
+
+    --smoke: #f6b25a;
+    --smoke-soft: #33230d;
+    --fact: #6ad48d;
+    --fact-soft: #10291a;
+    --danger: #ff8a80;
+    --danger-soft: #3a1512;
+    --info-soft: #172444;
+    --info: #9db8ff;
+
+    --focus: #8fb3ff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1318;
+  --surface: #151c23;
+  --surface-2: #1b242d;
+  --text: #e7ebef;
+  --text-muted: #a3adb9;
+  --border: #2a3540;
+  --border-strong: #6b7784;
+  --brand: #2cc4b0;
+  --brand-hover: #5ad8c7;
+  --brand-text: #05211d;
+  --brand-soft: #0f2f2b;
+  --brand-ink: #7ce3d5;
+  --smoke: #f6b25a;
+  --smoke-soft: #33230d;
+  --fact: #6ad48d;
+  --fact-soft: #10291a;
+  --danger: #ff8a80;
+  --danger-soft: #3a1512;
+  --info-soft: #172444;
+  --info: #9db8ff;
+  --focus: #8fb3ff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
+}

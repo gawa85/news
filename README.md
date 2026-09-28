@@ -14,7 +14,8 @@ Docker (recomendado), o Node.js 22 o superior. PostgreSQL 14+ para producción (
 No hace falta tener Node instalado. El `Dockerfile` tiene dos imágenes: `dev` (compilación y pruebas) y `runtime` (producción: sólo lo compilado, usuario sin privilegios, chequeo de `/health`).
 
 ```bash
-docker compose up -d --build                         # API en http://localhost:8090 + PostgreSQL (con datos de demo)
+docker compose up -d --build                         # web en http://localhost:8090, API en :8091, PostgreSQL (con datos de demo)
+docker compose run --rm web-test                     # pruebas de la web (ver web/README.md)
 docker compose logs -f api
 
 docker compose run --rm test                         # pruebas en memoria

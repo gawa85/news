@@ -77,6 +77,24 @@ export class RecordingEmailTransport implements IEmailTransport {
   }
 }
 
+/**
+ * Para DESARROLLO sin SMTP: cada mail se escribe en el log (así el enlace para entrar a la
+ * web local se ve con `docker compose logs api`). Nunca en producción: los mails tienen enlaces
+ * de acceso y los logs no son un lugar seguro para eso.
+ */
+export class ConsoleEmailTransport implements IEmailTransport {
+  readonly sent: EmailEnvelope[] = [];
+  readonly localOnly = true;
+
+  constructor(private readonly write: (line: string) => void = (l) => console.log(l)) {}
+
+  async send(mail: EmailEnvelope): Promise<DeliveryResult> {
+    this.sent.push(mail);
+    this.write(`\n----- MAIL (desarrollo, no se envió) -----\nPara: ${mail.to}\nAsunto: ${mail.subject}\n\n${mail.text ?? ""}\n------------------------------------------\n`);
+    return { ok: true, providerMessageId: `<consola-${this.sent.length}@sinhumo.dev>` };
+  }
+}
+
 // ---------------- Recepción por SMTP ----------------
 
 export interface InboundSmtpConfig {

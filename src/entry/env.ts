@@ -24,7 +24,7 @@ import { AnthropicLLMClient } from "../infrastructure/llm/AnthropicLLMClient";
 import { OpenAiCompatibleSpeechToText, TelegramFileFetcher, WhatsAppMediaFetcher } from "../infrastructure/inclusion/SpeechAdapters";
 import { profileFor, validateEnvironment } from "../composition/environment";
 import { FileSystemBackupSink, S3BackupSink } from "../infrastructure/ops/BackupSinks";
-import { RecordingEmailTransport, NodemailerSmtpTransport } from "../infrastructure/mail/MailAdapters";
+import { ConsoleEmailTransport, RecordingEmailTransport, NodemailerSmtpTransport } from "../infrastructure/mail/MailAdapters";
 import { TelegramBotSender, WhatsAppCloudSender } from "../infrastructure/messaging/ChannelAdapters";
 import { createMemoryStore, createPostgresStore, createSqliteStore } from "../infrastructure/persistence/stores";
 import { FetchHttpClient } from "../infrastructure/system/EventsAndHttp";
@@ -151,7 +151,9 @@ export async function platformFromEnv() {
 
   const transport: IEmailTransport = env("SMTP_HOST")
     ? new NodemailerSmtpTransport({ host: env("SMTP_HOST")!, port: Number(env("SMTP_PORT", "587")), secure: env("SMTP_SECURE") === "true", user: env("SMTP_USER"), pass: env("SMTP_PASS") })
-    : new RecordingEmailTransport();
+    : profile.name === "development"
+      ? new ConsoleEmailTransport() // en desarrollo sin SMTP: los mails (y sus enlaces) van al log
+      : new RecordingEmailTransport();
 
   const vaultKey = env("VAULT_MASTER_KEY");
   if (!vaultKey) throw new Error("Falta VAULT_MASTER_KEY (clave para cifrar contraseñas y secretos).");
