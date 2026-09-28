@@ -20,6 +20,8 @@ export interface InboundMessage {
   audio?: { ref: string; mime?: string; seconds?: number };
   /** Imagen (captura de pantalla): se lee su texto antes de interpretar el mensaje. */
   image?: { ref: string; mime?: string };
+  /** Video: se revisa si ya circuló y qué dicen sus datos (no se transcribe). */
+  video?: { ref: string; mime?: string; seconds?: number };
   /** El texto salió de una nota de voz o de una imagen. */
   extractedFrom?: "voice" | "image";
 }

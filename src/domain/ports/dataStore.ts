@@ -31,6 +31,7 @@ import type { IReviewRepository } from "./reviews";
 import type { IContentAnalysisRepository, ISourceConnectionRepository } from "./content";
 import type { IAlertRuleRepository, IRuleSetRepository } from "./userRules";
 import type { IPlanRepository, IPlanWriter, ISubscriptionRepository, IUsageRepository } from "./billing";
+import type { IMediaFingerprintRepository } from "./media";
 import type { IOrganizationInvitationRepository, IOrganizationRepository, IRoleRepository, IRoleWriter, IUserRepository } from "./identity";
 import type {
   IArticleReader,
@@ -84,6 +85,7 @@ export interface Repositories {
   roles: IRoleRepository & IRoleWriter;
   organizations: IOrganizationRepository;
   orgInvitations: IOrganizationInvitationRepository;
+  mediaFingerprints: IMediaFingerprintRepository;
   plans: IPlanRepository & IPlanWriter;
   subscriptions: ISubscriptionRepository;
   usage: IUsageRepository;

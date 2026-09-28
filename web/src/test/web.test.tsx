@@ -609,3 +609,25 @@ describe("Backoffice", () => {
     expect(await screen.findByText(/Participante 4F2A no puede escribir hasta/)).toBeInTheDocument();
   });
 });
+
+describe("Fotos y videos", () => {
+  test("revisar: sube el archivo y muestra las señales y lo que dice el archivo", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/revisar");
+    const user = userEvent.setup();
+    await user.upload(await screen.findByLabelText("Foto o video"), new File(["x"], "foto.jpg", { type: "image/jpeg" }));
+    await user.click(screen.getByRole("button", { name: "Revisar" }));
+    expect(await screen.findByText("Ojo: ya circuló antes.")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Lo que dice el archivo" })).toHaveTextContent("Adobe Photoshop 25.0");
+    expect(api.calls.find((c) => c.method === "checkMedia")?.args).toEqual(["foto.jpg", "image/jpeg"]);
+  });
+
+  test("un archivo que no es foto ni video se avisa antes de subir", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/revisar");
+    const user = userEvent.setup({ applyAccept: false });
+    await user.upload(await screen.findByLabelText("Foto o video"), new File(["x"], "doc.pdf", { type: "application/pdf" }));
+    expect(screen.getByText("Elegí una foto o un video.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revisar" })).toBeDisabled();
+  });
+});

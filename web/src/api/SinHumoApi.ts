@@ -37,6 +37,7 @@ import type {
   ReviewTarget,
   Webhook,
   WebhookList,
+  MediaCheckReport,
 } from "./types";
 
 /**
@@ -121,6 +122,9 @@ export interface SinHumoApi {
   watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
   /** `verificacion`: chequeo del equipo (sólo quien modera). */
   postToRoom(roomId: string, text: string, kind?: "verificacion"): Promise<void>;
+
+  /** ¿Esta foto o video ya circuló? ¿Qué dicen sus datos? (el archivo no se guarda) */
+  checkMedia(file: File): Promise<MediaCheckReport>;
 
   // Webhooks (el secreto de firma se ve una sola vez, al crearlo)
   webhooks(): Promise<WebhookList>;

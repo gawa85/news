@@ -50,6 +50,7 @@ import type {
   ContentAnalysis,
   Organization,
   OrganizationInvitation,
+  MediaFingerprint,
   Outlet,
   Plan,
   Role,
@@ -127,6 +128,13 @@ export interface ConversationWindow {
 
 const subjectKey = (s: { type: string; id: string }) => `${s.type}:${s.id}`;
 
+/** Parte de una huella → id de la huella. */
+export interface MediaBand {
+  id: string;
+  band: string;
+  fingerprintId: string;
+}
+
 export const schemas = {
   outlets: { name: "outlets", idOf: (o: Outlet) => o.id, indexes: {} } satisfies CollectionSchema<Outlet>,
   articles: {
@@ -161,6 +169,17 @@ export const schemas = {
   } satisfies CollectionSchema<ChannelLink>,
   roles: { name: "roles", idOf: (r: Role) => r.id, indexes: {} } satisfies CollectionSchema<Role>,
   organizations: { name: "organizations", idOf: (o: Organization) => o.id, indexes: {} } satisfies CollectionSchema<Organization>,
+  mediaFingerprints: {
+    name: "media_fingerprints",
+    idOf: (f: MediaFingerprint) => f.id,
+    indexes: { firstSeenAt: { type: "text", get: (f: MediaFingerprint) => f.firstSeenAt } },
+  } satisfies CollectionSchema<MediaFingerprint>,
+  /** Una fila por parte de la huella perceptual: buscar parecidas es una sola consulta "in". */
+  mediaBands: {
+    name: "media_bands",
+    idOf: (b: MediaBand) => b.id,
+    indexes: { band: { type: "text", get: (b: MediaBand) => b.band } },
+  } satisfies CollectionSchema<MediaBand>,
   orgInvitations: {
     name: "org_invitations",
     idOf: (i: OrganizationInvitation) => i.id,

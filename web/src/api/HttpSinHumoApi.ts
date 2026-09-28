@@ -40,6 +40,7 @@ import type {
   ReviewTarget,
   Webhook,
   WebhookList,
+  MediaCheckReport,
 } from "./types";
 
 
@@ -270,6 +271,10 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async postToRoom(roomId: string, text: string, kind?: "verificacion") {
     await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text, ...(kind ? { kind } : {}) });
+  }
+
+  checkMedia(file: File) {
+    return jsonRequest<MediaCheckReport>(this.fetchFn, this.base, "POST", "/v1/media/check", undefined, file);
   }
 
   webhooks() {

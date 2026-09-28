@@ -26,6 +26,9 @@ import { ManageRolesUseCase } from "../application/users/ManageRolesUseCase";
 import { CredibilityChangeEvaluator, EvaluateAlertsUseCase, NewCoverageEvaluator, NewDisagreementEvaluator } from "../application/alerts/Alerts";
 import { AlertSettings } from "../application/alerts/AlertSettings";
 import { OrganizationService } from "../application/organizations/Organizations";
+import { MediaCheckService } from "../application/media/MediaCheck";
+import { InboundMediaDownloader } from "../application/inclusion/InboundMedia";
+import { LocalMediaInspector } from "../infrastructure/media/LocalMediaInspector";
 import { AuditQueryUseCase, AuditRecorder, DomainEventPublisher } from "../application/audit/Audit";
 import { AuthService } from "../application/auth/AuthService";
 import { ExportService } from "../application/exports/ExportService";
@@ -110,7 +113,7 @@ import {
 } from "../application/digest/DigestSources";
 import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
-import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMediaFetcher, IOcr, IRateLimiter, ISpeechToText } from "../domain/ports";
+import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMediaFetcher, IMediaInspector, IOcr, IRateLimiter, ISpeechToText } from "../domain/ports";
 import type { RateRule } from "../domain/model";
 import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
 import { SocialReader } from "../application/social/SocialReader";
@@ -192,6 +195,8 @@ export interface PlatformConfig {
   mediaFetchers?: IInboundMediaFetcher[];
   /** Audio a texto (sin esto, no se entienden las notas de voz). */
   speech?: ISpeechToText;
+  /** Revisión de fotos y videos (por defecto, local: LocalMediaInspector). */
+  mediaInspector?: IMediaInspector;
   /** Lectura de capturas (sin esto, no se leen imágenes). */
   ocr?: IOcr;
   /**
@@ -510,6 +515,9 @@ export function buildPlatform(cfg: PlatformConfig) {
         llm: (model, input, output) => costs.llm(model, input, output),
       })
     : undefined;
+  // Fotos y videos: revisión local (sin servicios externos) y descarga única del archivo.
+  const mediaCheck = new MediaCheckService(cfg.mediaInspector ?? new LocalMediaInspector(), repos.mediaFingerprints, clock);
+  const mediaDownloader = new InboundMediaDownloader(mediaFetchers);
   const plainLanguage = cfg.plainLanguage ?? new RuleBasedPlainLanguage();
   const learning = new LearningService(repos.learning, repos.users, authz, access, domainEvents, ids, clock, { byType: SMOKE_TIPS, clean: CLEAN_TIP });
   const backups = cfg.backups
@@ -567,6 +575,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       languageDetector,
       social,
       events: eventRooms,
+      media: { check: mediaCheck, downloader: mediaDownloader },
     },
   );
 
@@ -582,6 +591,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     core,
     store: cfg.store,
     organizations,
+    mediaCheck,
     publicBaseUrl: cfg.publicBaseUrl,
     gateway,
     access,
@@ -702,6 +712,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     alerts: { settings: p.alerts.settings, create: p.users.createAlert },
     organizations: p.organizations,
     webhooks: p.integrations.webhooks,
+    mediaCheck: p.mediaCheck,
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

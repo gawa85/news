@@ -21,6 +21,7 @@ interface WhatsAppWebhook {
           /** Nota de voz (`voice: true`) o archivo de audio. La duración no viene en el webhook. */
           audio?: { id: string; mime_type?: string; voice?: boolean };
           image?: { id: string; mime_type?: string; caption?: string };
+          video?: { id: string; mime_type?: string; caption?: string };
           context?: { forwarded?: boolean; frequently_forwarded?: boolean };
         }[];
       };
@@ -37,14 +38,16 @@ export class WhatsAppWebhookParser implements IInboundParser {
     const isText = m?.type === "text" && !!m.text;
     const isAudio = m?.type === "audio" && !!m.audio?.id;
     const isImage = m?.type === "image" && !!m.image?.id;
-    if (!m || (!isText && !isAudio && !isImage)) return null; // estados de entrega, videos, stickers, etc.
+    const isVideo = m?.type === "video" && !!m.video?.id;
+    if (!m || (!isText && !isAudio && !isImage && !isVideo)) return null; // estados de entrega, stickers, etc.
     return {
       channel: this.channel,
       from: `+${m.from.replace(/^\+/, "")}`,
       displayName: value?.contacts?.[0]?.profile?.name,
-      text: m.text?.body ?? m.image?.caption ?? "",
+      text: m.text?.body ?? m.image?.caption ?? m.video?.caption ?? "",
       ...(isAudio ? { audio: { ref: m.audio!.id, mime: m.audio!.mime_type } } : {}),
       ...(isImage ? { image: { ref: m.image!.id, mime: m.image!.mime_type } } : {}),
+      ...(isVideo ? { video: { ref: m.video!.id, mime: m.video!.mime_type } } : {}),
       externalId: m.id,
       receivedAt: new Date(Number(m.timestamp) * 1000),
       forwarded: !!m.context?.forwarded || !!m.context?.frequently_forwarded,
@@ -108,6 +111,7 @@ interface TelegramUpdate {
     photo?: { file_id: string; file_size?: number }[];
     /** Imagen mandada "como archivo" (sin comprimir). */
     document?: { file_id: string; mime_type?: string };
+    video?: { file_id: string; mime_type?: string; duration?: number };
     chat: { id: number };
     from?: { first_name?: string; username?: string };
     forward_origin?: unknown;
@@ -129,7 +133,8 @@ export class TelegramUpdateParser implements IInboundParser {
     const audio = m?.voice ?? m?.audio;
     const photo = m?.photo?.at(-1);
     const image = photo ? { ref: photo.file_id, mime: "image/jpeg" } :m?.document?.mime_type?.startsWith("image/") ? { ref: m.document.file_id, mime: m.document.mime_type } : undefined;
-    if (!m || (!m.text && !audio && !image)) return null;
+    const video = m?.video ? { ref: m.video.file_id, mime: m.video.mime_type ?? "video/mp4", seconds: m.video.duration } : m?.document?.mime_type?.startsWith("video/") ? { ref: m.document.file_id, mime: m.document.mime_type } : undefined;
+    if (!m || (!m.text && !audio && !image && !video)) return null;
     return {
       channel: this.channel,
       from: String(m.chat.id),
@@ -137,6 +142,7 @@ export class TelegramUpdateParser implements IInboundParser {
       text: m.text ?? m.caption ?? "",
       ...(audio ? { audio: { ref: audio.file_id, mime: audio.mime_type, seconds: audio.duration } } : {}),
       ...(image ? { image } : {}),
+      ...(video ? { video } : {}),
       externalId: String(m.message_id),
       receivedAt: new Date(m.date * 1000),
       forwarded: !!m.forward_origin || !!m.forward_date,

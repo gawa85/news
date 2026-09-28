@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { ConflictError } from "../../domain/errors";
 import type {
   AlertRule,
+  MediaFingerprint,
   Article,
   BillingSubject,
   ChannelType,
@@ -77,6 +78,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const roles = f.collection(schemas.roles);
   const orgs = f.collection(schemas.organizations);
   const orgInvites = f.collection(schemas.orgInvitations);
+  const mediaFps = f.collection(schemas.mediaFingerprints);
+  const mediaBands = f.collection(schemas.mediaBands);
   const plans = f.collection(schemas.plans);
   const subs = f.collection(schemas.subscriptions);
   const usage = f.collection(schemas.usage);
@@ -204,6 +207,17 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     organizations: {
       findById: (id) => orgs.get(id),
       save: (o: Organization) => orgs.upsert(o),
+    },
+    mediaFingerprints: {
+      get: (id) => mediaFps.get(id),
+      findByBands: async (bands, limit) => {
+        const ids = [...new Set((await mediaBands.find({ where: { band: { in: bands } }, limit: limit * 8 })).map((b) => b.fingerprintId))].slice(0, limit);
+        return (await Promise.all(ids.map((id) => mediaFps.get(id)))).filter((f): f is MediaFingerprint => !!f);
+      },
+      save: async (fp, bands) => {
+        await mediaFps.upsert(fp);
+        for (const band of bands) await mediaBands.upsert({ id: `${band}:${fp.id}`, band, fingerprintId: fp.id });
+      },
     },
     orgInvitations: {
       findById: (id) => orgInvites.get(id),

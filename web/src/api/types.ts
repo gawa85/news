@@ -429,3 +429,10 @@ export interface RatingSummary {
   average: number | null;
   distribution: Record<"1" | "2" | "3" | "4" | "5", number>;
 }
+
+export interface MediaCheckReport {
+  kind: "image" | "video";
+  summary: string;
+  signals: { id: string; level: "info" | "warning"; label: string; detail: string }[];
+  file: { width?: number; height?: number; capturedAt?: string; device?: string; software?: string[]; seconds?: number };
+}

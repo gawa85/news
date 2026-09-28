@@ -71,6 +71,7 @@
  *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
  *  Webhooks (sólo con sesión web):  GET/POST /v1/webhooks { url, events }   POST /v1/webhooks/:id/(test|remove)
  *  Reseñas:  GET /v1/reviews/mine?type=&id=
+ *  Fotos y videos:  POST /v1/media/check  (cuerpo = el archivo, content-type image/* o video/*, hasta 20 MB)
  *  Alertas:  GET/POST /v1/alerts { topic, trigger, channel, outletId? }   POST /v1/alerts/:id/deactivate
  *  Origen:  POST /v1/origin { url, topic? }   ("¿quién lo dijo primero?")
  *  Credibilidad en el tiempo:  POST /v1/credibility/timeline { outletId, topic, from, to, windows }
@@ -96,6 +97,7 @@ import type { SocialReader } from "../../application/social/SocialReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
 import type { AlertSettings } from "../../application/alerts/AlertSettings";
 import type { OrganizationService } from "../../application/organizations/Organizations";
+import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -161,6 +163,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Revisar fotos y videos (¿ya circularon?, ¿qué dicen sus datos?). */
+  mediaCheck?: MediaCheckService;
   /** Webhooks salientes: ver, crear, probar y apagar. */
   webhooks?: WebhookService;
   /** Mi organización: equipo, invitaciones y roles. */
@@ -219,6 +223,9 @@ class HttpError extends Error {
   }
 }
 
+/** Fotos y videos para revisar (el cuerpo es el archivo; el tipo, el content-type). */
+const MEDIA_MAX_BYTES = 20 * 1024 * 1024;
+
 export function createHttpApi(deps: HttpApiDeps): Server {
   const maxBody = deps.maxBodyBytes ?? 1_000_000;
 
@@ -226,7 +233,9 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const url = new URL(req.url ?? "/", "http://localhost");
     try {
       // PUT y PATCH también traen cuerpo (antes se ignoraba: preferencias y país no se guardaban).
-      const raw = ["POST", "PUT", "PATCH"].includes(req.method ?? "") ? await readBody(req, maxBody) : Buffer.alloc(0);
+      // Revisar una foto o un video es el único pedido que trae un archivo grande.
+      const limit = url.pathname === "/v1/media/check" ? MEDIA_MAX_BYTES : maxBody;
+      const raw = ["POST", "PUT", "PATCH"].includes(req.method ?? "") ? await readBody(req, limit) : Buffer.alloc(0);
       await route(req, res, url, raw);
     } catch (err) {
       const [status, body] = toHttpError(err);
@@ -507,7 +516,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     if (!path.startsWith("/v1/")) throw new HttpError(404, "Ruta inexistente.");
     const who = await caller(req);
     await limitApi(req, who);
-    const b = ["POST", "PUT", "PATCH"].includes(req.method ?? "") ? (body() as Record<string, unknown>) : {};
+    // (La revisión de fotos y videos trae el archivo como cuerpo, no JSON.)
+    const b = ["POST", "PUT", "PATCH"].includes(req.method ?? "") && path !== "/v1/media/check" ? (body() as Record<string, unknown>) : {};
 
     // ---- Restricciones contra el abuso (soporte y administración) ----
     const rstM = path.match(/^\/v1\/abuse\/restrictions\/([^/]+)\/lift$/);
@@ -702,6 +712,16 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         await W.deactivate({ actorId: who.userId, webhookId });
         return json(res, 200, { ok: true });
       }
+    }
+
+    // ---- Revisar una foto o un video (el cuerpo es el archivo) ----
+    if (req.method === "POST" && path === "/v1/media/check") {
+      const mime = String(req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+      if (!/^(image|video)\//.test(mime)) throw new ValidationError("Mandá una foto o un video.");
+      if (!raw.length) throw new ValidationError("El archivo está vacío.");
+      await deps.abuse?.enforce({ action: "expensive", at: new Date(), userId: who.userId });
+      const { inspection: i, ...report } = await need(deps.mediaCheck).check({ data: raw, mime }, { channel: "web" });
+      return json(res, 200, { ...report, file: { width: i.width, height: i.height, capturedAt: i.capturedAt, device: i.device, software: i.software, seconds: i.seconds } });
     }
 
     const alertOff = path.match(/^\/v1\/alerts\/([^/]+)\/deactivate$/);

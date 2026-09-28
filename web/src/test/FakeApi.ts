@@ -243,6 +243,16 @@ export class FakeApi implements SinHumoApi {
     this.log("postToRoom", roomId, text, kind);
   }
 
+  async checkMedia(file: File) {
+    this.log("checkMedia", file.name, file.type);
+    return {
+      kind: "image" as const,
+      summary: "Ojo: ya circuló antes.",
+      signals: [{ id: "seen_before", level: "warning" as const, label: "Ya circuló antes", detail: "Nos llegó por primera vez el 12/03/2024." }],
+      file: { width: 1280, height: 960, software: ["Adobe Photoshop 25.0"] },
+    };
+  }
+
   hooks: Webhook[] = [];
   async webhooks() {
     return { available: !!this.session?.plan.features.includes("webhooks"), events: ["analysis.completed", "alert.triggered"], webhooks: this.hooks };

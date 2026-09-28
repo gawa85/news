@@ -6,12 +6,16 @@ export type Fetch = typeof fetch;
  * Pedido JSON al servidor (mismo origen: la cookie de sesión viaja sola). Lo comparten los
  * adaptadores HTTP de la web; los errores llegan como ApiError (código, plan sugerido, espera, captcha).
  */
-export async function jsonRequest<T>(fetchFn: Fetch, base: string, method: string, path: string, body?: unknown): Promise<T> {
+export async function jsonRequest<T>(fetchFn: Fetch, base: string, method: string, path: string, body?: unknown, file?: Blob): Promise<T> {
+  // Un archivo (foto, video) va tal cual, con su tipo; lo demás, como JSON.
+  const headers: Record<string, string> = file
+    ? { accept: "application/json", "content-type": file.type || "application/octet-stream" }
+    : body === undefined ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" };
   const res = await fetchFn(`${base}${path}`, {
     method,
     credentials: "same-origin",
-    headers: body === undefined ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers,
+    body: file ?? (body === undefined ? undefined : JSON.stringify(body)),
   });
   const text = await res.text();
   const data = text ? (JSON.parse(text) as unknown) : {};

@@ -15,6 +15,7 @@ import { NotFoundPage } from "../features/home/NotFoundPage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
+import { MediaCheckPage } from "../features/media/MediaCheckPage";
 import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
 import { JoinPage, OrganizationPage } from "../features/organization/OrganizationPages";
 import { AdminLayout } from "../features/admin/AdminLayout";
@@ -45,6 +46,7 @@ export const routes: RouteObject[] = [
       { path: "/comparar", element: guard(<ComparePage />) },
       { path: "/credibilidad", element: guard(<CredibilityPage />) },
       { path: "/origen", element: guard(<OriginPage />) },
+      { path: "/revisar", element: guard(<MediaCheckPage />) },
       { path: "/alertas", element: guard(<AlertsPage />) },
       { path: "/jugar", element: guard(<LearningPage />) },
       { path: "/salas", element: guard(<TeamRoomsPage />) },

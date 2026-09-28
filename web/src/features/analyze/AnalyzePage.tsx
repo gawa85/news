@@ -57,6 +57,9 @@ export function AnalyzePage() {
           )}
         </div>
       </form>
+      <p className="muted">
+        ¿Te llegó una foto o un video? <Link to="/revisar">Revisá si ya circuló o si lo hizo una IA</Link>.
+      </p>
       <ErrorAlert error={analyze.error} />
       {analyze.result && (
         <div ref={result} tabIndex={-1} aria-live="polite">

@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { MediaCheckService } from "../media/MediaCheck";
+import type { ScreenshotResult } from "../inclusion/Screenshots";
+import type { InboundMediaDownloader } from "../inclusion/InboundMedia";
 import { ValidationError } from "../../domain/errors";
 import type { Command, ContentItem, DeliveryResult, InboundMessage, ResponseContent, User } from "../../domain/model";
 import type {
@@ -75,7 +78,12 @@ export interface InboundExtras {
   social?: SocialReader;
   /** Eventos en vivo: suscribirse a sus chequeos. */
   events?: EventRoomService;
+  /** Fotos y videos: si ya circularon y qué dicen sus datos (el archivo se baja una sola vez). */
+  media?: { check: MediaCheckService; downloader: InboundMediaDownloader };
 }
+
+/** Tope para bajar fotos y videos (WhatsApp: videos de hasta 16 MB; Telegram: 20 MB). */
+const MEDIA_MAX_BYTES = 20 * 1024 * 1024;
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
 const QUIZ_CLEAN = ["limpio", "no es humo", "no tiene humo", "sin humo"];
@@ -126,11 +134,13 @@ export class HandleInboundMessageUseCase {
   }
 
   private async respond(user: User, msg: InboundMessage): Promise<ResponseContent> {
-    if (!msg.audio && !msg.image) return this.respondText(user, msg);
+    if (!msg.audio && !msg.image && !msg.video) return this.respondText(user, msg);
     // Transcribir y leer imágenes se paga por uso: tope por hora contra el abuso.
     if (this.extras.abuse && (await this.extras.abuse.check({ action: "expensive", at: msg.receivedAt, userId: user.id })).outcome !== "allow") {
       return this.composer.info("Llegaste al máximo de audios e imágenes por ahora.", "Probá de nuevo en un rato o mandame el texto.");
     }
+    if (msg.video) return this.respondVideo(user, msg);
+    if (msg.image && this.extras.media?.downloader.supports(msg.channel)) return this.respondImage(user, msg);
     const from = msg.audio ? "voice" : "image";
     const extracted = from === "voice" ? await this.listen(user, msg) : await this.look(user, msg);
     if (typeof extracted !== "string") return extracted;
@@ -141,6 +151,79 @@ export class HandleInboundMessageUseCase {
     const quote = extracted.length > 400 ? `${extracted.slice(0, 399)}…` : extracted;
     const heading = from === "voice" ? "🎙️ Lo que entendí del audio" : "🖼️ Lo que leí en la imagen";
     return { ...r, sections: [{ heading, lines: [`“${quote}”`] }, ...r.sections] };
+  }
+
+  /**
+   * FOTO: se baja una vez; se revisa (¿ya circuló?, ¿qué dicen sus datos?) y, si tiene texto, se lee
+   * y se analiza como cualquier mensaje. Una foto sin texto igual recibe la revisión.
+   * En capturas con texto, la revisión sólo aparece si tiene algo para decir (no repetir "sin datos").
+   */
+  private async respondImage(user: User, msg: InboundMessage): Promise<ResponseContent> {
+    const file = await this.downloadMedia(msg.channel, msg.image!.ref, msg.image!.mime);
+    if (!file) return this.composer.info("No pude leer la imagen.", "Probá de nuevo en un rato o mandame el texto.");
+    const report = await this.checkMedia(user, file, msg.channel);
+    const caption = msg.text.trim();
+    const screenshots = this.extras.screenshots;
+    const state = screenshots ? await this.enabled(user, "screenshots") : "off";
+    let read: ScreenshotResult | undefined;
+    if (screenshots && state === "ok") read = await screenshots.readFile(file, await this.language(user));
+
+    if (read?.ok) {
+      const r = await this.respondText(user, { ...msg, text: caption ? `${caption}
+${read.text}` : read.text, extractedFrom: "image" });
+      const quote = read.text.length > 400 ? `${read.text.slice(0, 399)}…` : read.text;
+      return { ...r, sections: [{ heading: "🖼️ Lo que leí en la imagen", lines: [`“${quote}”`] }, ...(report?.notable ? [report.section] : []), ...r.sections] };
+    }
+    // Sin texto leído: la revisión es lo que hay para decir (y el epígrafe, si lo hay, se analiza).
+    const notice =
+      !screenshots || state === "off" ? this.composer.info("Todavía no puedo leer imágenes.", "Mandame el texto y lo analizo.")
+      : state === "plan" ? this.composer.info("Tu plan no incluye la lectura de capturas.", "Mandame el texto y lo analizo.")
+      : read?.reason === "no_text" ? this.composer.info("No encontré texto para analizar en la imagen.", "Por ahora leo capturas con texto (mensajes, publicaciones, notas). Si querés, escribime lo que dice.")
+      : this.composer.info("No pude leer la imagen.", "Probá de nuevo en un rato o mandame el texto.");
+    if (!report) return notice;
+    const base = caption ? await this.respondText(user, { ...msg, text: caption }) : notice;
+    return { ...base, sections: [report.section, ...base.sections] };
+  }
+
+  /** VIDEO: no se transcribe; se revisa si ya circuló y qué dice el archivo. El epígrafe se analiza. */
+  private async respondVideo(user: User, msg: InboundMessage): Promise<ResponseContent> {
+    const file = this.extras.media ? await this.downloadMedia(msg.channel, msg.video!.ref, msg.video!.mime) : undefined;
+    const report = file ? await this.checkMedia(user, file, msg.channel) : undefined;
+    const caption = msg.text.trim();
+    if (!report) return caption ? this.respondText(user, { ...msg, text: caption }) : this.composer.info("No pude revisar el video.", "Si es pesado (más de 20 MB), mandame el link de dónde lo viste.");
+    const base = caption ? await this.respondText(user, { ...msg, text: caption }) : { ...this.composer.info("🔎 Revisé el video"), summary: report.section.lines[0] };
+    return { ...base, sections: [report.section, ...base.sections] };
+  }
+
+  private async downloadMedia(channel: InboundMessage["channel"], ref: string, mime?: string): Promise<{ data: Buffer; mime: string } | undefined> {
+    const d = this.extras.media?.downloader;
+    if (!d?.supports(channel)) return undefined;
+    try {
+      const f = await d.download(channel, ref, MEDIA_MAX_BYTES);
+      return f && { data: f.data, mime: mime ?? f.mime };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** La revisión en una sección de la respuesta (o nada, si está apagada o no se pudo). */
+  private async checkMedia(user: User, file: { data: Buffer; mime: string }, channel: string): Promise<{ section: { heading: string; lines: string[] }; notable: boolean } | undefined> {
+    const media = this.extras.media;
+    if (!media) return undefined;
+    if (this.extras.flags) {
+      const { plan } = await this.access.planOf(user);
+      if (!(await this.extras.flags.isEnabled("media_check", { userId: user.id, organizationId: user.organizationId, planId: plan.id, country: user.country }))) return undefined;
+    }
+    try {
+      const r = await media.check.check(file, { channel });
+      const heading = r.kind === "image" ? "🔎 Sobre la imagen" : "🔎 Sobre el video";
+      return {
+        section: { heading, lines: [r.summary, ...r.signals.map((s) => `${s.level === "warning" ? "⚠️" : "ℹ️"} ${s.label}: ${s.detail}`)] },
+        notable: r.signals.some((s) => s.id !== "no_metadata"),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   /** ¿Está habilitada esta función para la persona? (plan + función en prueba) */

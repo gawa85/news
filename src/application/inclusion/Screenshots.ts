@@ -40,10 +40,21 @@ export class ScreenshotService {
     const fetcher = this.fetchers.get(msg.channel);
     if (!image || !fetcher) return { ok: false, reason: "channel_unsupported" };
 
+    let file: { data: Buffer; mime: string };
+    try {
+      file = await fetcher.fetch(image.ref, MAX_BYTES);
+    } catch {
+      return { ok: false, reason: "failed" };
+    }
+    return this.readFile({ data: file.data, mime: image.mime ?? file.mime }, language);
+  }
+
+  /** Lee un archivo ya descargado (así se baja una sola vez aunque además se revise la imagen). */
+  async readFile(file: { data: Buffer; mime: string }, language: string): Promise<ScreenshotResult> {
+    if (file.data.length > MAX_BYTES) return { ok: false, reason: "failed" };
     let result: Awaited<ReturnType<IOcr["read"]>>;
     try {
-      const file = await fetcher.fetch(image.ref, MAX_BYTES);
-      result = await this.ocr.read({ data: file.data, mime: image.mime ?? file.mime }, language);
+      result = await this.ocr.read(file, language);
     } catch {
       return { ok: false, reason: "failed" };
     }
