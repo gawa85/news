@@ -128,6 +128,9 @@ class UnknownJobType extends Error {
  * trabajo con clave única: aunque corran 5 servidores, la tarea se hace una vez.
  */
 export class RecurringScheduler {
+  /** Última franja ya encolada por ESTE proceso (no hace falta intentarlo cada pocos segundos). */
+  private readonly done = new Map<string, number>();
+
   constructor(
     private readonly queue: IJobQueue,
     private readonly schedules: RecurringSchedule[],
@@ -140,7 +143,10 @@ export class RecurringScheduler {
     for (const s of this.schedules) {
       const slotMs = s.everyMinutes * 60_000;
       const slot = Math.floor(now / slotMs) * slotMs;
+      if (this.done.get(s.name) === slot) continue;
       const job = await this.queue.enqueue(s.jobType, s.payload ?? {}, { dedupeKey: `${s.name}@${new Date(slot).toISOString()}`, runAt: new Date(slot), maxAttempts: 3 });
+      // Encolado acá o por otro servidor: en los dos casos, esta franja ya está.
+      this.done.set(s.name, slot);
       if (job) created++;
     }
     return created;

@@ -113,14 +113,23 @@ export class SqlCollection<T> implements IDocumentCollection<T> {
     );
   }
 
+  /**
+   * Alta que falla si el id ya existe (ConflictError). Se usa para "reservar" algo una sola vez:
+   * trabajos de la cola, contadores, envíos del resumen, un número de WhatsApp.
+   * Con ON CONFLICT DO NOTHING el duplicado no es un error para la base: no ensucia el log (el
+   * planificador lo intenta cada pocos segundos) y, en PostgreSQL, no aborta la transacción en curso.
+   */
   async insert(doc: T) {
     const { names, params } = this.values(doc);
+    let inserted: number;
     try {
-      await this.db.run(`INSERT INTO ${this.table} (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")})`, params);
+      inserted = await this.db.run(`INSERT INTO ${this.table} (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")}) ON CONFLICT (id) DO NOTHING`, params);
     } catch (err) {
+      // Otras restricciones únicas (si una tabla las tuviera) siguen siendo un conflicto.
       if (this.dialect.isUniqueViolation(err)) throw uniqueViolation(this.table, this.schema.idOf(doc));
       throw err;
     }
+    if (inserted === 0) throw uniqueViolation(this.table, this.schema.idOf(doc));
   }
 
   async updateIf(doc: T, where: NonNullable<Query["where"]>) {
