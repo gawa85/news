@@ -1,6 +1,6 @@
 import { NotFoundError } from "../../domain/errors";
 import type { ContentAnalysis, Feature, Plan, SocialPost } from "../../domain/model";
-import type { IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
+import type { IAuthorizationService, IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
 import type { AccessControl } from "../access/AccessControl";
 import type { LegalService } from "../legal/Legal";
 
@@ -55,6 +55,8 @@ export class AccountQueries {
     private readonly outlets: IOutletReader,
     private readonly featureLabels: Record<Feature, string>,
     private readonly subscriptions?: ISubscriptionRepository,
+    /** Para decir qué puede hacer (la web muestra el backoffice según esto; el servidor igual controla cada acción). */
+    private readonly authz?: IAuthorizationService,
   ) {}
 
   /** Quién soy: datos de la cuenta, plan, uso de hoy y documentos legales por aceptar. */
@@ -73,6 +75,7 @@ export class AccountQueries {
       createdAt: user.createdAt,
       organizationId: user.organizationId,
       roles: user.roleIds,
+      permissions: this.authz ? [...(await this.authz.permissionsOf(user))].sort() : [],
       channels: user.channels.map((c) => ({ type: c.channel, address: c.address, verified: c.verified })),
       plan: { id: plan.id, name: plan.name, features: plan.features, limits: plan.limits, price: plan.price },
       usage: await this.access.usageOf(user),

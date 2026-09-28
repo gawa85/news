@@ -25,6 +25,8 @@ export function evaluateFlag(f: FeatureFlag, ctx: FlagContext): boolean {
  * FUNCIONES EN PRUEBA: se consultan con caché corta; las cambia quien tiene `flags:manage`
  * (queda en la auditoría). Sirven para lanzar de a poco y apagar algo que falla sin desplegar.
  */
+const EDITABLE = ["enabled", "rolloutPercent", "allowUsers", "allowOrgs", "plans", "countries"];
+
 export class FeatureFlagService implements IFeatureFlags {
   private cache?: { at: number; flags: Map<string, FeatureFlag> };
 
@@ -55,7 +57,8 @@ export class FeatureFlagService implements IFeatureFlags {
     if (input.rolloutPercent !== undefined && (!Number.isInteger(input.rolloutPercent) || input.rolloutPercent < 0 || input.rolloutPercent > 100)) throw new ValidationError("El porcentaje va de 0 a 100.");
     const next: FeatureFlag = {
       ...current,
-      ...Object.fromEntries(Object.entries(input).filter(([k, v]) => v !== undefined && !["actorId", "key"].includes(k))),
+      // Sólo lo editable (una clave de más en el pedido no se guarda en el flag).
+      ...Object.fromEntries(Object.entries(input).filter(([k, v]) => v !== undefined && EDITABLE.includes(k))),
       updatedAt: this.clock.now(), updatedBy: actor.id,
     };
     await this.repo.save(next);

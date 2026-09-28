@@ -69,6 +69,16 @@ describe("Web: sesión y seguridad", () => {
     assert.equal((await ask("ana@correo.example", "https://atacante.example")).headers.get("location"), "/");
   });
 
+  test("un actorId en el cuerpo nunca reemplaza a quien llama (no se actúa como otra persona)", async () => {
+    const admin = await userWithPlan(t, "gratis", ["platform_admin"]);
+    const flag = await call("/v1/flags/event_rooms", { method: "PATCH", body: JSON.stringify({ actorId: admin.id, enabled: false }) });
+    assert.equal(flag.status, 403);
+    const rule = await call("/v1/business-rules", { method: "POST", body: JSON.stringify({ actorId: admin.id, name: "Regla colada", scope: { type: "platform" }, conditions: [], effect: { type: "deny", message: "x" } }) });
+    assert.equal(rule.status, 403);
+    const topic = await call("/v1/taxonomy/categories", { method: "POST", body: JSON.stringify({ actorId: admin.id, name: "Colada" }) });
+    assert.equal(topic.status, 403);
+  });
+
   test("redirecciones sólo a rutas del sitio", () => {
     assert.equal(localPath("/cuenta"), true);
     assert.equal(localPath("/analizar?x=1"), true);

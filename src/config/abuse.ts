@@ -7,13 +7,18 @@ import type { AbuseAction, RateRule } from "../domain/model";
 
 export const RATE_RULES: RateRule[] = [
   // Cuentas nuevas por la web: pocas por red; si se pasa, captcha; muchas más, no.
+  // Calibración: en Argentina los celulares salen a internet compartiendo IP entre miles de
+  // personas (CGNAT del operador), igual que escuelas y oficinas. Un aula de 40 que se registra
+  // junta no puede quedar afuera: por día, primero captcha; el rechazo es para volúmenes de programa.
   { action: "signup", per: "ip", limit: 5, windowSeconds: 3_600, onExceed: "challenge" },
-  { action: "signup", per: "ip", limit: 30, windowSeconds: 86_400, onExceed: "deny" },
+  { action: "signup", per: "ip", limit: 30, windowSeconds: 86_400, onExceed: "challenge" },
+  { action: "signup", per: "ip", limit: 300, windowSeconds: 86_400, onExceed: "deny" },
   // Cada pedido de alta manda un mail a esa casilla: pocos por hora (no se puede bombardear a nadie).
   { action: "signup", per: "email", limit: 3, windowSeconds: 3_600, onExceed: "deny" },
   // Contraseña: además del bloqueo por mail que ya existe, un tope por red (prueba de claves en masa).
   { action: "login", per: "ip", limit: 30, windowSeconds: 600, onExceed: "challenge" },
-  { action: "login", per: "ip", limit: 200, windowSeconds: 3_600, onExceed: "deny" },
+  { action: "login", per: "ip", limit: 200, windowSeconds: 3_600, onExceed: "challenge" },
+  { action: "login", per: "ip", limit: 1_000, windowSeconds: 3_600, onExceed: "deny" },
   // Enlaces de acceso: cada uno es un mail enviado (costo y reputación del dominio).
   { action: "magic_link", per: "email", limit: 5, windowSeconds: 3_600, onExceed: "deny" },
   { action: "magic_link", per: "ip", limit: 20, windowSeconds: 3_600, onExceed: "challenge" },

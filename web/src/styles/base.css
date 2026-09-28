@@ -651,3 +651,51 @@ legend {
 .stats dt {
   color: var(--text-muted);
 }
+
+/* Backoffice: menú lateral (arriba en el celular) y contenido. */
+.admin {
+  max-width: var(--content);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4);
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+  align-items: start;
+}
+.admin__nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.admin__nav a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  min-height: 2.75rem;
+  line-height: 1.75rem;
+}
+.admin__nav a:hover {
+  background: var(--surface-2);
+}
+.admin__nav a[aria-current="page"] {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.admin__main .page {
+  padding: 0;
+  max-width: none;
+}
+@media (max-width: 48rem) {
+  .admin {
+    grid-template-columns: 1fr;
+  }
+  .admin__nav ul {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}

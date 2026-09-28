@@ -9,6 +9,8 @@ interface Session {
   logout(everywhere?: boolean): Promise<void>;
   /** ¿El plan incluye esta funcionalidad? */
   can(feature: string): boolean;
+  /** ¿Su rol tiene este permiso? (para mostrar el backoffice; el servidor controla igual) */
+  has(permission: string): boolean;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -39,6 +41,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setMe(undefined);
       },
       can: (feature) => !!me?.plan.features.includes(feature),
+      has: (permission) => !!me?.permissions?.includes(permission),
     }),
     [api, me, refresh],
   );

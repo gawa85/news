@@ -581,7 +581,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       return json(res, 200, await deps.support.reply({ agentId: who.userId, ticketId, text: str(b.text, "text"), internal: !!b.internal, status: b.status as never }));
     }
     const flagM = path.match(/^\/v1\/flags\/([a-z0-9_]+)$/);
-    if (req.method === "PATCH" && flagM) return json(res, 200, await deps.flags.update({ actorId: who.userId, key: flagM[1]!, ...(b as object) } as never));
+    if (req.method === "PATCH" && flagM) return json(res, 200, await deps.flags.update({ ...pick(b, ["enabled", "rolloutPercent", "allowUsers", "allowOrgs", "plans", "countries"]), actorId: who.userId, key: flagM[1]! } as never));
     const brule = path.match(/^\/v1\/business-rules\/([^/]+)\/(test|approve|archive|history)$/);
     if (brule) {
       const ruleId = decodeURIComponent(brule[1]!);
@@ -730,9 +730,9 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       // ---- Configuración: temas, preferencias, reglas y parámetros ----
       case "POST /v1/taxonomy/categories":
-        return json(res, 200, await deps.config.taxonomy.saveCategory({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 200, await deps.config.taxonomy.saveCategory({ ...(b as object), actorId: who.userId } as never));
       case "POST /v1/taxonomy/topics":
-        return json(res, 200, await deps.config.taxonomy.saveTopic({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 200, await deps.config.taxonomy.saveTopic({ ...(b as object), actorId: who.userId } as never));
       case "GET /v1/me/preferences":
         return json(res, 200, await deps.config.preferences.effective(await deps.access.userOrThrow(who.userId)));
       case "PATCH /v1/me/preferences":
@@ -747,7 +747,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, await deps.config.businessRules.list(who.userId));
       case "POST /v1/business-rules":
         return json(res, 201, await deps.config.businessRules.saveDraft({
-          actorId: who.userId, ...(b as object),
+          ...(b as object), actorId: who.userId,
           validFrom: b.validFrom ? date(b.validFrom, "validFrom") : undefined, validTo: b.validTo ? date(b.validTo, "validTo") : undefined,
         } as never));
       case "GET /v1/parameters":
@@ -779,14 +779,14 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, await deps.commerce.service.setCountry({ actorId: who.userId, country: str(b.country, "country") }));
       case "POST /v1/coupons":
         return json(res, 201, await deps.commerce.service.createCoupon({
-          actorId: who.userId, ...(b as object), validFrom: b.validFrom ? date(b.validFrom, "validFrom") : undefined, validTo: b.validTo ? date(b.validTo, "validTo") : undefined,
+          ...(b as object), actorId: who.userId, validFrom: b.validFrom ? date(b.validFrom, "validFrom") : undefined, validTo: b.validTo ? date(b.validTo, "validTo") : undefined,
         } as never));
       case "GET /v1/referrals":
         return json(res, 200, await deps.commerce.referrals.summary(who.userId));
       case "POST /v1/referrals/apply":
         return json(res, 200, await deps.commerce.referrals.apply({ userId: who.userId, code: str(b.code, "code") }));
       case "PUT /v1/organization/branding":
-        return json(res, 200, await deps.commerce.branding.update({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 200, await deps.commerce.branding.update({ ...(b as object), actorId: who.userId } as never));
       case "POST /v1/organization/branding/domain":
         return json(res, 200, await deps.commerce.branding.setDomain({ actorId: who.userId, domain: str(b.domain, "domain") }));
       case "POST /v1/organization/branding/verify":
@@ -849,7 +849,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         setSession(res, null);
         return json(res, 200, { ok: true });
       case "POST /v1/billing/profile":
-        return json(res, 200, await deps.billingProfile.execute({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 200, await deps.billingProfile.execute({ ...(b as object), actorId: who.userId } as never));
       case "GET /v1/invoices":
         return json(res, 200, await deps.invoices.findBySubject(billingSubjectOf(await deps.access.userOrThrow(who.userId))));
       case "GET /v1/costs":
@@ -874,9 +874,9 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/feedback":
         return json(res, 200, await deps.quality.feedback.submit({ userId: who.userId, analysisId: str(b.analysisId, "analysisId"), useful: !!b.useful, reason: b.reason as never, comment: b.comment as string | undefined }));
       case "POST /v1/campaigns":
-        return json(res, 201, await P.campaigns.create({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 201, await P.campaigns.create({ ...(b as object), actorId: who.userId } as never));
       case "POST /v1/perspectives":
-        return json(res, 201, await P.perspectives.publish({ actorId: who.userId, ...(b as object) } as never));
+        return json(res, 201, await P.perspectives.publish({ ...(b as object), actorId: who.userId } as never));
       case "GET /v1/rooms":
         return json(res, 200, await P.rooms.list(who.userId));
       case "POST /v1/rooms":
@@ -1072,6 +1072,14 @@ export function localPath(p: string): boolean {
 function configured(secret: string, what: string): string {
   if (!secret.trim()) throw new HttpError(404, `${what} no está configurado.`);
   return secret;
+}
+
+/**
+ * Campos permitidos de un cuerpo. Regla de todas las rutas: los datos de confianza (quién actúa,
+ * sobre qué id) van DESPUÉS del cuerpo, así un "actorId" en el JSON nunca pisa a quien llama.
+ */
+function pick(b: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  return Object.fromEntries(keys.filter((k) => b[k] !== undefined).map((k) => [k, b[k]]));
 }
 
 function need<T>(x: T | undefined): T {

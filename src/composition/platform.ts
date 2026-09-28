@@ -698,7 +698,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
     inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
-    account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions),
+    account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions, p.authz),
     alerts: { settings: p.alerts.settings, create: p.users.createAlert },
     organizations: p.organizations,
     webhooks: p.integrations.webhooks,

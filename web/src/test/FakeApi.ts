@@ -353,6 +353,7 @@ export function sampleMe(extra: Partial<Me> = {}): Me {
     name: "Ana",
     createdAt: "2026-09-01T00:00:00Z",
     roles: ["reader"],
+    permissions: [],
     channels: [{ type: "email", address: "ana@correo.example", verified: true }],
     plan: { id: "gratis", name: "Gratis", features: ["content_analysis", "smoke_analysis", "source_comparison"], limits: { analysesPerDay: 5, comparisonsPerMonth: 3, maxSourcesPerComparison: 4, maxIncludeUrls: 0, seats: 1 }, price: null },
     usage: { analyses: 2, comparisons: 0 },

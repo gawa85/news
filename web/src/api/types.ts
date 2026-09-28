@@ -87,6 +87,8 @@ export interface Me {
   createdAt: string;
   organizationId?: string;
   roles: string[];
+  /** Permisos efectivos (la web muestra el backoffice según esto; el servidor controla cada acción). */
+  permissions: string[];
   channels: { type: string; address: string; verified: boolean }[];
   plan: { id: string; name: string; features: string[]; limits: PlanLimits; price: Price | null };
   subscription?: { status: string; interval?: "month" | "year"; currentPeriodEnd: string; cancelAtPeriodEnd: boolean; managedByOrganization: boolean };
