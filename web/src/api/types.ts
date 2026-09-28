@@ -245,6 +245,8 @@ export interface EvidenceVerification {
 
 export interface RoomMessage {
   id: string;
+  /** Sólo en salas de equipo (en eventos públicos nadie ve quién es quién). */
+  authorId?: string;
   alias?: string;
   text: string;
   links: string[];
@@ -349,4 +351,22 @@ export interface LearningProgress {
   correct: number;
   bestStreak: number;
   level: string;
+}
+
+/** Sala de trabajo de un equipo (organización). */
+export interface TeamRoom {
+  id: string;
+  name: string;
+  topic?: string;
+  createdBy: string;
+  createdAt: string;
+  slowModeSeconds: number;
+}
+
+export interface TeamRoomDetails {
+  room: TeamRoom;
+  /** Sólo nombres: para mostrar quién escribió. */
+  members: { id: string; name: string }[];
+  /** Publica chequeos, borra mensajes ajenos y archiva. */
+  canModerate: boolean;
 }

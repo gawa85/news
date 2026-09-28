@@ -29,6 +29,8 @@ import type {
   QuizQuestion,
   QuizResult,
   TimelinePoint,
+  TeamRoom,
+  TeamRoomDetails,
 } from "./types";
 
 type Fetch = typeof fetch;
@@ -277,7 +279,35 @@ export class HttpSinHumoApi implements SinHumoApi {
     return () => source.close();
   }
 
-  async postToRoom(roomId: string, text: string) {
-    await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text });
+  async postToRoom(roomId: string, text: string, kind?: "verificacion") {
+    await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text, ...(kind ? { kind } : {}) });
+  }
+
+  rooms() {
+    return this.request<TeamRoom[]>("GET", "/v1/rooms");
+  }
+
+  createRoom(input: { name: string; topic?: string; slowModeSeconds?: number }) {
+    return this.request<TeamRoom>("POST", "/v1/rooms", input);
+  }
+
+  room(id: string) {
+    return this.request<TeamRoomDetails>("GET", `/v1/rooms/${encodeURIComponent(id)}`);
+  }
+
+  async archiveRoom(id: string) {
+    await this.request("POST", `/v1/rooms/${encodeURIComponent(id)}/archive`);
+  }
+
+  async deleteRoomMessage(messageId: string) {
+    await this.request("POST", `/v1/rooms/messages/${encodeURIComponent(messageId)}/delete`);
+  }
+
+  /** Con la cookie de sesión (mismo origen): EventSource la manda sola. */
+  watchRoom(id: string, onEvent: (e: RoomEvent) => void, onError?: () => void) {
+    const source = new EventSource(`${this.base}/v1/rooms/${encodeURIComponent(id)}/events`);
+    source.onmessage = (m) => onEvent(JSON.parse(m.data as string) as RoomEvent);
+    if (onError) source.onerror = onError;
+    return () => source.close();
   }
 }

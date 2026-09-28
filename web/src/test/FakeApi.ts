@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, RoomEvent, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, RoomEvent, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -234,8 +234,40 @@ export class FakeApi implements SinHumoApi {
       this.emit = undefined;
     };
   }
-  async postToRoom(roomId: string, text: string) {
-    this.log("postToRoom", roomId, text);
+  async postToRoom(roomId: string, text: string, kind?: string) {
+    this.log("postToRoom", roomId, text, kind);
+  }
+
+  teamRooms: TeamRoom[] = [];
+  canModerateRooms = false;
+  /** Para simular lo que pasa en una sala del equipo. */
+  emitRoom?: (e: RoomEvent) => void;
+  async rooms() {
+    return this.teamRooms;
+  }
+  async createRoom(input: { name: string; topic?: string }) {
+    this.log("createRoom", input);
+    const r: TeamRoom = { id: `room${this.teamRooms.length + 1}`, name: input.name, topic: input.topic, createdBy: this.session?.id ?? "u1", createdAt: "2026-09-28T12:00:00Z", slowModeSeconds: 0 };
+    this.teamRooms = [...this.teamRooms, r];
+    return r;
+  }
+  async room(id: string) {
+    const room = this.teamRooms.find((r) => r.id === id);
+    if (!room) throw new ApiError(404, "No existe esa sala.");
+    return { room, members: [{ id: "u1", name: "Ana" }, { id: "u2", name: "Juan" }], canModerate: this.canModerateRooms };
+  }
+  async archiveRoom(id: string) {
+    this.log("archiveRoom", id);
+  }
+  async deleteRoomMessage(id: string) {
+    this.log("deleteRoomMessage", id);
+  }
+  watchRoom(_id: string, onEvent: (e: RoomEvent) => void) {
+    this.emitRoom = onEvent;
+    onEvent({ type: "history", messages: [] });
+    return () => {
+      this.emitRoom = undefined;
+    };
   }
 }
 

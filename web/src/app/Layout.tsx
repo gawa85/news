@@ -14,7 +14,7 @@ function Logo() {
 
 /** Estructura común: saltar al contenido, encabezado con navegación, contenido y pie. */
 export function Layout() {
-  const { me } = useSession();
+  const { me, can } = useSession();
   return (
     <>
       <a className="skip-link" href="#contenido">
@@ -34,6 +34,7 @@ export function Layout() {
                 <NavLink to="/origen">¿Quién lo dijo?</NavLink>
                 <NavLink to="/credibilidad">Credibilidad</NavLink>
                 <NavLink to="/historial">Historial</NavLink>
+                {can("team_rooms") && <NavLink to="/salas">Salas</NavLink>}
                 <NavLink to="/eventos">Eventos</NavLink>
                 <NavLink to="/cuenta">Mi cuenta</NavLink>
               </>

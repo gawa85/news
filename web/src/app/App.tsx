@@ -15,6 +15,7 @@ import { NotFoundPage } from "../features/home/NotFoundPage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
+import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
 
@@ -35,6 +36,8 @@ export const routes: RouteObject[] = [
       { path: "/origen", element: guard(<OriginPage />) },
       { path: "/alertas", element: guard(<AlertsPage />) },
       { path: "/jugar", element: guard(<LearningPage />) },
+      { path: "/salas", element: guard(<TeamRoomsPage />) },
+      { path: "/salas/:id", element: guard(<TeamRoomPage />) },
       { path: "/cuenta", element: guard(<AccountPage />) },
       { path: "/archivo", element: guard(<EvidencePage />) },
       { path: "/ayuda", element: guard(<SupportPage />) },

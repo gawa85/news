@@ -27,6 +27,8 @@ import type {
   QuizQuestion,
   QuizResult,
   TimelinePoint,
+  TeamRoom,
+  TeamRoomDetails,
 } from "./types";
 
 /**
@@ -108,5 +110,15 @@ export interface SinHumoApi {
   event(code: string): Promise<PublicEvent>;
   /** Mensajes en vivo; devuelve cómo desconectarse. */
   watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
-  postToRoom(roomId: string, text: string): Promise<void>;
+  /** `verificacion`: chequeo del equipo (sólo quien modera). */
+  postToRoom(roomId: string, text: string, kind?: "verificacion"): Promise<void>;
+
+  // Salas del equipo (organizaciones con plan de equipo)
+  rooms(): Promise<TeamRoom[]>;
+  createRoom(input: { name: string; topic?: string; slowModeSeconds?: number }): Promise<TeamRoom>;
+  room(id: string): Promise<TeamRoomDetails>;
+  archiveRoom(id: string): Promise<void>;
+  deleteRoomMessage(messageId: string): Promise<void>;
+  /** Mensajes en vivo de una sala del equipo; devuelve cómo desconectarse. */
+  watchRoom(id: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
 }

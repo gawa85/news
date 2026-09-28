@@ -160,6 +160,36 @@ describe("Salas del equipo en tiempo real", () => {
     await assert.rejects(t.p.participation.rooms.create({ actorId: admin.id, name: "" }), ValidationError);
   });
 
+  test("la sala por dentro: nombres del equipo, chequeos sólo de quien modera y archivar", async () => {
+    const t = await testPlatform();
+    const { admin, member } = await orgWithTeam(t);
+    const ana = await member("analyst");
+    const mod = await member("moderator");
+    const R = t.p.participation.rooms;
+    const room = await R.create({ actorId: ana.id, name: "Tarifas de gas" });
+
+    const seen = await R.details({ actorId: mod.id, roomId: room.id });
+    assert.equal(seen.canModerate, true);
+    assert.deepEqual(seen.members.map((m) => m.id).sort(), [admin.id, ana.id, mod.id].sort());
+    assert.deepEqual(Object.keys(seen.members[0]!).sort(), ["id", "name"], "sólo el nombre, nada de contacto");
+    assert.equal((await R.details({ actorId: ana.id, roomId: room.id })).canModerate, false);
+    const other = await orgWithTeam(t);
+    await assert.rejects(R.details({ actorId: other.admin.id, roomId: room.id }), /otra organización/);
+
+    await assert.rejects(R.post({ actorId: ana.id, roomId: room.id, text: "Chequeado: es 30%.", kind: "verificacion" }), AccessDeniedError);
+    const check = await R.post({ actorId: mod.id, roomId: room.id, text: "Chequeado: es 30% https://boletin.example/45", kind: "verificacion" });
+    assert.deepEqual(check.flags, ["verificacion"]);
+
+    const third = await member("analyst");
+    await assert.rejects(R.archive({ actorId: third.id, roomId: room.id }), AccessDeniedError);
+    const events: RoomEvent[] = [];
+    await R.join({ actorId: mod.id, roomId: room.id }, (e) => events.push(e));
+    await R.archive({ actorId: ana.id, roomId: room.id });
+    assert.ok(events.some((e) => e.type === "closed"));
+    assert.equal((await R.list(ana.id)).some((r) => r.id === room.id), false);
+    await assert.rejects(R.post({ actorId: ana.id, roomId: room.id, text: "hola" }), /No existe/);
+  });
+
   test("por HTTP: eventos en vivo por SSE", async () => {
     const t = await testPlatform();
     const { admin } = await orgWithTeam(t);

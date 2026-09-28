@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { ApiError } from "../api/ApiError";
@@ -310,5 +310,59 @@ describe("Herramientas del plan", () => {
     expect(await screen.findByText("¡Bien!")).toBeInTheDocument();
     expect(screen.getByText(/Alarmismo y pedido de reenvío/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Otra" })).toBeInTheDocument();
+  });
+});
+
+describe("Salas del equipo", () => {
+  const teamMe = () => sampleMe({ organizationId: "org1", plan: { ...sampleMe().plan, id: "equipo", name: "Equipo", features: ["content_analysis", "team_rooms"] } });
+
+  test("sin plan de equipo, explica cómo conseguirlas", async () => {
+    renderApp(new FakeApi(sampleMe()), "/salas");
+    expect(await screen.findByText(/son para equipos de una organización/)).toBeInTheDocument();
+  });
+
+  test("crear una sala, ver quién está y los mensajes en vivo con el nombre de cada uno", async () => {
+    const api = new FakeApi(teamMe());
+    const { router } = renderApp(api, "/salas");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre"), "Debate de esta noche");
+    await user.click(screen.getByRole("button", { name: "Crear sala" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Debate de esta noche" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/salas/room1");
+
+    act(() => api.emitRoom!({ type: "presence", userIds: ["u1", "u2"] }));
+    expect(screen.getByText("En la sala: Vos, Juan.")).toBeInTheDocument();
+    act(() => api.emitRoom!({ type: "message", message: { id: "m1", authorId: "u2", text: "Dicen que subió 45%", links: [], flags: ["sin_fuente"], at: "2026-09-28T21:00:00Z", deleted: false } }));
+    const chat = screen.getByRole("region", { name: "Conversación" });
+    expect(within(chat).getByText("Juan")).toBeInTheDocument();
+    expect(within(chat).getByText("Cifra sin fuente")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Borrar el mensaje de Juan" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Publicar como chequeo/)).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Tu mensaje"), "Es 30%: https://boletin.example/45");
+    await user.click(screen.getByRole("button", { name: "Enviar" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "postToRoom")?.args).toEqual(["room1", "Es 30%: https://boletin.example/45", undefined]));
+  });
+
+  test("quien modera publica chequeos, borra mensajes ajenos y archiva", async () => {
+    const api = new FakeApi(teamMe());
+    api.canModerateRooms = true;
+    api.teamRooms = [{ id: "room1", name: "Mesa", createdBy: "u2", createdAt: "2026-09-28T12:00:00Z", slowModeSeconds: 10 }];
+    renderApp(api, "/salas/room1");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { level: 1, name: "Mesa" });
+    act(() => api.emitRoom!({ type: "message", message: { id: "m1", authorId: "u2", text: "hola", links: [], flags: [], at: "2026-09-28T21:00:00Z", deleted: false } }));
+    await user.click(screen.getByRole("button", { name: "Borrar el mensaje de Juan" }));
+    expect(api.calls.find((c) => c.method === "deleteRoomMessage")?.args).toEqual(["m1"]);
+
+    await user.type(screen.getByLabelText("Tu mensaje"), "Chequeado: es 30%");
+    await user.click(screen.getByLabelText(/Publicar como chequeo/));
+    await user.click(screen.getByRole("button", { name: "Enviar" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "postToRoom")?.args[2]).toBe("verificacion"));
+
+    await user.click(screen.getByRole("button", { name: "Archivar" }));
+    await user.click(screen.getByRole("button", { name: "Sí, archivar" }));
+    expect(await screen.findByText("La sala se archivó")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Tu mensaje")).not.toBeInTheDocument();
   });
 });

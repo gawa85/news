@@ -50,6 +50,29 @@ export class RoomService {
     return (await this.rooms.findByOrganization(actor.organizationId!)).filter((r) => !r.archived);
   }
 
+  /**
+   * Una sala de equipo por dentro: quiénes son (sólo el nombre, para mostrar quién escribió)
+   * y si quien pregunta modera (publica chequeos, borra mensajes ajenos, archiva).
+   */
+  async details(input: { actorId: string; roomId: string }): Promise<{ room: Room; members: { id: string; name: string }[]; canModerate: boolean }> {
+    const room = await this.room(input.roomId);
+    if ((room.kind ?? "team") !== "team") throw new NotFoundError("No existe esa sala.");
+    const actor = await this.users.findById(input.actorId);
+    await this.team.canRead(actor, room);
+    const members = (await this.users.findByOrganization(room.organizationId!)).filter((u) => u.status === "active").map((u) => ({ id: u.id, name: u.name }));
+    return { room, members, canModerate: await this.team.canModerate(actor!) };
+  }
+
+  /** Archivar (deja de aparecer y no se puede escribir): quien la creó o quien modera. */
+  async archive(input: { actorId: string; roomId: string }): Promise<Room> {
+    const { room, canModerate } = await this.details(input);
+    if (room.createdBy !== input.actorId && !canModerate) throw new AccessDeniedError("Sólo quien creó la sala o un moderador puede archivarla.", "no_permission");
+    const archived = { ...room, archived: true };
+    await this.rooms.save(archived);
+    this.realtime.publish(room.id, { type: "closed" });
+    return archived;
+  }
+
   /** `kind: "verificacion"`: chequeo del equipo de la sala (sólo quien modera; no espera el modo lento). */
   async post(input: { actorId: string; roomId: string; text: string; replyTo?: string; kind?: "verificacion" }): Promise<RoomMessage> {
     const room = await this.room(input.roomId);

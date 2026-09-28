@@ -37,7 +37,8 @@
  *    GET  /public/perspectives?type=&id=    otras miradas (agrupadas por tipo)
  *    POST /v1/perspectives   POST /v1/perspectives/:id/vote
  *    POST /v1/campaigns      POST /v1/campaigns/:id/(review|launch|allies|respond)   GET /v1/campaigns/:id/report
- *    GET/POST /v1/rooms      GET /v1/rooms/:id/events (SSE, tiempo real)   POST /v1/rooms/:id/messages
+ *    GET/POST /v1/rooms      GET /v1/rooms/:id (miembros)   POST /v1/rooms/:id/archive
+ *    GET /v1/rooms/:id/events (SSE, tiempo real)   POST /v1/rooms/:id/messages { text, kind? }   POST /v1/rooms/messages/:id/delete
  *  Estadísticas:
  *    GET /v1/stats/panel?scope=user|organization&from=&to=   GET /v1/stats/business?from=&to=
  *    GET /v1/bi/:dataset?scope=&since=&limit=   (analyses | daily_stats; para Power BI, Looker, Metabase)
@@ -619,10 +620,23 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       if (evAct[2] === "factcheck") return json(res, 201, await P.events.factCheck({ actorId: who.userId, roomId, text: str(b.text, "text") }));
       return json(res, 200, await P.events.mute({ actorId: who.userId, messageId: str(b.messageId, "messageId"), minutes: Number(b.minutes ?? 30), removeMessage: b.remove === true }));
     }
+    const msgDel = path.match(/^\/v1\/rooms\/messages\/([^/]+)\/delete$/);
+    if (req.method === "POST" && msgDel) {
+      await P.rooms.remove({ actorId: who.userId, messageId: decodeURIComponent(msgDel[1]!) });
+      return json(res, 200, { ok: true });
+    }
+    const roomOne = path.match(/^\/v1\/rooms\/([^/]+)(\/archive)?$/);
+    if (roomOne && roomOne[1] !== "messages") {
+      const roomId = decodeURIComponent(roomOne[1]!);
+      if (req.method === "GET" && !roomOne[2]) return json(res, 200, await P.rooms.details({ actorId: who.userId, roomId }));
+      if (req.method === "POST" && roomOne[2]) return json(res, 200, await P.rooms.archive({ actorId: who.userId, roomId }));
+    }
     const room = path.match(/^\/v1\/rooms\/([^/]+)\/(events|messages)$/);
     if (room) {
       const roomId = decodeURIComponent(room[1]!);
-      if (req.method === "POST" && room[2] === "messages") return json(res, 201, await P.rooms.post({ actorId: who.userId, roomId, text: str(b.text, "text"), replyTo: b.replyTo as string | undefined }));
+      if (req.method === "POST" && room[2] === "messages") {
+        return json(res, 201, await P.rooms.post({ actorId: who.userId, roomId, text: str(b.text, "text"), replyTo: b.replyTo as string | undefined, kind: b.kind === "verificacion" ? "verificacion" : undefined }));
+      }
       if (req.method === "GET" && room[2] === "events") return stream(req, res, (send) => P.rooms.join({ actorId: who.userId, roomId }, send));
     }
 
