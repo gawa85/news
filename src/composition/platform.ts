@@ -503,7 +503,9 @@ export function buildPlatform(cfg: PlatformConfig) {
   const media = new SignedMediaStore(repos.media, `${cfg.vaultMasterKey}:media`, cfg.publicBaseUrl, clock);
   const ttsPrice = PRICE_TABLE.textToSpeechPerMillionCharsUsd ?? 0;
   const audio = cfg.tts ? new AudioReplyService(cfg.tts, media, 1500, 7 * 24 * 3600, (chars) => costs.units("text_to_speech", cfg.tts!.id, { characters: chars }, (chars / 1_000_000) * ttsPrice)) : undefined;
-  const sttPrice = PRICE_TABLE.speechToTextPerMinuteUsd;
+  // Los programas locales (Whisper, Tesseract) no cuestan por uso: se cuenta el uso con costo 0.
+  const isLocal = (provider: string) => provider === "tesseract" || provider.startsWith("local");
+  const sttPrice = cfg.speech && isLocal(cfg.speech.id) ? 0 : PRICE_TABLE.speechToTextPerMinuteUsd;
   const mediaFetchers = cfg.mediaFetchers ?? [];
   const voice = cfg.speech
     ? new VoiceNoteService(cfg.speech, mediaFetchers, () => params.number("voice.max_seconds"),
@@ -511,7 +513,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     : undefined;
   const screenshots = cfg.ocr
     ? new ScreenshotService(cfg.ocr, mediaFetchers, {
-        perImage: (provider) => costs.units("ocr", provider, { images: 1 }, PRICE_TABLE.ocrPerImageUsd),
+        perImage: (provider) => costs.units("ocr", provider, { images: 1 }, isLocal(provider) ? 0 : PRICE_TABLE.ocrPerImageUsd),
         llm: (model, input, output) => costs.llm(model, input, output),
       })
     : undefined;

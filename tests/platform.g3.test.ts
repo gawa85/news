@@ -202,6 +202,14 @@ describe("Capturas: limpieza del texto de la interfaz", () => {
   });
 });
 
+describe("Capturas: salida real de Tesseract sobre una captura de WhatsApp", () => {
+  test("se van la hora con los tildes de leído (✓✓ → «Vv») y el «Reenviado» con su ícono", () => {
+    const tesseract = ["Grupo Familia - 21:05", "", "< Reenviado muchas veces", "URGENTE!!! Reenviá a todos: mañana cortan", "el agua en todo el país, lo dijo un funcionario.", "", "Es una catástrofe histórica sin precedentes.", "21:04 Vv"].join("\n");
+    assert.equal(cleanScreenshotText(tesseract), ["Grupo Familia - 21:05", "", "URGENTE!!! Reenviá a todos: mañana cortan", "el agua en todo el país, lo dijo un funcionario.", "", "Es una catástrofe histórica sin precedentes."].join("\n"));
+    for (const t of ["21:04 ✓✓", "9:15 p. m. //", "21:04"]) assert.equal(cleanScreenshotText(`Hola\n${t}`), "Hola", t);
+  });
+});
+
 describe("Capturas: parsers de los canales", () => {
   test("WhatsApp: imagen con epígrafe", () => {
     const msg = new WhatsAppWebhookParser().parse({ entry: [{ changes: [{ value: { messages: [{ from: "5491155550000", id: "wamid.I", timestamp: "1790000000", type: "image", image: { id: "img-1", mime_type: "image/jpeg", caption: "¿esto es real?" } }] } }] }] });

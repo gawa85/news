@@ -1,8 +1,10 @@
 /**
- * LECTURA DE CAPTURAS: dos proveedores intercambiables.
+ * LECTURA DE CAPTURAS: proveedores intercambiables.
+ *  - Tesseract (LOCAL): sin servicios externos ni costo por uso; lee bien texto nítido.
  *  - Google Cloud Vision: OCR clásico, barato, lee TODO (la interfaz se limpia después).
  *  - Claude con visión: entiende la captura y separa el contenido de la interfaz.
  */
+import { execFile } from "node:child_process";
 import type { IHttpClient, IOcr } from "../../domain/ports";
 
 /** Detecta el formato por los primeros bytes (los canales no siempre informan bien el tipo). */
@@ -12,6 +14,38 @@ export function sniffImageMime(data: Buffer, fallback: string): string {
   if (data.subarray(0, 4).toString("latin1") === "GIF8") return "image/gif";
   if (data.subarray(0, 4).toString("latin1") === "RIFF" && data.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
   return fallback.split(";")[0]!.trim();
+}
+
+/** Cómo correr un programa: se inyecta (en las pruebas, uno falso). */
+export type Runner = (cmd: string, args: string[], input: Buffer, timeoutMs: number) => Promise<string>;
+
+const run: Runner = (cmd, args, input, timeoutMs) =>
+  new Promise((resolve, reject) => {
+    const child = execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 2 * 1024 * 1024, encoding: "utf8" }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
+    child.stdin?.end(input);
+  });
+
+/** Idiomas de Tesseract por idioma de la persona (siempre con inglés: capturas de redes mezclan). */
+const TESS_LANGS: Record<string, string> = { es: "spa+eng", pt: "por+eng", en: "eng" };
+
+/**
+ * Tesseract por línea de comandos, en la misma máquina: la imagen entra por stdin (no se escribe
+ * a disco) y el texto sale por stdout. Con tiempo límite: una imagen rara no traba el servidor.
+ */
+export class TesseractOcr implements IOcr {
+  readonly id = "tesseract";
+
+  constructor(
+    private readonly opts: { binary?: string; timeoutMs?: number } = {},
+    private readonly runner: Runner = run,
+  ) {}
+
+  async read(image: { data: Buffer; mime: string }, language: string): Promise<{ text: string }> {
+    const langs = TESS_LANGS[language.slice(0, 2)] ?? "spa+eng";
+    // --psm 3: página con varios bloques (capturas de chats y redes).
+    const text = await this.runner(this.opts.binary ?? "tesseract", ["stdin", "stdout", "-l", langs, "--psm", "3"], image.data, this.opts.timeoutMs ?? 20_000);
+    return { text };
+  }
 }
 
 /** Google Cloud Vision (REST, DOCUMENT_TEXT_DETECTION: mejor para bloques de texto). */

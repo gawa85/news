@@ -8,7 +8,7 @@ import { GoogleCloudTextToSpeech, ZendeskSupportDesk } from "../infrastructure/i
 import { seedCore } from "../composition/container";
 import { demoSeed } from "../demo/seedData";
 import type { IBackupSink, IDataStore, IEmailTransport, IHttpClient, IInboundMediaFetcher, IMessageSender, IOcr, ISpeechToText } from "../domain/ports";
-import { ClaudeVisionOcr, GoogleVisionOcr } from "../infrastructure/inclusion/OcrAdapters";
+import { TesseractOcr, ClaudeVisionOcr, GoogleVisionOcr } from "../infrastructure/inclusion/OcrAdapters";
 import type { EvidenceProviders } from "../application/evidence/Evidence";
 import { SinkEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
 import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastructure/evidence/EvidenceAdapters";
@@ -66,6 +66,10 @@ function mediaFetchersFromEnv(): IInboundMediaFetcher[] {
 
 /** Notas de voz: transcriptor compatible con la API de OpenAI. */
 function speechFromEnv(): ISpeechToText | undefined {
+  // Local: el servicio "whisper" de docker-compose (whisper.cpp), con la misma API que OpenAI.
+  if (env("SPEECH_TO_TEXT_PROVIDER") === "local") {
+    return new OpenAiCompatibleSpeechToText({ id: "local-whisper", apiKey: "local", baseUrl: env("SPEECH_TO_TEXT_BASE_URL", "http://whisper:8080/v1"), model: "whisper-1" });
+  }
   if (!env("SPEECH_TO_TEXT_API_KEY")) return undefined;
   return new OpenAiCompatibleSpeechToText({ apiKey: env("SPEECH_TO_TEXT_API_KEY")!, baseUrl: env("SPEECH_TO_TEXT_BASE_URL") || undefined, model: env("SPEECH_TO_TEXT_MODEL") || undefined });
 }
@@ -133,6 +137,8 @@ function ocrFromEnv(http: IHttpClient): IOcr | undefined {
   const provider = env("OCR_PROVIDER") || (env("GOOGLE_VISION_API_KEY") ? "google" : env("ANTHROPIC_API_KEY") ? "claude" : "");
   if (provider === "google" && env("GOOGLE_VISION_API_KEY")) return new GoogleVisionOcr(http, { apiKey: env("GOOGLE_VISION_API_KEY")! });
   if (provider === "claude" && env("ANTHROPIC_API_KEY")) return new ClaudeVisionOcr({ apiKey: env("ANTHROPIC_API_KEY")!, model: env("OCR_MODEL") || undefined });
+  // Local (viene en la imagen de Docker): sin servicios externos ni costo por uso.
+  if (provider === "tesseract") return new TesseractOcr({ binary: env("TESSERACT_BINARY") || undefined });
   return undefined;
 }
 

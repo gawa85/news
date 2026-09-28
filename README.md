@@ -45,6 +45,17 @@ CAPTCHA_SITE_KEY=1x00000000000000000000AA    # claves de PRUEBA de Cloudflare Tu
 CAPTCHA_SECRET=1x0000000000000000000000000000000AA   # (2x0000000000000000000000000000000AA: siempre rechaza)
 ```
 
+**Notas de voz y capturas, locales** (sin servicios externos ni costo por uso):
+
+```bash
+docker compose --profile ia-local up -d whisper   # whisper.cpp; la primera vez baja el modelo (~470 MB)
+# en .env:
+SPEECH_TO_TEXT_PROVIDER=local                      # notas de voz → el servicio whisper
+OCR_PROVIDER=tesseract                             # capturas → Tesseract (viene en la imagen de la API)
+```
+
+Probado con una nota de voz real en castellano (8 s de audio → 8 s de CPU, 4 hilos) y una captura de WhatsApp (0,3 s).
+
 **Telegram** (el bot sale gratis con @BotFather → `/newbot`):
 
 1. En `.env`: `TELEGRAM_BOT_TOKEN=<token>` y `TELEGRAM_SECRET_TOKEN=<al menos 16 letras/números al azar>`. `docker compose up -d api`.

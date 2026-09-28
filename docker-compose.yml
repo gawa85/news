@@ -74,10 +74,13 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       # Audio, imágenes e idiomas
+      # local = el servicio "whisper" de abajo (sin servicios externos)
+      SPEECH_TO_TEXT_PROVIDER: ${SPEECH_TO_TEXT_PROVIDER:-}
       SPEECH_TO_TEXT_API_KEY: ${SPEECH_TO_TEXT_API_KEY:-}
       SPEECH_TO_TEXT_BASE_URL: ${SPEECH_TO_TEXT_BASE_URL:-}
       SPEECH_TO_TEXT_MODEL: ${SPEECH_TO_TEXT_MODEL:-}
       GOOGLE_TTS_API_KEY: ${GOOGLE_TTS_API_KEY:-}
+      # tesseract = local (viene en la imagen); google o claude necesitan clave
       OCR_PROVIDER: ${OCR_PROVIDER:-}
       OCR_MODEL: ${OCR_MODEL:-}
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
@@ -144,6 +147,25 @@ services:
     depends_on:
       - api
 
+  # Notas de voz LOCALES (whisper.cpp, sin servicios externos): misma API que OpenAI.
+  # El modelo (small: bueno en castellano, ~470 MB) se baja una sola vez al volumen.
+  # Activar: docker compose --profile ia-local up -d whisper   y en .env  SPEECH_TO_TEXT_PROVIDER=local
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        M=$${WHISPER_MODEL:-small};
+        [ -f /models/ggml-$$M.bin ] || /app/models/download-ggml-model.sh $$M /models;
+        exec /app/build/bin/whisper-server --host 0.0.0.0 --port 8080 -m /models/ggml-$$M.bin
+        --inference-path /v1/audio/transcriptions --convert -l auto -t $${WHISPER_THREADS:-4}
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_THREADS: ${WHISPER_THREADS:-4}
+    volumes:
+      - whisper-models:/models
+    profiles: ["ia-local"]
+
   # Túnel público (Cloudflare, sin cuenta) para que Telegram/WhatsApp lleguen a esta máquina.
   # La URL https://….trycloudflare.com sale en: docker compose logs tunel
   # Cambia cada vez que se reinicia el túnel.
@@ -180,4 +202,5 @@ services:
 
 volumes:
   pgdata:
+  whisper-models:
   backups:

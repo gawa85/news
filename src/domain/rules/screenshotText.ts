@@ -24,6 +24,12 @@ const UI_WORDS = new Set([
  */
 const COUNTER = /^[·•]?\s*(\d{1,3}|[\d.,]+\s?(k|m|mil|mill\.?)|\d+\s?(s|min|h|d|sem)|hace \d+\s?\w+)$/i;
 
+/**
+ * Hora de un mensaje de chat, con los tildes de "leído" (el OCR los ve como ✓✓, Vv, //, W):
+ * es interfaz en cualquier parte de la captura, no sólo arriba.
+ */
+const MESSAGE_TIME = /^\d{1,2}:\d{2}(\s?[ap]\.?\s?m\.?)?\s*[✓✔vVwW/\\]{0,3}$/;
+
 /** La barra de estado está arriba: más abajo, un "300%" suelto puede ser el titular. */
 const STATUS_BAR_LINES = 4;
 
@@ -35,7 +41,9 @@ export function cleanScreenshotText(raw: string): string {
     .filter((l) => {
       if (!l) return true; // se conservan los cortes de párrafo (se colapsan después)
       if (seen++ < STATUS_BAR_LINES && STATUS_BAR.some((re) => re.test(l))) return false;
-      if (UI_WORDS.has(l.toLowerCase().replace(/[.:!]+$/, ""))) return false;
+      if (MESSAGE_TIME.test(l)) return false;
+      // "↪ Reenviado", "< Reenviado muchas veces": el ícono delante no cambia que sea interfaz.
+      if (UI_WORDS.has(l.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, "").replace(/[.:!]+$/, ""))) return false;
       if (COUNTER.test(l)) return false;
       return l.replace(/[^\p{L}\p{N}]/gu, "").length > 0; // íconos sueltos, flechas, separadores
     });
