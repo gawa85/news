@@ -61,6 +61,7 @@
  *  Soporte:  GET/POST /v1/support/tickets   POST /v1/support/tickets/:id/(messages|reply|rate)   GET /v1/support/queue
  *  Funciones en prueba:  GET /v1/flags   PATCH /v1/flags/:key
  *  Audios firmados:  GET /media/:id?exp=&sig=
+ *  Redes:  POST /v1/social/read {url}
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups (ops:backup)   GET /health (con el ambiente)
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
@@ -79,6 +80,7 @@ import { AbuseRejectedError, AccessDeniedError, ConflictError, NotFoundError, Va
 import type { IAbusePolicy, RestrictionAdmin } from "../../application/abuse/AbuseGuard";
 import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
+import type { SocialReader } from "../../application/social/SocialReader";
 import type { AccessControl } from "../../application/access/AccessControl";
 import type { Caller, ProductGateway } from "../../application/access/ProductGateway";
 import type { ImpactReportUseCase } from "../../application/impact/ImpactUseCases";
@@ -136,6 +138,8 @@ export interface HttpApiDeps {
   trackedLinks: TrackedLinkService;
   /** Mensajes de chat (con el freno contra el abuso delante). */
   inbound: IInboundHandler;
+  /** Lector de publicaciones de redes. */
+  social?: SocialReader;
   /** Freno contra el abuso (API, MCP). Sin él, no se limita. */
   abuse?: IAbusePolicy;
   restrictions?: RestrictionAdmin;
@@ -629,6 +633,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/classrooms/join":
         return json(res, 200, await deps.inclusion.learning.join({ userId: who.userId, code: str(b.code, "code"), alias: str(b.alias, "alias") }));
       // ---- Soporte ----
+      case "POST /v1/social/read":
+        return json(res, 200, await need(deps.social).read(str(b.url, "url")));
       case "POST /v1/evidence":
         return json(res, 201, (await deps.evidence.capture({ actorId: who.userId, url: str(b.url, "url"), monitor: b.monitor === true })).snapshot);
       case "GET /v1/evidence": {

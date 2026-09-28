@@ -15,7 +15,9 @@ import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastruct
 import { HCaptcha, TurnstileCaptcha } from "../infrastructure/abuse/AbuseAdapters";
 import { DISPOSABLE_EMAIL_DOMAINS } from "../config/abuse";
 import { readFileSync } from "node:fs";
-import type { ITranslator } from "../domain/ports";
+import type { ISocialSource, ITranslator } from "../domain/ports";
+import { OEmbedSocialSource, OpenGraphSocialSource, YouTubeDataApiSource } from "../infrastructure/social/SocialSources";
+import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DeepLTranslator, GoogleTranslator, LLMTranslator } from "../infrastructure/language/LanguageAdapters";
 import { SpotlightingLLMClient } from "../infrastructure/llm/SpotlightingLLMClient";
 import { AnthropicLLMClient } from "../infrastructure/llm/AnthropicLLMClient";
@@ -88,6 +90,21 @@ function abuseFromEnv() {
     captcha,
     captchaSiteKey: env("CAPTCHA_SITE_KEY") || undefined,
     ...(extra.length ? { disposableEmailDomains: [...DISPOSABLE_EMAIL_DOMAINS, ...extra] } : {}),
+  };
+}
+
+/**
+ * Redes: del más rico al más básico. oEmbed y metadatos públicos no necesitan claves;
+ * la API de YouTube (YOUTUBE_API_KEY) suma descripción y números; Meta (META_OEMBED_TOKEN)
+ * habilita Instagram y Facebook.
+ */
+function socialFromEnv(http: IHttpClient): { sources: ISocialSource[] } {
+  return {
+    sources: [
+      ...(env("YOUTUBE_API_KEY") ? [new YouTubeDataApiSource(http, env("YOUTUBE_API_KEY")!)] : []),
+      new OEmbedSocialSource(http, { metaAccessToken: env("META_OEMBED_TOKEN") || undefined }),
+      new OpenGraphSocialSource(new HttpPageCapturer()),
+    ],
   };
 }
 
@@ -177,6 +194,7 @@ export async function platformFromEnv() {
     evidence: evidenceFromEnv(http),
     abuse: abuseFromEnv(),
     translator: translatorFromEnv(http),
+    social: socialFromEnv(http),
     supportDesk: env("ZENDESK_SUBDOMAIN")
       ? new ZendeskSupportDesk(http, { subdomain: env("ZENDESK_SUBDOMAIN")!, email: env("ZENDESK_EMAIL") ?? "", apiToken: env("ZENDESK_API_TOKEN") ?? "" })
       : undefined,

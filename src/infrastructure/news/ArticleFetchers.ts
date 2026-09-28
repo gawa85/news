@@ -1,5 +1,6 @@
 import { canonicalUrl, urlMatches, type Article, type Outlet } from "../../domain/model";
-import type { IArticleFetcher, IIdGenerator, IOutletReader } from "../../domain/ports";
+import type { IArticleFetcher, IIdGenerator, IOutletReader, IPageCapturer } from "../../domain/ports";
+import { HttpPageCapturer } from "../evidence/HttpPageCapturer";
 
 /**
  * Resuelve a qué medio pertenece una URL. Si el dominio no está registrado,
@@ -23,21 +24,24 @@ export class InMemoryArticleFetcher implements IArticleFetcher {
 }
 
 /**
- * Trae una nota real por HTTP y extrae título y texto de forma básica.
- * En producción conviene reemplazarlo por un extractor más robusto
- * (Readability, un servicio de extracción, etc.): misma interfaz, nada más cambia.
+ * Trae una nota real y extrae título y texto de forma básica.
+ * La descarga se inyecta (DIP): por defecto, con protección SSRF y tope de tamaño, porque
+ * las URLs las manda la persona ("/comparar … <links>").
+ * En producción conviene un extractor más robusto (Readability, un servicio de extracción):
+ * misma interfaz, nada más cambia.
  */
 export class HttpArticleFetcher implements IArticleFetcher {
   constructor(
     private readonly outlets: IOutletReader,
     private readonly ids: IIdGenerator,
-    private readonly timeoutMs = 10_000,
+    private readonly capturer: IPageCapturer = new HttpPageCapturer({ timeoutMs: 10_000 }),
+    private readonly maxBytes = 5 * 1024 * 1024,
   ) {}
 
   async fetch(url: string, topic: string): Promise<Article> {
-    const res = await fetch(url, { signal: AbortSignal.timeout(this.timeoutMs), headers: { "user-agent": "SinHumoBot/0.1" } });
-    if (!res.ok) throw new Error(`La página respondió ${res.status}.`);
-    const html = await res.text();
+    const page = await this.capturer.capture(url, this.maxBytes);
+    if (page.status >= 400) throw new Error(`La página respondió ${page.status}.`);
+    const html = page.body.toString("utf8");
 
     const title = decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? url);
     const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => decode(m[1] ?? "")).filter((p) => p.length > 40);

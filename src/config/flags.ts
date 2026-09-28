@@ -6,6 +6,7 @@ export const FEATURE_FLAGS: FlagDefinition[] = [
   { key: "voice_notes", description: "Entender notas de voz (audio a texto).", defaultEnabled: true, defaultRollout: 100 },
   { key: "screenshots", description: "Leer capturas de pantalla (OCR).", defaultEnabled: true, defaultRollout: 100 },
   { key: "digest", description: "Resumen diario o semanal.", defaultEnabled: true, defaultRollout: 100 },
+  { key: "social_links", description: "Leer publicaciones de redes cuando se reenvía un link.", defaultEnabled: true, defaultRollout: 100 },
   { key: "learning_mode", description: "Modo aprendizaje (/jugar) para todas las personas.", defaultEnabled: true, defaultRollout: 100 },
   { key: "referrals", description: "Programa de invitaciones.", defaultEnabled: true, defaultRollout: 100 },
 ];

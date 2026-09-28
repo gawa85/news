@@ -528,6 +528,17 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - Se envía con `notifyUser`: respeta el horario de silencio (lo posterga), el orden de canales, la marca blanca, la ventana de WhatsApp (afuera, con la plantilla `resumen_sin_humo`, que **hay que aprobar en Meta**) y el límite por destinatario.
   - `DigestAudience` encuentra a quién le toca por índices: personas que lo pidieron y miembros de organizaciones que lo tienen por defecto. Si la organización lo bloquea, ninguno puede apagarlo.
   - El **diario** es de los planes pagos (`daily_digest`); en el plan gratis se manda el semanal. Función en prueba `digest` para el apagado de emergencia. Una parte que falla no tira abajo el resumen.
+- **Redes sociales como fuente** (`SocialReader` + `ISocialSource`): cuando alguien reenvía un link a un posteo, un video o un reel (con, a lo sumo, un comentario corto), se analiza **lo que dice la publicación**, no el link. La respuesta empieza con qué se leyó: red, autor, fecha y vistas. Si no se puede leer, se analiza el mensaje y se avisa.
+
+  | Lector (del más rico al más básico) | Qué da |
+  |---|---|
+  | `YouTubeDataApiSource` | API oficial (`YOUTUBE_API_KEY`, gratis con cupo): título, descripción, canal, fecha, vistas |
+  | `OEmbedSocialSource` | oEmbed **público** de X, TikTok y YouTube (sin claves). Instagram y Facebook, con token de una app de Meta |
+  | `OpenGraphSocialSource` | metadatos públicos de cualquier link (canales de Telegram, Threads…), bajados con la **descarga protegida contra SSRF** (reusa `IPageCapturer`) |
+
+  - `FallbackSocialSource` encadena los lectores: si uno falla (cupo agotado, posteo sin oEmbed), prueba el siguiente. `CachedSocialSource` evita pedir dos veces el mismo posteo. Hay una función en prueba (`social_links`) y la ruta `POST /v1/social/read`.
+  - **Términos de cada plataforma**: sólo APIs oficiales, oEmbed y metadatos públicos. Nada que requiera iniciar sesión, ni bajar videos o audios para transcribirlos, ni raspar contenido.
+  - **SSRF en `/comparar`**: `HttpArticleFetcher` bajaba cualquier URL que mandaba la persona sin protección ni tope de tamaño. Ahora recibe un `IPageCapturer` (DIP), y por defecto usa la descarga protegida.
 - **Idiomas y traducción**: el producto está escrito en castellano y los demás idiomas (portugués e inglés, en `config/languages.ts`) se sirven **traduciendo**. Todo son decoradores de puertos que ya existían (OCP):
 
   | Puerto | Adaptadores |
@@ -580,6 +591,7 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Otra red (Bluesky, Reddit, Kwai) | Otra clase `ISocialSource` en la cadena de `social.sources` (y su dominio en `domain/rules/social.ts`) |
 | Otro idioma (francés, italiano) | Agregarlo a `config/languages.ts` (y sus alias de comandos); el traductor hace el resto |
 | Otro traductor (Azure, un modelo propio) | Otra clase `ITranslator` |
 | Otro captcha (reCAPTCHA) u otra señal de abuso (reputación de IP) | Clase `ICaptchaVerifier` / `IAbuseSignalProvider` (`abuse.signals`) |

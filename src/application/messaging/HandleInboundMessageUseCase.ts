@@ -33,6 +33,7 @@ import type { EvidenceService } from "../evidence/Evidence";
 import type { DigestService } from "../digest/Digests";
 import type { IAbusePolicy } from "../abuse/AbuseGuard";
 import type { ResponseLocalizer } from "../language/Translation";
+import type { SocialReader } from "../social/SocialReader";
 import type { ILanguageDetector } from "../../domain/ports";
 import { BASE_LANGUAGE, MIN_DETECTION_CONFIDENCE, SUPPORTED_LANGUAGES } from "../../config/languages";
 
@@ -69,6 +70,8 @@ export interface InboundExtras {
   localizer?: ResponseLocalizer;
   /** Para elegir el idioma de quien escribe por primera vez. */
   languageDetector?: ILanguageDetector;
+  /** Links a redes: se lee la publicación. */
+  social?: SocialReader;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -257,8 +260,17 @@ export class HandleInboundMessageUseCase {
     switch (cmd.type) {
       case "help":
         return this.composer.help();
-      case "analyze_content":
-        return this.composer.content(await this.gateway.analyzeContent(caller, this.toContent(cmd.text, msg)));
+      case "analyze_content": {
+        // Un link a una red: se analiza lo que dice la publicación, no el link.
+        const social = this.extras.social;
+        const shared = social ? await social.readShared(cmd.text, { userId: user.id, organizationId: user.organizationId, country: user.country }) : undefined;
+        if (social && shared?.post) {
+          const r = this.composer.content(await this.gateway.analyzeContent(caller, social.contentFor(shared.post, this.toContent(cmd.text, msg))));
+          return { ...r, sections: [social.describe(shared.post), ...r.sections] };
+        }
+        const r = this.composer.content(await this.gateway.analyzeContent(caller, this.toContent(cmd.text, msg)));
+        return shared?.failed ? { ...r, sections: [{ heading: "📱 No pude leer la publicación", lines: ["Analicé sólo tu mensaje. Si podés, copiá el texto del posteo."] }, ...r.sections] } : r;
+      }
       case "compare_sources": {
         const period = monthPeriod(cmd.month, msg.receivedAt);
         return this.composer.comparison(

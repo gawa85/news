@@ -110,7 +110,9 @@ import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
 import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMediaFetcher, IOcr, IRateLimiter, ISpeechToText } from "../domain/ports";
 import type { RateRule } from "../domain/model";
-import type { ILanguageDetector, ITranslator } from "../domain/ports";
+import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
+import { SocialReader } from "../application/social/SocialReader";
+import { CachedSocialSource, FallbackSocialSource } from "../infrastructure/social/SocialSources";
 import { MultilingualCommandParser, ResponseLocalizer } from "../application/language/Translation";
 import { CachedTranslator, MeteredTranslator, StopwordLanguageDetector } from "../infrastructure/language/LanguageAdapters";
 import { AbuseGuard, RestrictionAdmin } from "../application/abuse/AbuseGuard";
@@ -188,6 +190,11 @@ export interface PlatformConfig {
    * sin sello de tiempo ni copia pública (se activan pasando sus adaptadores).
    */
   evidence?: Partial<EvidenceProviders>;
+  /**
+   * Lectores de redes, del más rico al más básico (API de YouTube, oEmbed, metadatos públicos).
+   * Sin esto, un link a una red se analiza como texto.
+   */
+  social?: { sources: ISocialSource[] };
   /** Traducción automática (sin esto: sólo castellano y no se comparan fuentes en otros idiomas). */
   translator?: ITranslator;
   /** Detector de idioma (por defecto, por palabras frecuentes). */
@@ -513,6 +520,9 @@ export function buildPlatform(cfg: PlatformConfig) {
   const contentSources = [new ImapMailboxSource(mimeParser), new RssFeedSource(cfg.http)];
   const syncSources = new SyncSourcesUseCase(contentSources, repos.sourceConnections, vault, gateway, clock, logger);
 
+  // ---- Redes: cadena de lectores (del más rico al más básico) con caché ----
+  const social = cfg.social?.sources.length ? new SocialReader(new CachedSocialSource(new FallbackSocialSource(cfg.social.sources), cache), flags) : undefined;
+
   // ---- Chat entrante (los webhooks usan `abuse.inbound`: este mismo caso de uso con el freno delante) ----
   const inbound = new HandleInboundMessageUseCase(
     repos.users, register, new MultilingualCommandParser(new SpanishCommandParser()), gateway, access, saveRules, repos.ruleSets, repos.outlets,
@@ -522,6 +532,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       abuse: abuseGuard,
       localizer: translator ? new ResponseLocalizer(translator) : undefined,
       languageDetector,
+      social,
     },
   );
 
@@ -554,6 +565,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       createAlert: new CreateAlertUseCase(repos.alerts, authz, access, ids, clock),
     },
     inbound,
+    social,
     abuse: {
       guard: abuseGuard,
       admin: restrictionAdmin,
@@ -640,7 +652,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
   return {
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
-    inbound: p.abuse.inbound, abuse: p.abuse.guard, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
+    inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,
