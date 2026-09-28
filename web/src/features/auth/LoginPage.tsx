@@ -32,7 +32,7 @@ export function LoginPage() {
   const onToken = useCallback((t: string | undefined) => setCaptchaToken(t), []);
 
   const sendLink = useAction(async () => {
-    await api.requestMagicLink(email.trim(), captchaToken);
+    await api.requestMagicLink(email.trim(), captchaToken, next);
     return true;
   });
   const login = useAction(async () => {

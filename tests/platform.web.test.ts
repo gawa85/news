@@ -58,6 +58,17 @@ describe("Web: sesión y seguridad", () => {
     assert.equal((await fetch(`${base}/auth/logout`)).status, 404);
   });
 
+  test("el enlace del mail vuelve a la página que se estaba por ver (sólo rutas del sitio)", async () => {
+    const ask = async (email: string, next: string) => {
+      t.clock.advance(3_600_001); // (el freno contra el abuso admite 3 enlaces por hora al mismo mail)
+      await fetch(`${base}/auth/magic-link`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, next }) });
+      return fetch(`${base}/auth/magic?token=${tokenFrom(t.mail.sent.at(-1)!.text)}`, { redirect: "manual" });
+    };
+    assert.equal((await ask("ana@correo.example", "/unirme?token=abc")).headers.get("location"), "/unirme?token=abc");
+    assert.equal((await ask("ana@correo.example", "//atacante.example")).headers.get("location"), "/");
+    assert.equal((await ask("ana@correo.example", "https://atacante.example")).headers.get("location"), "/");
+  });
+
   test("redirecciones sólo a rutas del sitio", () => {
     assert.equal(localPath("/cuenta"), true);
     assert.equal(localPath("/analizar?x=1"), true);

@@ -87,14 +87,14 @@ export class AuthService {
 
   // ---------------- Enlace mágico ----------------
 
-  async requestMagicLink(email: string, meta: AuthRequestMeta = {}): Promise<void> {
+  async requestMagicLink(email: string, meta: AuthRequestMeta = {}, next?: string): Promise<void> {
     const e = normEmail(email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new ValidationError("Mail inválido.");
     // Si el mail no tiene cuenta es un alta: pide captcha (si no, cualquiera podría usarnos para mandar mails a terceros).
     const exists = !!(await this.users.findByChannel("email", e));
     await this.abuse?.enforce({ action: exists ? "magic_link" : "signup", at: this.clock.now(), email: e, ...meta });
     const t = token();
-    await this.magicLinks.save({ id: sha(t), email: e, expiresAt: new Date(this.clock.now().getTime() + this.opts.magicLinkMinutes * 60_000) });
+    await this.magicLinks.save({ id: sha(t), email: e, expiresAt: new Date(this.clock.now().getTime() + this.opts.magicLinkMinutes * 60_000), ...(next ? { next } : {}) });
     await this.notifications.sendTo("email", e, {
       kind: "info",
       title: "Tu enlace para entrar a Sin Humo",
@@ -104,14 +104,14 @@ export class AuthService {
     }, "verification");
   }
 
-  async consumeMagicLink(plainToken: string, meta: { userAgent?: string; ip?: string } = {}): Promise<{ token: string; user: User }> {
+  async consumeMagicLink(plainToken: string, meta: { userAgent?: string; ip?: string } = {}): Promise<{ token: string; user: User; next?: string }> {
     const link = await this.magicLinks.findById(sha(plainToken));
     const now = this.clock.now();
     if (!link || link.usedAt || link.expiresAt < now) throw new AccessDeniedError("El enlace es inválido o ya venció. Pedí uno nuevo.", "no_permission");
     await this.magicLinks.save({ ...link, usedAt: now });
     // Hacer clic en el enlace prueba que el mail es suyo.
     const user = await this.userForVerifiedEmail(link.email, link.email.split("@")[0]!);
-    return this.startSession(user, "magic_link", meta);
+    return { ...(await this.startSession(user, "magic_link", meta)), next: link.next };
   }
 
   // ---------------- Contraseña ----------------

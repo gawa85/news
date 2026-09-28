@@ -370,3 +370,21 @@ export interface TeamRoomDetails {
   /** Publica chequeos, borra mensajes ajenos y archiva. */
   canModerate: boolean;
 }
+
+export interface OrganizationOverview {
+  organization: { id: string; name: string; createdAt: string };
+  plan: { id: string; name: string };
+  /** Los invitados pendientes también ocupan lugar. */
+  seats: { used: number; limit: number | null };
+  canManage: boolean;
+  members: { id: string; name: string; roleIds: string[]; email?: string; isMe: boolean }[];
+  roles: { id: string; name: string; description: string }[];
+  invitations: { id: string; email: string; roleId: string; createdAt: string; expiresAt: string }[];
+}
+
+export interface InvitationPreview {
+  organization: string;
+  invitedBy: string;
+  email: string;
+  expiresAt: string;
+}

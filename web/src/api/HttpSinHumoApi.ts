@@ -31,6 +31,8 @@ import type {
   TimelinePoint,
   TeamRoom,
   TeamRoomDetails,
+  InvitationPreview,
+  OrganizationOverview,
 } from "./types";
 
 type Fetch = typeof fetch;
@@ -72,8 +74,8 @@ export class HttpSinHumoApi implements SinHumoApi {
     return this.request<AuthOptions>("GET", "/public/auth-options");
   }
 
-  async requestMagicLink(email: string, captchaToken?: string) {
-    await this.request("POST", "/auth/magic-link", { email, captchaToken });
+  async requestMagicLink(email: string, captchaToken?: string, next?: string) {
+    await this.request("POST", "/auth/magic-link", { email, captchaToken, ...(next && next !== "/" ? { next } : {}) });
   }
 
   async loginWithPassword(email: string, password: string, captchaToken?: string) {
@@ -281,6 +283,47 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async postToRoom(roomId: string, text: string, kind?: "verificacion") {
     await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text, ...(kind ? { kind } : {}) });
+  }
+
+  async organization(): Promise<OrganizationOverview | undefined> {
+    try {
+      return await this.request<OrganizationOverview>("GET", "/v1/organization");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return undefined;
+      throw e;
+    }
+  }
+
+  createOrganization(name: string) {
+    return this.request<OrganizationOverview>("POST", "/v1/organization", { name });
+  }
+
+  async inviteMember(email: string, roleId: string) {
+    await this.request("POST", "/v1/organization/invitations", { email, roleId });
+  }
+
+  async revokeInvitation(id: string) {
+    await this.request("POST", `/v1/organization/invitations/${encodeURIComponent(id)}/revoke`);
+  }
+
+  setMemberRole(memberId: string, roleId: string) {
+    return this.request<OrganizationOverview>("PUT", `/v1/organization/members/${encodeURIComponent(memberId)}/role`, { roleId });
+  }
+
+  removeMember(memberId: string) {
+    return this.request<OrganizationOverview>("POST", `/v1/organization/members/${encodeURIComponent(memberId)}/remove`);
+  }
+
+  async leaveOrganization() {
+    await this.request("POST", "/v1/organization/leave");
+  }
+
+  invitation(token: string) {
+    return this.request<InvitationPreview>("GET", `/public/invitations/${encodeURIComponent(token)}`);
+  }
+
+  joinOrganization(token: string) {
+    return this.request<OrganizationOverview>("POST", "/v1/organization/join", { token });
   }
 
   rooms() {

@@ -1,4 +1,4 @@
-import type { ChannelType, Organization, Permission, Role, User } from "../model";
+import type { ChannelType, Organization, OrganizationInvitation, Permission, Role, User } from "../model";
 
 export interface IUserRepository {
   findById(id: string): Promise<User | undefined>;
@@ -26,6 +26,13 @@ export interface IRoleWriter {
 export interface IOrganizationRepository {
   findById(id: string): Promise<Organization | undefined>;
   save(org: Organization): Promise<void>;
+}
+
+export interface IOrganizationInvitationRepository {
+  findById(id: string): Promise<OrganizationInvitation | undefined>;
+  findByTokenHash(tokenHash: string): Promise<OrganizationInvitation | undefined>;
+  findPending(organizationId: string): Promise<OrganizationInvitation[]>;
+  save(invitation: OrganizationInvitation): Promise<void>;
 }
 
 /** Resuelve permisos efectivos de un usuario. Hoy por roles; mañana podría sumar ABAC. */

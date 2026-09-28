@@ -32,6 +32,8 @@ export interface MagicLink {
   email: string;
   expiresAt: Date;
   usedAt?: Date;
+  /** Adónde volver después de entrar (ruta del propio sitio, ya validada). */
+  next?: string;
 }
 
 export interface OAuthState {

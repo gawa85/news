@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, RoomEvent, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, OrganizationOverview, RoomEvent, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -22,8 +22,8 @@ export class FakeApi implements SinHumoApi {
   async authOptions() {
     return { providers: ["google"], captcha: this.demandCaptcha ? { provider: "turnstile", siteKey: "k" } : null };
   }
-  async requestMagicLink(email: string, captchaToken?: string) {
-    this.log("requestMagicLink", email, captchaToken);
+  async requestMagicLink(email: string, captchaToken?: string, next?: string) {
+    this.log("requestMagicLink", email, captchaToken, next);
     if (this.demandCaptcha && !captchaToken) {
       throw new ApiError(403, "Resolvé la verificación para seguir.", "captcha_required", undefined, undefined, { provider: "turnstile", siteKey: "k" });
     }
@@ -243,6 +243,47 @@ export class FakeApi implements SinHumoApi {
     this.log("postToRoom", roomId, text, kind);
   }
 
+  org: OrganizationOverview | undefined;
+  async organization() {
+    return this.org;
+  }
+  async createOrganization(name: string) {
+    this.log("createOrganization", name);
+    this.org = sampleOrg({ organization: { id: "org1", name, createdAt: "2026-09-28T12:00:00Z" } });
+    return this.org;
+  }
+  async inviteMember(email: string, roleId: string) {
+    this.log("inviteMember", email, roleId);
+    this.org = { ...this.org!, seats: { ...this.org!.seats, used: this.org!.seats.used + 1 }, invitations: [...this.org!.invitations, { id: "i1", email, roleId, createdAt: "2026-09-28T12:00:00Z", expiresAt: "2026-10-05T12:00:00Z" }] };
+  }
+  async revokeInvitation(id: string) {
+    this.log("revokeInvitation", id);
+    this.org = { ...this.org!, invitations: this.org!.invitations.filter((i) => i.id !== id) };
+  }
+  async setMemberRole(memberId: string, roleId: string) {
+    this.log("setMemberRole", memberId, roleId);
+    this.org = { ...this.org!, members: this.org!.members.map((m) => (m.id === memberId ? { ...m, roleIds: [roleId] } : m)) };
+    return this.org;
+  }
+  async removeMember(memberId: string) {
+    this.log("removeMember", memberId);
+    this.org = { ...this.org!, members: this.org!.members.filter((m) => m.id !== memberId) };
+    return this.org;
+  }
+  async leaveOrganization() {
+    this.log("leaveOrganization");
+    this.org = undefined;
+  }
+  async invitation(token: string) {
+    if (token !== "bueno") throw new ApiError(400, "La invitación venció o ya se usó. Pedile a quien te invitó que te mande otra.");
+    return { organization: "Diario Norte", invitedBy: "Juan", email: "ana@correo.example", expiresAt: "2026-10-05T12:00:00Z" };
+  }
+  async joinOrganization(token: string) {
+    this.log("joinOrganization", token);
+    this.org = sampleOrg();
+    return this.org;
+  }
+
   teamRooms: TeamRoom[] = [];
   canModerateRooms = false;
   /** Para simular lo que pasa en una sala del equipo. */
@@ -305,5 +346,25 @@ export function sampleAnalysis(): Analysis {
     cleanVersion: "",
     signals: [{ id: "s1", level: "warning", label: "Reenviado muchas veces", detail: "WhatsApp lo marca como cadena." }],
     links: [],
+  };
+}
+
+export function sampleOrg(extra: Partial<OrganizationOverview> = {}): OrganizationOverview {
+  return {
+    organization: { id: "org1", name: "Diario Norte", createdAt: "2026-09-28T12:00:00Z" },
+    plan: { id: "equipo", name: "Equipo" },
+    seats: { used: 2, limit: 10 },
+    canManage: true,
+    members: [
+      { id: "u1", name: "Ana", roleIds: ["org_admin"], email: "ana@correo.example", isMe: true },
+      { id: "u2", name: "Juan", roleIds: ["reader"], email: "juan@correo.example", isMe: false },
+    ],
+    roles: [
+      { id: "reader", name: "Lector", description: "Usa las funciones del plan." },
+      { id: "moderator", name: "Moderador", description: "Aprueba respuestas públicas." },
+      { id: "org_admin", name: "Administrador de organización", description: "Gestiona miembros y roles." },
+    ],
+    invitations: [],
+    ...extra,
   };
 }

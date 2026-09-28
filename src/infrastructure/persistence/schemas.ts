@@ -49,6 +49,7 @@ import type {
   ClaimVerdict,
   ContentAnalysis,
   Organization,
+  OrganizationInvitation,
   Outlet,
   Plan,
   Role,
@@ -160,6 +161,15 @@ export const schemas = {
   } satisfies CollectionSchema<ChannelLink>,
   roles: { name: "roles", idOf: (r: Role) => r.id, indexes: {} } satisfies CollectionSchema<Role>,
   organizations: { name: "organizations", idOf: (o: Organization) => o.id, indexes: {} } satisfies CollectionSchema<Organization>,
+  orgInvitations: {
+    name: "org_invitations",
+    idOf: (i: OrganizationInvitation) => i.id,
+    indexes: {
+      organizationId: { type: "text", get: (i: OrganizationInvitation) => i.organizationId },
+      tokenHash: { type: "text", get: (i: OrganizationInvitation) => i.tokenHash },
+      status: { type: "text", get: (i: OrganizationInvitation) => i.status },
+    },
+  } satisfies CollectionSchema<OrganizationInvitation>,
   plans: {
     name: "plans",
     idOf: (p: Plan) => p.id,

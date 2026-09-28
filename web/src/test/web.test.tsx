@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { ApiError } from "../api/ApiError";
 import { HttpSinHumoApi } from "../api/HttpSinHumoApi";
-import { FakeApi, sampleMe } from "./FakeApi";
+import { FakeApi, sampleMe, sampleOrg } from "./FakeApi";
 import { renderApp } from "./render";
 
 describe("API por HTTP", () => {
@@ -377,5 +377,62 @@ describe("Salas del equipo", () => {
     await user.click(screen.getByRole("button", { name: "Sí, archivar" }));
     expect(await screen.findByText("La sala se archivó")).toBeInTheDocument();
     expect(screen.queryByLabelText("Tu mensaje")).not.toBeInTheDocument();
+  });
+});
+
+describe("Organización", () => {
+  test("sin organización: crearla", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/organizacion");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre de la organización"), "Diario Norte");
+    await user.click(screen.getByRole("button", { name: "Crear organización" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Diario Norte" })).toBeInTheDocument();
+  });
+
+  test("administrar: invitar con rol, cambiar el rol y sacar a alguien con confirmación", async () => {
+    const api = new FakeApi(sampleMe({ organizationId: "org1" }));
+    api.org = sampleOrg();
+    renderApp(api, "/organizacion");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Mail"), "eva@correo.example");
+    await user.selectOptions(screen.getByLabelText("Rol"), "moderator");
+    await user.click(screen.getByRole("button", { name: "Mandar invitación" }));
+    expect(await screen.findByText("Listo: le mandamos la invitación a eva@correo.example.")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "inviteMember")?.args).toEqual(["eva@correo.example", "moderator"]);
+
+    await user.selectOptions(screen.getByLabelText("Rol de Juan"), "moderator");
+    expect(api.calls.find((c) => c.method === "setMemberRole")?.args).toEqual(["u2", "moderator"]);
+    expect(screen.queryByLabelText("Rol de Ana")).not.toBeInTheDocument(); // el propio rol no se cambia desde acá
+    await user.click(screen.getByRole("button", { name: "Sacar a Juan del equipo" }));
+    await user.click(screen.getByRole("button", { name: "Sí, sacar" }));
+    await waitFor(() => expect(screen.queryByText("Juan")).not.toBeInTheDocument());
+  });
+
+  test("sin lugares, no se ofrece invitar y se explica por qué", async () => {
+    const api = new FakeApi(sampleMe({ organizationId: "org1" }));
+    api.org = sampleOrg({ seats: { used: 10, limit: 10 } });
+    renderApp(api, "/organizacion");
+    expect(await screen.findByText("No quedan lugares")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mail")).not.toBeInTheDocument();
+  });
+
+  test("unirme sin sesión: se ve de qué equipo es y se entra con el mail invitado (vuelve acá)", async () => {
+    renderApp(new FakeApi(), "/unirme?token=bueno");
+    expect(await screen.findByRole("heading", { level: 1, name: "Sumarte a Diario Norte" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar con ana@correo.example" })).toHaveAttribute("href", "/entrar?next=%2Funirme%3Ftoken%3Dbueno");
+  });
+
+  test("unirme con sesión: aceptar lleva a la organización", async () => {
+    const api = new FakeApi(sampleMe());
+    const { router } = renderApp(api, "/unirme?token=bueno");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Aceptar y sumarme" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/organizacion"));
+  });
+
+  test("un enlace vencido se explica", async () => {
+    renderApp(new FakeApi(sampleMe()), "/unirme?token=viejo");
+    expect(await screen.findByText(/venció o ya se usó/)).toBeInTheDocument();
   });
 });

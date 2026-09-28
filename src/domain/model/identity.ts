@@ -41,6 +41,24 @@ export interface Organization {
 }
 
 /**
+ * Invitación a sumarse a una organización. El enlace lleva un token de un solo uso;
+ * se guarda sólo su huella. Sólo la puede aceptar quien tenga verificado ESE mail.
+ */
+export interface OrganizationInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  roleId: string;
+  tokenHash: string;
+  invitedBy: string;
+  createdAt: Date;
+  expiresAt: Date;
+  status: "pending" | "accepted" | "revoked";
+  acceptedBy?: string;
+  acceptedAt?: Date;
+}
+
+/**
  * Rol = conjunto de permisos con nombre.
  * `scope: "organization"`: lo puede asignar el admin de una organización a sus miembros.
  * `scope: "platform"`: sólo lo asigna un administrador de la plataforma.

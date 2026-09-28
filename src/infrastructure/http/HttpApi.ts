@@ -18,7 +18,7 @@
  *    POST     /webhooks/payments   (firma HMAC)
  *
  *  Login web (sesión en cookie HttpOnly):
- *    POST /auth/magic-link { email }      GET /auth/magic?token=
+ *    POST /auth/magic-link { email, next? }   GET /auth/magic?token=  (vuelve a `next`)
  *    POST /auth/login { email, password } POST /auth/password { email, password } (con sesión)
  *    GET  /auth/:proveedor  →  GET /auth/:proveedor/callback
  *    POST /auth/logout                    POST /auth/logout-all
@@ -66,6 +66,9 @@
  *                    POST /v1/events   POST /v1/events/:id/(close|factcheck|mute)   (events:host)
  *  Redes:  POST /v1/social/read {url}
  *  Claves de API (sólo con sesión web):  GET/POST /v1/api-keys { name, scopes }   POST /v1/api-keys/:id/revoke
+ *  Organización:  GET/POST /v1/organization { name }   POST /v1/organization/invitations { email, roleId? }
+ *    POST /v1/organization/invitations/:id/revoke   GET /public/invitations/:token   POST /v1/organization/join { token }
+ *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
  *  Alertas:  GET/POST /v1/alerts { topic, trigger, channel, outletId? }   POST /v1/alerts/:id/deactivate
  *  Origen:  POST /v1/origin { url, topic? }   ("¿quién lo dijo primero?")
  *  Credibilidad en el tiempo:  POST /v1/credibility/timeline { outletId, topic, from, to, windows }
@@ -90,6 +93,7 @@ import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
 import type { AlertSettings } from "../../application/alerts/AlertSettings";
+import type { OrganizationService } from "../../application/organizations/Organizations";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -155,6 +159,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Mi organización: equipo, invitaciones y roles. */
+  organizations?: OrganizationService;
   /** Mis alertas: ver, crear y apagar. */
   alerts?: { settings: AlertSettings; create: CreateAlertUseCase };
   /** Cancelar o retomar la suscripción. */
@@ -317,6 +323,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     if (req.method === "GET" && path === "/public/plans") return json(res, 200, await need(deps.account).publicPlans());
     if (req.method === "GET" && path === "/public/outlets") return json(res, 200, await need(deps.account).publicOutlets());
     // Pantalla de acceso: qué proveedores hay (Google…) y qué captcha mostrar.
+    const invPrev = path.match(/^\/public\/invitations\/([A-Za-z0-9_-]{16,64})$/);
+    if (req.method === "GET" && invPrev) return json(res, 200, await need(deps.organizations).preview(invPrev[1]!));
     if (req.method === "GET" && path === "/public/auth-options") return json(res, 200, { providers: deps.auth.providerIds(), captcha: deps.captcha ?? null });
     // Qué captcha mostrar en las pantallas de alta y acceso (sólo la clave pública).
     if (req.method === "GET" && path === "/public/captcha") return json(res, 200, deps.captcha ?? { provider: null });
@@ -379,16 +387,18 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     // ---- Login web ----
     if (path.startsWith("/auth/")) {
       if (req.method === "POST" && path === "/auth/magic-link") {
-        const b = body() as { email?: string; captchaToken?: string };
-        await deps.auth.requestMagicLink(str(b.email, "email"), meta(req, b.captchaToken));
+        const b = body() as { email?: string; captchaToken?: string; next?: string };
+        // Sólo rutas del propio sitio (si no, el enlace del mail sería una redirección abierta).
+        const next = typeof b.next === "string" && localPath(b.next) && b.next.length <= 500 ? b.next : undefined;
+        await deps.auth.requestMagicLink(str(b.email, "email"), meta(req, b.captchaToken), next);
         return json(res, 200, { ok: true, message: "Si el mail es válido, te llegó un enlace para entrar." });
       }
       if (req.method === "GET" && path === "/auth/magic") {
         // Es un link que se abre desde el mail: si falla, se vuelve a la web con el aviso (no un JSON).
         try {
-          const { token } = await deps.auth.consumeMagicLink(str(url.searchParams.get("token"), "token"), meta(req));
+          const { token, next } = await deps.auth.consumeMagicLink(str(url.searchParams.get("token"), "token"), meta(req));
           setSession(res, token);
-          res.writeHead(302, { location: "/" }).end();
+          res.writeHead(302, { location: next && localPath(next) ? next : "/" }).end();
         } catch (e) {
           if (!(e instanceof AccessDeniedError || e instanceof ValidationError)) throw e;
           res.writeHead(302, { location: "/entrar?error=enlace" }).end();
@@ -657,6 +667,19 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, { ok: true });
       }
     }
+    // ---- Mi organización ----
+    const orgInv = path.match(/^\/v1\/organization\/invitations\/([^/]+)\/revoke$/);
+    if (req.method === "POST" && orgInv) {
+      await need(deps.organizations).revokeInvitation({ actorId: who.userId, invitationId: decodeURIComponent(orgInv[1]!) });
+      return json(res, 200, { ok: true });
+    }
+    const orgMember = path.match(/^\/v1\/organization\/members\/([^/]+)\/(role|remove)$/);
+    if (orgMember) {
+      const memberId = decodeURIComponent(orgMember[1]!);
+      if (req.method === "PUT" && orgMember[2] === "role") return json(res, 200, await need(deps.organizations).setRole({ actorId: who.userId, memberId, roleId: str(b.roleId, "roleId") }));
+      if (req.method === "POST" && orgMember[2] === "remove") return json(res, 200, await need(deps.organizations).removeMember({ actorId: who.userId, memberId }));
+    }
+
     const alertOff = path.match(/^\/v1\/alerts\/([^/]+)\/deactivate$/);
     if (req.method === "POST" && alertOff) return json(res, 200, await need(deps.alerts).settings.deactivate({ actorId: who.userId, alertId: decodeURIComponent(alertOff[1]!) }));
 
@@ -873,6 +896,17 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         const r = await deps.gateway.evaluateCredibility(who, { outletId: str(b.outletId, "outletId"), topic: str(b.topic, "topic"), period: { from: date(b.from, "from"), to: date(b.to, "to") } });
         return json(res, 200, r);
       }
+      case "GET /v1/organization":
+        return json(res, 200, await need(deps.organizations).overview(who.userId));
+      case "POST /v1/organization":
+        return json(res, 201, await need(deps.organizations).create({ actorId: who.userId, name: str(b.name, "name") }));
+      case "POST /v1/organization/invitations":
+        return json(res, 201, await need(deps.organizations).invite({ actorId: who.userId, email: str(b.email, "email"), roleId: typeof b.roleId === "string" ? b.roleId : undefined }));
+      case "POST /v1/organization/join":
+        return json(res, 200, await need(deps.organizations).accept({ actorId: who.userId, token: str(b.token, "token") }));
+      case "POST /v1/organization/leave":
+        await need(deps.organizations).leave(who.userId);
+        return json(res, 200, { ok: true });
       case "GET /v1/alerts":
         return json(res, 200, await need(deps.alerts).settings.list(who.userId));
       case "POST /v1/alerts": {

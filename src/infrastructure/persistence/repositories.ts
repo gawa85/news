@@ -76,6 +76,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const verdicts = f.collection(schemas.verdicts);
   const roles = f.collection(schemas.roles);
   const orgs = f.collection(schemas.organizations);
+  const orgInvites = f.collection(schemas.orgInvitations);
   const plans = f.collection(schemas.plans);
   const subs = f.collection(schemas.subscriptions);
   const usage = f.collection(schemas.usage);
@@ -203,6 +204,12 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     organizations: {
       findById: (id) => orgs.get(id),
       save: (o: Organization) => orgs.upsert(o),
+    },
+    orgInvitations: {
+      findById: (id) => orgInvites.get(id),
+      findByTokenHash: async (tokenHash) => (await orgInvites.find({ where: { tokenHash }, limit: 1 }))[0],
+      findPending: (organizationId) => orgInvites.find({ where: { organizationId, status: "pending" } }),
+      save: (i) => orgInvites.upsert(i),
     },
     plans: {
       findById: (id) => plans.get(id),

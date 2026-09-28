@@ -25,6 +25,7 @@ import { UserRulesResolver } from "../application/rules/UserRulesResolver";
 import { ManageRolesUseCase } from "../application/users/ManageRolesUseCase";
 import { CredibilityChangeEvaluator, EvaluateAlertsUseCase, NewCoverageEvaluator, NewDisagreementEvaluator } from "../application/alerts/Alerts";
 import { AlertSettings } from "../application/alerts/AlertSettings";
+import { OrganizationService } from "../application/organizations/Organizations";
 import { AuditQueryUseCase, AuditRecorder, DomainEventPublisher } from "../application/audit/Audit";
 import { AuthService } from "../application/auth/AuthService";
 import { ExportService } from "../application/exports/ExportService";
@@ -563,9 +564,18 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
   );
 
+  const manageRoles = new ManageRolesUseCase(repos.users, repos.roles, authz, domainEvents);
+  const createOrganization = new CreateOrganizationUseCase(cfg.store, ids, clock, { adminRoleId: "org_admin", defaultPlanId: "equipo" }, domainEvents);
+  const organizations = new OrganizationService(
+    repos.users, repos.organizations, repos.orgInvitations, repos.roles, repos.subscriptions, repos.plans, createOrganization, manageRoles,
+    authz, access, notifications, domainEvents, ids, clock,
+    { publicBaseUrl: cfg.publicBaseUrl, invitationDays: 7, memberRoleId: "reader", freePlanId: "gratis" },
+  );
+
   return {
     core,
     store: cfg.store,
+    organizations,
     publicBaseUrl: cfg.publicBaseUrl,
     gateway,
     access,
@@ -582,8 +592,8 @@ export function buildPlatform(cfg: PlatformConfig) {
     trackedLinks,
     users: {
       register,
-      roles: new ManageRolesUseCase(repos.users, repos.roles, authz, domainEvents),
-      createOrganization: new CreateOrganizationUseCase(cfg.store, ids, clock, { adminRoleId: "org_admin", defaultPlanId: "equipo" }, domainEvents),
+      roles: manageRoles,
+      createOrganization,
       changePlan,
       confirmPayment: new ConfirmPaymentUseCase(cfg.store, domainEvents, clock),
       assignOutletRepresentative: new AssignOutletRepresentativeUseCase(repos.users, repos.outlets, authz, domainEvents),
@@ -684,6 +694,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
     account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions),
     alerts: { settings: p.alerts.settings, create: p.users.createAlert },
+    organizations: p.organizations,
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

@@ -29,6 +29,8 @@ import type {
   TimelinePoint,
   TeamRoom,
   TeamRoomDetails,
+  InvitationPreview,
+  OrganizationOverview,
 } from "./types";
 
 /**
@@ -38,7 +40,8 @@ import type {
 export interface SinHumoApi {
   // Acceso
   authOptions(): Promise<AuthOptions>;
-  requestMagicLink(email: string, captchaToken?: string): Promise<void>;
+  /** `next`: adónde vuelve el enlace del mail (una ruta de la web). */
+  requestMagicLink(email: string, captchaToken?: string, next?: string): Promise<void>;
   loginWithPassword(email: string, password: string, captchaToken?: string): Promise<void>;
   logout(everywhere?: boolean): Promise<void>;
   /** undefined = sin sesión. */
@@ -112,6 +115,17 @@ export interface SinHumoApi {
   watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
   /** `verificacion`: chequeo del equipo (sólo quien modera). */
   postToRoom(roomId: string, text: string, kind?: "verificacion"): Promise<void>;
+
+  // Mi organización. undefined = no soy parte de ninguna.
+  organization(): Promise<OrganizationOverview | undefined>;
+  createOrganization(name: string): Promise<OrganizationOverview>;
+  inviteMember(email: string, roleId: string): Promise<void>;
+  revokeInvitation(id: string): Promise<void>;
+  setMemberRole(memberId: string, roleId: string): Promise<OrganizationOverview>;
+  removeMember(memberId: string): Promise<OrganizationOverview>;
+  leaveOrganization(): Promise<void>;
+  invitation(token: string): Promise<InvitationPreview>;
+  joinOrganization(token: string): Promise<OrganizationOverview>;
 
   // Salas del equipo (organizaciones con plan de equipo)
   rooms(): Promise<TeamRoom[]>;

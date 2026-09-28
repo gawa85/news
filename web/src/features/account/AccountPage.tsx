@@ -21,6 +21,9 @@ export function AccountPage() {
         <Link className="btn btn--secondary btn--small" to="/historial">
           Historial
         </Link>
+        <Link className="btn btn--secondary btn--small" to="/organizacion">
+          {me.organizationId ? "Mi organización" : "Crear una organización"}
+        </Link>
         <Link className="btn btn--secondary btn--small" to="/alertas">
           Alertas
         </Link>
