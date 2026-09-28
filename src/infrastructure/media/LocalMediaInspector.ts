@@ -24,8 +24,9 @@ export class LocalMediaInspector implements IMediaInspector {
     const sha256 = createHash("sha256").update(data).digest("hex");
     const base = { mime, bytes: data.length, sha256 };
     try {
-      if (isJpeg(data)) return { kind: "image", ...base, ...readJpeg(data), perceptualHash: this.hash(() => decodeJpeg(data, this.opts.maxDecodeMegapixels ?? 40)) };
-      if (isPng(data)) return { kind: "image", ...base, ...readPng(data), perceptualHash: this.hash(() => decodePng(data)) };
+      const maxMp = this.opts.maxDecodeMegapixels ?? 24;
+      if (isJpeg(data)) return { kind: "image", ...base, ...readJpeg(data), perceptualHash: this.hash(() => decodeJpeg(data, maxMp)) };
+      if (isPng(data)) return { kind: "image", ...base, ...readPng(data), perceptualHash: this.hash(() => decodePng(data, maxMp)) };
       if (isWebp(data)) return { kind: "image", ...base, ...readWebp(data) };
       if (isIsoMedia(data)) return { kind: "video", ...base, ...readIsoMedia(data) };
     } catch {
@@ -87,7 +88,14 @@ function decodeJpeg(data: Buffer, maxMp: number) {
   return { width: img.width, height: img.height, data: img.data };
 }
 
-function decodePng(data: Buffer) {
+/**
+ * Un PNG chico puede declarar 100.000 × 100.000 píxeles ("bomba de descompresión"): se mira el
+ * tamaño declarado ANTES de decodificar y, si es enorme, no se decodifica (sin huella perceptual).
+ */
+function decodePng(data: Buffer, maxMp: number) {
+  const w = data.readUInt32BE(16);
+  const h = data.readUInt32BE(20);
+  if (!w || !h || (w * h) / 1e6 > maxMp) throw new Error("Imagen demasiado grande para decodificar.");
   const img = PNG.sync.read(data);
   return { width: img.width, height: img.height, data: img.data };
 }

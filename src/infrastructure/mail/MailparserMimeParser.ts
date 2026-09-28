@@ -1,3 +1,4 @@
+import { htmlToText as htmlBlocksToText } from "../text/HtmlText";
 import { randomUUID } from "node:crypto";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import type { ContentAttachment, ContentItem, ContentOrigin } from "../../domain/model";
@@ -111,17 +112,7 @@ function extractUrls(text: string, html: string): string[] {
   return [...new Set([...fromHtml, ...fromText].map((u) => u.replace(/[.,;]+$/, "")))];
 }
 
+/** Texto de un HTML (conversor lineal compartido: el HTML lo manda cualquiera). */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n+/g, "\n\n")
-    .trim();
+  return htmlBlocksToText(html).text;
 }

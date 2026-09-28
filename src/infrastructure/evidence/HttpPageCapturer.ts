@@ -10,6 +10,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { isPublicAddress } from "../../domain/rules/network";
+import { htmlToText } from "../text/HtmlText";
 import { ValidationError } from "../../domain/errors";
 import type { CapturedPage, IPageCapturer } from "../../domain/ports";
 
@@ -22,26 +23,8 @@ export type Resolver = (host: string) => Promise<string[]>;
 
 const dnsResolver: Resolver = async (host) => (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);
 
-const decodeEntities = (s: string) =>
-  s
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16)));
-
-/** Texto visible de un HTML: sin scripts, estilos ni comentarios; un bloque por línea. */
-export function htmlToText(html: string): { title?: string; text: string } {
-  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
-  const body = html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|noscript|template|svg|head)\b[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/tr|\/blockquote|\/article|\/section|\/header|\/footer)\b[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ");
-  return {
-    title: title ? decodeEntities(title).replace(/\s+/g, " ").trim() : undefined,
-    text: decodeEntities(body).split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n"),
-  };
-}
+/** (Se re-exporta: el conversor lineal vive en text/HtmlText.) */
+export { htmlToText };
 
 export class HttpPageCapturer implements IPageCapturer {
   readonly id = "http";

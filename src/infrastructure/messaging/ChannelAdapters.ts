@@ -2,38 +2,46 @@
  * Adaptadores de CANAL: parsers de webhooks entrantes y senders salientes.
  * Formatos según las APIs oficiales: WhatsApp Business Cloud API y Telegram Bot API.
  */
+import { z } from "zod";
 import type { ChannelType, DeliveryResult, InboundMessage, OutboundMessage } from "../../domain/model";
 import type { EmailEnvelope, IEmailTransport, IHttpClient, IInboundParser, IMessageSender } from "../../domain/ports";
 
 // ---------------- WhatsApp Business (Cloud API) ----------------
 
-interface WhatsAppWebhook {
-  entry?: {
-    changes?: {
-      value?: {
-        contacts?: { profile?: { name?: string }; wa_id?: string }[];
-        messages?: {
-          from: string;
-          id: string;
-          timestamp: string;
-          type: string;
-          text?: { body: string };
+/**
+ * Forma del webhook, VALIDADA (lo manda cualquiera que conozca la URL: aunque la firma se
+ * controla antes, un cuerpo con otra forma no puede romper nada). Lo que no encaja → se ignora.
+ */
+const WaMedia = z.object({ id: z.string().min(1), mime_type: z.string().optional(), caption: z.string().optional() });
+const WhatsAppWebhookSchema = z.object({
+  entry: z.array(z.object({
+    changes: z.array(z.object({
+      value: z.object({
+        contacts: z.array(z.object({ profile: z.object({ name: z.string().optional() }).optional(), wa_id: z.string().optional() })).optional(),
+        messages: z.array(z.object({
+          from: z.string().regex(/^\+?\d{6,16}$/),
+          id: z.string().min(1),
+          timestamp: z.string().regex(/^\d{1,12}$/),
+          type: z.string(),
+          text: z.object({ body: z.string() }).optional(),
           /** Nota de voz (`voice: true`) o archivo de audio. La duración no viene en el webhook. */
-          audio?: { id: string; mime_type?: string; voice?: boolean };
-          image?: { id: string; mime_type?: string; caption?: string };
-          video?: { id: string; mime_type?: string; caption?: string };
-          context?: { forwarded?: boolean; frequently_forwarded?: boolean };
-        }[];
-      };
-    }[];
-  }[];
-}
+          audio: WaMedia.extend({ voice: z.boolean().optional() }).optional(),
+          image: WaMedia.optional(),
+          video: WaMedia.optional(),
+          context: z.object({ forwarded: z.boolean().optional(), frequently_forwarded: z.boolean().optional() }).optional(),
+        })).optional(),
+      }).optional(),
+    })).optional(),
+  })).optional(),
+});
 
 export class WhatsAppWebhookParser implements IInboundParser {
   readonly channel = "whatsapp" as const;
 
   parse(payload: unknown): InboundMessage | null {
-    const value = (payload as WhatsAppWebhook)?.entry?.[0]?.changes?.[0]?.value;
+    const parsed = WhatsAppWebhookSchema.safeParse(payload);
+    if (!parsed.success) return null;
+    const value = parsed.data.entry?.[0]?.changes?.[0]?.value;
     const m = value?.messages?.[0];
     const isText = m?.type === "text" && !!m.text;
     const isAudio = m?.type === "audio" && !!m.audio?.id;
@@ -98,38 +106,37 @@ export class WhatsAppCloudSender implements IMessageSender {
 
 // ---------------- Telegram (Bot API) ----------------
 
-interface TelegramUpdate {
-  message?: {
-    message_id: number;
-    date: number;
-    text?: string;
-    /** Epígrafe de un audio. */
-    caption?: string;
-    voice?: TelegramAudio;
-    audio?: TelegramAudio;
+const TgFile = z.object({ file_id: z.string().min(1), mime_type: z.string().optional() });
+const TgAudio = TgFile.extend({ duration: z.number().nonnegative().optional() });
+/** Forma de la actualización, VALIDADA (lo que no encaja se ignora; ver WhatsApp). */
+const TelegramUpdateSchema = z.object({
+  message: z.object({
+    message_id: z.number().int(),
+    date: z.number().int().positive(),
+    text: z.string().optional(),
+    /** Epígrafe de un audio, foto o video. */
+    caption: z.string().optional(),
+    voice: TgAudio.optional(),
+    audio: TgAudio.optional(),
     /** La misma foto en varios tamaños (el último es el más grande). */
-    photo?: { file_id: string; file_size?: number }[];
-    /** Imagen mandada "como archivo" (sin comprimir). */
-    document?: { file_id: string; mime_type?: string };
-    video?: { file_id: string; mime_type?: string; duration?: number };
-    chat: { id: number };
-    from?: { first_name?: string; username?: string };
-    forward_origin?: unknown;
-    forward_date?: number;
-  };
-}
-
-interface TelegramAudio {
-  file_id: string;
-  duration?: number;
-  mime_type?: string;
-}
+    photo: z.array(TgFile.extend({ file_size: z.number().optional() })).optional(),
+    /** Imagen o video mandado "como archivo" (sin comprimir). */
+    document: TgFile.optional(),
+    video: TgAudio.optional(),
+    chat: z.object({ id: z.number().int() }),
+    from: z.object({ first_name: z.string().optional(), username: z.string().optional() }).optional(),
+    forward_origin: z.unknown().optional(),
+    forward_date: z.number().optional(),
+  }).optional(),
+});
 
 export class TelegramUpdateParser implements IInboundParser {
   readonly channel = "telegram" as const;
 
   parse(payload: unknown): InboundMessage | null {
-    const m = (payload as TelegramUpdate)?.message;
+    const parsed = TelegramUpdateSchema.safeParse(payload);
+    if (!parsed.success) return null;
+    const m = parsed.data.message;
     const audio = m?.voice ?? m?.audio;
     const photo = m?.photo?.at(-1);
     const image = photo ? { ref: photo.file_id, mime: "image/jpeg" } :m?.document?.mime_type?.startsWith("image/") ? { ref: m.document.file_id, mime: m.document.mime_type } : undefined;
