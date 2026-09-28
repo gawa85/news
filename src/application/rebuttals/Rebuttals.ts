@@ -65,10 +65,19 @@ export class RebuttalService {
     return rebuttal;
   }
 
+  /** Réplicas por resolver (las más viejas primero), sin las que quien pregunta no puede resolver. */
+  async pending(actorId: string, limit = 100): Promise<Rebuttal[]> {
+    const actor = await this.user(actorId);
+    if (!(await this.authz.permissionsOf(actor)).has("rebuttal:resolve")) throw new AccessDeniedError("No tenés permiso para resolver réplicas.", "no_permission");
+    const mine = new Set(actor.representsOutletIds ?? []);
+    return (await this.rebuttals.findPending(limit)).filter((r) => r.submittedBy !== actor.id && !mine.has(r.outletId));
+  }
+
   async resolve(input: { actorId: string; rebuttalId: string; decision: Exclude<RebuttalStatus, "submitted">; note: string }): Promise<{ rebuttal: Rebuttal; correction?: Correction }> {
     const actor = await this.user(input.actorId);
     const perms = await this.authz.permissionsOf(actor);
     if (!perms.has("rebuttal:resolve")) throw new AccessDeniedError("No tenés permiso para resolver réplicas.", "no_permission");
+    if (!["accepted", "partially_accepted", "rejected"].includes(input.decision)) throw new ValidationError("La decisión tiene que ser aceptar, aceptar en parte o rechazar.");
     const r = await this.rebuttals.findById(input.rebuttalId);
     if (!r) throw new NotFoundError("No existe esa réplica.");
     if (r.status !== "submitted") throw new ConflictError("La réplica ya fue resuelta.");

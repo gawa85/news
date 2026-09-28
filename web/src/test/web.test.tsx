@@ -5,6 +5,7 @@ import { ApiError } from "../api/ApiError";
 import { HttpSinHumoApi } from "../api/HttpSinHumoApi";
 import { FakeApi, sampleMe, sampleOrg } from "./FakeApi";
 import { renderApp } from "./render";
+import { FakeBackoffice } from "./FakeBackoffice";
 
 describe("API por HTTP", () => {
   test("traduce los errores del servidor: código, plan sugerido, cuándo reintentar y captcha", async () => {
@@ -343,6 +344,7 @@ describe("Salas del equipo", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Debate de esta noche" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/salas/room1");
 
+    await waitFor(() => expect(api.emitRoom).toBeDefined()); // (ya se suscribió a la sala)
     act(() => api.emitRoom!({ type: "presence", userIds: ["u1", "u2"] }));
     expect(screen.getByText("En la sala: Vos, Juan.")).toBeInTheDocument();
     act(() => api.emitRoom!({ type: "message", message: { id: "m1", authorId: "u2", text: "Dicen que subió 45%", links: [], flags: ["sin_fuente"], at: "2026-09-28T21:00:00Z", deleted: false } }));
@@ -364,6 +366,7 @@ describe("Salas del equipo", () => {
     renderApp(api, "/salas/room1");
     const user = userEvent.setup();
     await screen.findByRole("heading", { level: 1, name: "Mesa" });
+    await waitFor(() => expect(api.emitRoom).toBeDefined());
     act(() => api.emitRoom!({ type: "message", message: { id: "m1", authorId: "u2", text: "hola", links: [], flags: [], at: "2026-09-28T21:00:00Z", deleted: false } }));
     await user.click(screen.getByRole("button", { name: "Borrar el mensaje de Juan" }));
     expect(api.calls.find((c) => c.method === "deleteRoomMessage")?.args).toEqual(["m1"]);
@@ -473,5 +476,136 @@ describe("Webhooks y calificaciones", () => {
     await user.click(screen.getByRole("button", { name: "Enviar calificación" }));
     expect(await screen.findByText(/queda en revisión/)).toBeInTheDocument();
     expect(api.calls.find((c) => c.method === "review")?.args).toEqual([4, "Muy útil para las cadenas"]);
+  });
+});
+
+describe("Backoffice", () => {
+  const staff = (...permissions: string[]) => new FakeApi(sampleMe({ permissions }));
+
+  test("cada persona ve sólo las secciones de sus permisos; sin ninguna, no aparece", async () => {
+    renderApp(staff("support:handle", "abuse:manage"), "/admin");
+    const nav = await screen.findByRole("navigation", { name: "Backoffice" });
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Soporte", "Abuso y restricciones"]);
+    expect(await screen.findByRole("heading", { level: 1, name: "Soporte" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Backoffice" })).toBeInTheDocument();
+  });
+
+  test("sin permisos no hay backoffice", async () => {
+    renderApp(new FakeApi(sampleMe()), "/admin");
+    expect(await screen.findByText("Tu cuenta no tiene tareas de administración.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Backoffice" })).not.toBeInTheDocument();
+  });
+
+  test("soporte: la consulta vencida se ve, se responde con nota interna y cambio de estado", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("support:handle"), "/admin/soporte", bo);
+    const user = userEvent.setup();
+    expect(await screen.findByText("Vencida")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /T-1 · No me llega el enlace/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Es una nota interna" }));
+    await user.type(screen.getByLabelText("Nota interna (no la ve la persona)"), "Revisar el filtro de spam del dominio.");
+    await user.selectOptions(screen.getByLabelText("Cambiar el estado"), "pending");
+    await user.click(screen.getByRole("button", { name: "Guardar nota" }));
+    expect(await screen.findByText("Nota guardada.")).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "replyAsAgent")?.args).toEqual(["T-1", "Revisar el filtro de spam del dominio.", { internal: true, status: "pending" }]);
+  });
+
+  test("verificación: tomar, traer evidencia oficial y resolver con nota", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("verdicts:write"), "/admin/verificacion", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "¿El aumento es de 30% o de 18%?" }));
+    await user.click(screen.getByRole("button", { name: "Tomar la tarea" }));
+    await user.click(await screen.findByRole("button", { name: "Buscar en fuentes oficiales" }));
+    expect(await screen.findByText(/Resolución 45/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Falso" }));
+    await user.type(screen.getByLabelText(/Nota \(se publica/), "La resolución 45 fija un aumento de 30%, no de 18%.");
+    await user.click(screen.getByRole("button", { name: "Resolver" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "resolveTask")?.args[1]).toEqual({ c1: "refuted", c2: "refuted" }));
+  });
+
+  test("réplicas: se resuelven con fundamento", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("rebuttal:resolve"), "/admin/replicas", bo);
+    const user = userEvent.setup();
+    expect(await screen.findByText(/pedimos revisar la dimensión de precisión/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Rechazar" }));
+    const resolve = screen.getByRole("button", { name: "Resolver" });
+    expect(resolve).toBeDisabled();
+    await user.type(screen.getByLabelText(/Fundamento/), "La nota omitía que la resolución fue posterior.");
+    await user.click(resolve);
+    expect(await screen.findByText("Réplica rechazada.")).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "resolveRebuttal")?.args.slice(0, 2)).toEqual(["r1", "rejected"]);
+  });
+
+  test("abuso: levantar una restricción automática", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("abuse:manage"), "/admin/abuso", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Levantar la restricción a 203.0.113.9" }));
+    await waitFor(() => expect(bo.calls.some((c) => c.method === "liftRestriction")).toBe(true));
+  });
+
+  test("métricas: en palabras y tablas", async () => {
+    renderApp(staff("stats:business"), "/admin/metricas");
+    expect(await screen.findByText("Ingreso mensual recurrente")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Por plan" })).toBeInTheDocument();
+  });
+
+  test("parámetros: cambiar pide el motivo", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("rules:business"), "/admin/parametros", bo);
+    const user = userEvent.setup();
+    const input = await screen.findByLabelText(/Valor \(de 0 a 600 s\)/);
+    await user.clear(input);
+    await user.type(input, "30");
+    await user.type(screen.getByLabelText("Motivo del cambio"), "Mucho spam en el debate");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "setParameter")?.args).toEqual(["events.slow_mode_seconds", 30, "Mucho spam en el debate"]));
+  });
+
+  test("reglas: borrador → prueba → aprobación", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("rules:business"), "/admin/reglas", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("Nueva regla", { selector: "summary" }));
+    await user.type(screen.getByLabelText("Nombre"), "Sin API los domingos");
+    await user.type(screen.getByLabelText("Condición 1: valor"), "gratis");
+    await user.type(screen.getByLabelText("Mensaje para la persona"), "Probá mañana");
+    await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
+    expect(await screen.findByRole("heading", { level: 2, name: "Sin API los domingos" })).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "saveRule")?.args[0]).toMatchObject({ conditions: [{ field: "plan", op: "eq", value: "gratis" }], effect: { type: "deny", message: "Probá mañana" } });
+    expect(screen.getByRole("button", { name: "Aprobar y activar" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Probar" }));
+    expect(await screen.findByText("Pasaron todos los escenarios")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Aprobar y activar" }));
+    await waitFor(() => expect(bo.calls.some((c) => c.method === "approveRule")).toBe(true));
+  });
+
+  test("funciones en prueba: apagar de emergencia", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("flags:manage"), "/admin/funciones", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("checkbox", { name: "Prendida" }));
+    expect(await screen.findByRole("checkbox", { name: "Apagada" })).not.toBeChecked();
+    expect(bo.calls.find((c) => c.method === "updateFlag")?.args).toEqual(["event_rooms", { enabled: false }]);
+  });
+
+  test("eventos: crear y moderar en vivo (chequeo y silenciar)", async () => {
+    const bo = new FakeBackoffice();
+    const api = staff("events:host");
+    renderApp(api, "/admin/eventos", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/^Título/), "Debate presidencial");
+    await user.click(screen.getByRole("button", { name: "Crear evento" }));
+    expect(await screen.findByRole("link", { name: "/eventos/ABC234" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Moderar" }));
+    await user.type(screen.getByLabelText("Publicar un chequeo"), "FALSO: la inflación fue 3,7%.");
+    await user.click(screen.getByRole("button", { name: "Publicar chequeo" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "factCheck")?.args).toEqual(["ev1", "FALSO: la inflación fue 3,7%."]));
+    await waitFor(() => expect(api.emit).toBeDefined());
+    act(() => api.emit!({ type: "message", message: { id: "m9", alias: "Participante 4F2A", text: "insulto", links: [], flags: [], at: "2026-09-28T21:00:00Z", deleted: false } }));
+    await user.click(screen.getByRole("button", { name: "Silenciar y borrar el mensaje de Participante 4F2A" }));
+    expect(await screen.findByText(/Participante 4F2A no puede escribir hasta/)).toBeInTheDocument();
   });
 });

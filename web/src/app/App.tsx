@@ -17,6 +17,16 @@ import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
 import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
 import { JoinPage, OrganizationPage } from "../features/organization/OrganizationPages";
+import { AdminLayout } from "../features/admin/AdminLayout";
+import { SupportQueuePage } from "../features/admin/SupportQueuePage";
+import { VerificationPage } from "../features/admin/VerificationPage";
+import { RebuttalsPage } from "../features/admin/RebuttalsPage";
+import { EventsHostPage } from "../features/admin/EventsHostPage";
+import { AbusePage } from "../features/admin/AbusePage";
+import { MetricsPage } from "../features/admin/MetricsPage";
+import { ParametersPage } from "../features/admin/ParametersPage";
+import { RulesPage } from "../features/admin/RulesPage";
+import { FlagsPage } from "../features/admin/FlagsPage";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
 
@@ -40,6 +50,21 @@ export const routes: RouteObject[] = [
       { path: "/salas", element: guard(<TeamRoomsPage />) },
       { path: "/organizacion", element: guard(<OrganizationPage />) },
       { path: "/unirme", element: <JoinPage /> },
+      {
+        path: "/admin",
+        element: guard(<AdminLayout />),
+        children: [
+          { path: "soporte", element: <SupportQueuePage /> },
+          { path: "verificacion", element: <VerificationPage /> },
+          { path: "replicas", element: <RebuttalsPage /> },
+          { path: "eventos", element: <EventsHostPage /> },
+          { path: "abuso", element: <AbusePage /> },
+          { path: "metricas", element: <MetricsPage /> },
+          { path: "parametros", element: <ParametersPage /> },
+          { path: "reglas", element: <RulesPage /> },
+          { path: "funciones", element: <FlagsPage /> },
+        ],
+      },
       { path: "/salas/:id", element: guard(<TeamRoomPage />) },
       { path: "/cuenta", element: guard(<AccountPage />) },
       { path: "/archivo", element: guard(<EvidencePage />) },

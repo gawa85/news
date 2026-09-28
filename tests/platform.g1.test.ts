@@ -163,6 +163,10 @@ describe("Derecho a réplica y fe de erratas", () => {
     await assert.rejects(t.p.rebuttals.submit({ actorId: rep.id, outletId: "ddv", target, statement: "No es así." }), /50 caracteres/);
     const r = await t.p.rebuttals.submit({ actorId: rep.id, outletId: "ddv", target, statement, evidenceUrls: ["https://videos.example/conferencia"] });
 
+    assert.deepEqual((await t.p.rebuttals.pending(checker.id)).map((x) => x.id), [r.id], "la ve quien resuelve");
+    assert.deepEqual(await t.p.rebuttals.pending(admin.id).then((l) => l.length), 1);
+    await assert.rejects(t.p.rebuttals.pending(rep.id), /permiso/);
+    await assert.rejects(t.p.rebuttals.resolve({ actorId: checker.id, rebuttalId: r.id, decision: "publicada" as never, note: "Una decisión que no existe no se guarda." }), /aceptar, aceptar en parte o rechazar/);
     await assert.rejects(t.p.rebuttals.resolve({ actorId: checker.id, rebuttalId: r.id, decision: "accepted", note: "ok" }), /20 caracteres/);
     const { correction } = await t.p.rebuttals.resolve({ actorId: checker.id, rebuttalId: r.id, decision: "accepted", note: "El video confirma el anuncio oficial; la afirmación queda en disputa hasta la resolución escrita." });
     assert.ok(correction);

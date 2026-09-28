@@ -1,4 +1,5 @@
 import { ApiError } from "./ApiError";
+import { jsonRequest, type Fetch } from "./http";
 import type { SinHumoApi } from "./SinHumoApi";
 import type {
   Analysis,
@@ -41,7 +42,6 @@ import type {
   WebhookList,
 } from "./types";
 
-type Fetch = typeof fetch;
 
 /**
  * Implementación con HTTP (adaptador). La sesión es una cookie HttpOnly del mismo origen:
@@ -53,27 +53,8 @@ export class HttpSinHumoApi implements SinHumoApi {
     private readonly fetchFn: Fetch = (...args) => fetch(...args),
   ) {}
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await this.fetchFn(`${this.base}${path}`, {
-      method,
-      credentials: "same-origin",
-      headers: body === undefined ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const text = await res.text();
-    const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-    if (!res.ok) {
-      const retry = Number(res.headers.get("retry-after") ?? "");
-      throw new ApiError(
-        res.status,
-        String(data.error ?? `Error ${res.status}`),
-        data.code as string | undefined,
-        data.upgradeHint as string | undefined,
-        Number.isFinite(retry) && retry > 0 ? retry : undefined,
-        data.captcha as ApiError["captcha"],
-      );
-    }
-    return data as T;
+  private request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return jsonRequest<T>(this.fetchFn, this.base, method, path, body);
   }
 
   authOptions() {

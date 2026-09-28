@@ -1,0 +1,176 @@
+import type { BackofficeApi } from "../api/BackofficeApi";
+import type {
+  AgentTicket,
+  BusinessRule,
+  FeatureFlag,
+  FlagPatch,
+  NewRestriction,
+  Parameter,
+  PendingRebuttal,
+  Restriction,
+  RuleDraft,
+  RuleScenario,
+  TicketStatus,
+  VerificationTask,
+} from "../api/backofficeTypes";
+import type { PublicEvent } from "../api/types";
+
+/** Backoffice falso (misma interfaz que el real): las pantallas se prueban sin servidor. */
+export class FakeBackoffice implements BackofficeApi {
+  calls: { method: string; args: unknown[] }[] = [];
+  private log(method: string, ...args: unknown[]) {
+    this.calls.push({ method, args });
+  }
+
+  tickets: AgentTicket[] = [
+    {
+      id: "T-1", requesterId: "u9", subject: "No me llega el enlace", category: "account", priority: "urgent", status: "open", channel: "web",
+      messages: [{ id: "m1", authorId: "u9", role: "requester", text: "Pedí el enlace tres veces y no llega.", internal: false, at: "2026-09-28T10:00:00Z" }],
+      firstResponseDueAt: "2026-09-28T12:00:00Z", slaBreached: true, createdAt: "2026-09-28T10:00:00Z", updatedAt: "2026-09-28T10:00:00Z",
+    },
+  ];
+  async supportQueue() {
+    return this.tickets;
+  }
+  async replyAsAgent(ticketId: string, text: string, opts: { internal?: boolean; status?: TicketStatus }) {
+    this.log("replyAsAgent", ticketId, text, opts);
+    const t = this.tickets.find((x) => x.id === ticketId)!;
+    const next = { ...t, status: opts.status ?? (opts.internal ? t.status : "pending"), firstRespondedAt: opts.internal ? t.firstRespondedAt : "2026-09-28T11:00:00Z", messages: [...t.messages, { id: "m2", authorId: "a1", role: "agent" as const, text, internal: !!opts.internal, at: "2026-09-28T11:00:00Z" }] };
+    this.tickets = this.tickets.map((x) => (x.id === ticketId ? next : x));
+    return next;
+  }
+
+  tasks: VerificationTask[] = [
+    { id: "vt1", topic: "tarifas de gas", question: "¿El aumento es de 30% o de 18%?", claimIds: ["c1", "c2"], outletIds: ["ddv"], figures: [30, 18], priority: 5, status: "open", evidence: [], createdAt: "2026-09-27T10:00:00Z" },
+  ];
+  private task(id: string, patch: Partial<VerificationTask>) {
+    const t = { ...this.tasks.find((x) => x.id === id)!, ...patch };
+    this.tasks = this.tasks.map((x) => (x.id === id ? t : x));
+    return t;
+  }
+  async verificationTasks() {
+    return this.tasks;
+  }
+  async takeTask(id: string) {
+    this.log("takeTask", id);
+    return this.task(id, { status: "assigned", assigneeId: "u1" });
+  }
+  async suggestEvidence(id: string) {
+    return this.task(id, { evidence: [{ source: "Boletín Oficial", description: "Resolución 45: aumento de 30%", url: "https://boletin.example/45", addedBy: "sistema", addedAt: "2026-09-28T10:00:00Z" }] });
+  }
+  async addEvidence(id: string, e: { source: string; description: string; url?: string }) {
+    this.log("addEvidence", id, e);
+    const t = this.tasks.find((x) => x.id === id)!;
+    return this.task(id, { evidence: [...t.evidence, { ...e, addedBy: "u1", addedAt: "2026-09-28T10:00:00Z" }] });
+  }
+  async resolveTask(id: string, verdicts: Record<string, string>, note: string) {
+    this.log("resolveTask", id, verdicts, note);
+    return this.task(id, { status: "resolved" });
+  }
+  async discardTask(id: string, note: string) {
+    this.log("discardTask", id, note);
+    return this.task(id, { status: "discarded" });
+  }
+
+  rebuttals: PendingRebuttal[] = [
+    { id: "r1", outletId: "ddv", submittedBy: "rep", target: { type: "credibility", topic: "tarifas de gas" }, statement: "Nuestra nota citaba la resolución oficial; pedimos revisar la dimensión de precisión.", evidenceUrls: ["https://ddv.example/nota"], status: "submitted", createdAt: "2026-09-26T10:00:00Z" },
+  ];
+  async pendingRebuttals() {
+    return this.rebuttals;
+  }
+  async resolveRebuttal(id: string, decision: string, note: string) {
+    this.log("resolveRebuttal", id, decision, note);
+  }
+
+  events: PublicEvent[] = [];
+  async hostedEvents() {
+    return this.events;
+  }
+  async createEvent(input: { title: string; startsAt: string; endsAt: string }) {
+    this.log("createEvent", input);
+    this.events = [{ id: "ev1", code: "ABC234", title: input.title, host: "Sin Humo", startsAt: input.startsAt, endsAt: input.endsAt, status: "scheduled", watching: 0, pinned: [] }, ...this.events];
+    return { id: "ev1", event: { code: "ABC234" } };
+  }
+  async closeEvent(id: string) {
+    this.log("closeEvent", id);
+  }
+  async factCheck(eventId: string, text: string) {
+    this.log("factCheck", eventId, text);
+  }
+  async muteAuthor(messageId: string, minutes: number, removeMessage: boolean) {
+    this.log("muteAuthor", messageId, minutes, removeMessage);
+    return { until: "2026-09-28T22:00:00Z" };
+  }
+
+  restrictionList: Restriction[] = [
+    { id: "x1", target: { kind: "ip", value: "203.0.113.9" }, level: "block", reason: "Muchas altas seguidas", createdAt: "2026-09-28T09:00:00Z", until: "2099-01-01T00:00:00Z", createdBy: "sistema:abuso", automatic: true },
+  ];
+  async restrictions() {
+    return this.restrictionList;
+  }
+  async restrict(input: NewRestriction) {
+    this.log("restrict", input);
+    return { id: "x2", target: { kind: input.kind, value: input.value }, level: input.level, reason: input.reason, createdAt: "2026-09-28T10:00:00Z", createdBy: "u1", automatic: false };
+  }
+  async liftRestriction(id: string) {
+    this.log("liftRestriction", id);
+    return { ...this.restrictionList.find((r) => r.id === id)!, liftedAt: "2026-09-28T10:00:00Z", liftedBy: "u1" };
+  }
+
+  async businessStats(from: string, to: string) {
+    return {
+      period: { from, to }, currency: "ARS", mrr: 1_500_000, mrrAtStart: 1_200_000, payingSubjects: 120, payingAtStart: 100, newPaying: 25, churned: 5,
+      churnRate: 0.05, arpu: 12_500, registrations: 900, activations: 540, activationRate: 0.6, conversionRate: 0.028, trialing: 12,
+      byPlan: [{ planId: "personal", subjects: 100, mrr: 499_000 }, { planId: "profesional", subjects: 20, mrr: 299_800 }],
+    };
+  }
+
+  params: Parameter[] = [{ key: "events.slow_mode_seconds", description: "Modo lento en los eventos", type: "number", default: 10, min: 0, max: 600, unit: "s", value: 10 }];
+  async parameters() {
+    return this.params;
+  }
+  async setParameter(key: string, value: unknown, reason: string) {
+    this.log("setParameter", key, value, reason);
+    this.params = this.params.map((p) => (p.key === key ? { ...p, value: value as number, changed: { value: value as number, version: 1, updatedAt: "2026-09-28T10:00:00Z", updatedBy: "u1", reason } } : p));
+  }
+
+  ruleList: BusinessRule[] = [];
+  async rules() {
+    return this.ruleList;
+  }
+  async saveRule(draft: RuleDraft) {
+    this.log("saveRule", draft);
+    const r: BusinessRule = { ...draft, id: "regla-1", version: 1, priority: draft.priority ?? 100, status: "draft", createdBy: "otra", createdAt: "2026-09-28T10:00:00Z" };
+    this.ruleList = [r];
+    return r;
+  }
+  async testRule(id: string, scenarios: RuleScenario[]) {
+    this.log("testRule", id, scenarios);
+    const res = { at: "2026-09-28T10:00:00Z", passed: true, results: scenarios.map((s) => ({ name: s.name, expected: s.expect, got: s.expect, ok: true })) };
+    this.ruleList = this.ruleList.map((r) => (r.id === id ? { ...r, lastTest: res } : r));
+    return res;
+  }
+  async approveRule(id: string) {
+    this.log("approveRule", id);
+    this.ruleList = this.ruleList.map((r) => (r.id === id ? { ...r, status: "active" as const } : r));
+    return this.ruleList[0]!;
+  }
+  async archiveRule(id: string) {
+    this.log("archiveRule", id);
+  }
+  async ruleHistory() {
+    return this.ruleList;
+  }
+
+  flagList: FeatureFlag[] = [
+    { key: "event_rooms", description: "Eventos en vivo", enabled: true, rolloutPercent: 100, allowUsers: [], allowOrgs: [], plans: [], countries: [], updatedAt: "1970-01-01T00:00:00.000Z", updatedBy: "sistema" },
+  ];
+  async flags() {
+    return this.flagList;
+  }
+  async updateFlag(key: string, patch: FlagPatch) {
+    this.log("updateFlag", key, patch);
+    this.flagList = this.flagList.map((f) => (f.key === key ? { ...f, ...patch, updatedBy: "u1", updatedAt: "2026-09-28T10:00:00Z" } : f));
+    return this.flagList.find((f) => f.key === key)!;
+  }
+}

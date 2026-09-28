@@ -128,6 +128,24 @@ describe("Eventos: servicio", () => {
     assert.deepEqual(await t.store.repos.eventSubscriptions.findSubscribers(room.id), []);
   });
 
+  test("cada anfitrión modera SUS eventos; el equipo de la plataforma, todos", async () => {
+    const t = await testPlatform();
+    const { room, ana } = await liveEvent(t); // lo organiza un verificador
+    const partner = await withRoles(t, (await userWithPlan(t, "gratis")).id, ["event_host"]);
+    const own = await t.p.participation.events.create({ actorId: partner.id, title: "Debate en la radio", startsAt: t.clock.now(), endsAt: new Date(t.clock.now().getTime() + H) });
+    const msg = await t.p.participation.rooms.post({ actorId: ana.id, roomId: room.id, text: "Hola a todos" });
+
+    await assert.rejects(t.p.participation.events.close({ actorId: partner.id, roomId: room.id }), /Sólo quien organiza/);
+    await assert.rejects(t.p.participation.events.mute({ actorId: partner.id, messageId: msg.id, minutes: 10 }), /Sólo quien organiza/);
+    await assert.rejects(t.p.participation.events.factCheck({ actorId: partner.id, roomId: room.id, text: "Chequeo ajeno" }), AccessDeniedError);
+    assert.deepEqual((await t.p.participation.events.hosted(partner.id)).map((e) => e.id), [own.id], "ve sólo los suyos");
+
+    const checker = await withRoles(t, (await userWithPlan(t, "gratis")).id, ["fact_checker"]);
+    assert.equal((await t.p.participation.events.hosted(checker.id)).length, 2, "el equipo ve todos");
+    await t.p.participation.events.close({ actorId: checker.id, roomId: own.id });
+    await t.p.participation.events.close({ actorId: partner.id, roomId: own.id }).catch(() => undefined);
+  });
+
   test("tope contra el abuso y apagado de emergencia", async () => {
     const t = await testPlatform({ extra: { abuse: { rules: [{ action: "room_message", per: "user", limit: 2, windowSeconds: 3_600, onExceed: "deny" }] } } });
     const { ana, room } = await liveEvent(t);

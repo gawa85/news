@@ -24,7 +24,7 @@
  *    POST /auth/logout                    POST /auth/logout-all
  *  Con sesión o clave de API también:
  *    GET  /v1/export?kind=&format=&…      GET /v1/audit?from=&to=
- *    POST /v1/rebuttals                   POST /v1/rebuttals/:id/resolve
+ *    GET/POST /v1/rebuttals (GET: por resolver)   POST /v1/rebuttals/:id/resolve
  *
  *  Mis datos (Ley 25.326):  GET /v1/me/data   POST /v1/me/delete { confirmation }
  *  Facturación:  POST /v1/billing/profile   GET /v1/invoices
@@ -63,7 +63,7 @@
  *  Funciones en prueba:  GET /v1/flags   PATCH /v1/flags/:key
  *  Audios firmados:  GET /media/:id?exp=&sig=
  *  Eventos en vivo:  GET /public/events   GET /public/events/:código[/stream] (SSE, sin cuenta)
- *                    POST /v1/events   POST /v1/events/:id/(close|factcheck|mute)   (events:host)
+ *                    GET/POST /v1/events (GET: los que modero)   POST /v1/events/:id/(close|factcheck|mute)   (events:host)
  *  Redes:  POST /v1/social/read {url}
  *  Claves de API (sólo con sesión web):  GET/POST /v1/api-keys { name, scopes }   POST /v1/api-keys/:id/revoke
  *  Organización:  GET/POST /v1/organization { name }   POST /v1/organization/invitations { email, roleId? }
@@ -707,6 +707,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const alertOff = path.match(/^\/v1\/alerts\/([^/]+)\/deactivate$/);
     if (req.method === "POST" && alertOff) return json(res, 200, await need(deps.alerts).settings.deactivate({ actorId: who.userId, alertId: decodeURIComponent(alertOff[1]!) }));
 
+    if (req.method === "GET" && path === "/v1/rebuttals") return json(res, 200, await deps.rebuttals.pending(who.userId));
+    if (req.method === "GET" && path === "/v1/events") return json(res, 200, await P.events.hosted(who.userId));
     const resolve = path.match(/^\/v1\/rebuttals\/([^/]+)\/resolve$/);
     if (req.method === "POST" && resolve) {
       return json(res, 200, await deps.rebuttals.resolve({ actorId: who.userId, rebuttalId: decodeURIComponent(resolve[1]!), decision: b.decision as never, note: str(b.note, "note") }));

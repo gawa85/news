@@ -1,6 +1,7 @@
 import { NavLink, Outlet, Link } from "react-router";
 import { useSession } from "../session/SessionContext";
 import { LegalBanner } from "../features/account/LegalBanner";
+import { useHasBackoffice } from "../features/admin/AdminLayout";
 
 function Logo() {
   return (
@@ -15,6 +16,7 @@ function Logo() {
 /** Estructura común: saltar al contenido, encabezado con navegación, contenido y pie. */
 export function Layout() {
   const { me, can } = useSession();
+  const backoffice = useHasBackoffice();
   return (
     <>
       <a className="skip-link" href="#contenido">
@@ -36,6 +38,7 @@ export function Layout() {
                 <NavLink to="/historial">Historial</NavLink>
                 {can("team_rooms") && <NavLink to="/salas">Salas</NavLink>}
                 <NavLink to="/eventos">Eventos</NavLink>
+                {backoffice && <NavLink to="/admin">Backoffice</NavLink>}
                 <NavLink to="/cuenta">Mi cuenta</NavLink>
               </>
             ) : (

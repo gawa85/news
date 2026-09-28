@@ -40,7 +40,8 @@ export const EVENT_NOTIFY_JOB = "event_factcheck_notify";
  * sala se suscribe por chat ("/evento <código>") y recibe sólo los chequeos.
  *
  * REGLAS:
- *  - Crear, cerrar, silenciar y publicar chequeos: permiso `events:host`.
+ *  - Crear: permiso `events:host`. Cerrar, silenciar y publicar chequeos: quien lo organizó,
+ *    o el equipo de la plataforma (`events:moderate_any`): un medio aliado no modera el de otro.
  *  - Duración máxima: 24 h. Se silencia a partir de un mensaje (el equipo ve seudónimos).
  *  - Los avisos a suscriptores salen por la cola (un evento puede tener miles).
  */
@@ -101,9 +102,23 @@ export class EventRoomService {
     return this.toPublic(await this.room(codeOrId));
   }
 
+  /** Los eventos que puedo moderar (los míos; todos si soy del equipo de la plataforma), con los recién cerrados. */
+  async hosted(actorId: string): Promise<PublicEvent[]> {
+    const actor = await this.host(actorId);
+    const all = (await this.authz.permissionsOf(actor)).has("events:moderate_any");
+    const now = this.clock.now();
+    const out: PublicEvent[] = [];
+    for (const r of await this.rooms.findEvents(200)) {
+      if (r.archived || !r.event || (!all && r.createdBy !== actor.id)) continue;
+      if (eventStatus(r.event, now) === "closed" && now.getTime() - r.event.endsAt.getTime() > 7 * 86_400_000) continue;
+      out.push(await this.toPublic(r));
+    }
+    return out.sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime());
+  }
+
   async close(input: { actorId: string; roomId: string }): Promise<Room> {
-    await this.host(input.actorId);
     const room = await this.room(input.roomId);
+    await this.moderator(input.actorId, room);
     const closed = { ...room, event: { ...room.event!, closedAt: this.clock.now() } };
     await this.rooms.save(closed);
     this.realtime.publish(room.id, { type: "closed" });
@@ -112,10 +127,10 @@ export class EventRoomService {
 
   /** Silenciar a quien escribió un mensaje (y, si se pide, borrarlo). */
   async mute(input: { actorId: string; messageId: string; minutes: number; removeMessage?: boolean }): Promise<{ until: Date }> {
-    await this.host(input.actorId);
     const msg = await this.rooms.findMessage(input.messageId);
     if (!msg) throw new NotFoundError("No existe ese mensaje.");
     const room = await this.room(msg.roomId);
+    await this.moderator(input.actorId, room);
     const minutes = Math.min(Math.max(1, Math.round(input.minutes)), MAX_HOURS * 60);
     const until = new Date(this.clock.now().getTime() + minutes * 60_000);
     const muted = [...room.event!.muted.filter((m) => m.userId !== msg.authorId), { userId: msg.authorId, until }];
@@ -193,4 +208,12 @@ export class EventRoomService {
     if (!u || u.status !== "active" || !(await this.authz.permissionsOf(u)).has("events:host")) throw new AccessDeniedError("No organizás eventos.", "no_permission");
     return u;
   }
+  private async moderator(actorId: string, room: Room): Promise<User> {
+    const actor = await this.host(actorId);
+    if (room.createdBy !== actor.id && !(await this.authz.permissionsOf(actor)).has("events:moderate_any")) {
+      throw new AccessDeniedError("Sólo quien organiza este evento (o el equipo de Sin Humo) puede moderarlo.", "no_permission");
+    }
+    return actor;
+  }
+
 }

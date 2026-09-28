@@ -101,7 +101,7 @@ export class EventRoomPolicy implements RoomPolicy {
     if (status === "scheduled") throw new ValidationError("El evento todavía no empezó: se puede leer, pero no escribir.");
     if (status === "closed") throw new ValidationError("El evento terminó.");
     // El equipo del evento no tiene tope de antigüedad ni se silencia.
-    if (await this.canModerate(actor)) return;
+    if (await this.canModerate(actor, room)) return;
     const until = isMuted(room.event!, actor.id, now);
     if (until) throw new AccessDeniedError(`Te silenciaron en este evento hasta las ${until.toISOString().slice(11, 16)} UTC.`, "no_permission");
     const minutes = await this.params.number("events.min_account_minutes");
@@ -110,8 +110,10 @@ export class EventRoomPolicy implements RoomPolicy {
     }
   }
 
-  async canModerate(actor: User): Promise<boolean> {
-    return (await this.authz.permissionsOf(actor)).has("events:host");
+  /** Modera quien organiza ESTE evento, o el equipo de la plataforma (un medio aliado no modera el de otro). */
+  async canModerate(actor: User, room: Room): Promise<boolean> {
+    const perms = await this.authz.permissionsOf(actor);
+    return perms.has("events:host") && (room.createdBy === actor.id || perms.has("events:moderate_any"));
   }
 
   async slowModeSeconds(room: Room): Promise<number> {
