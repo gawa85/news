@@ -67,7 +67,7 @@ import { CostReportUseCase, CostTracker } from "../application/costs/Costs";
 import { VerificationDesk, VerificationTaskGenerator } from "../application/factcheck/VerificationDesk";
 import { JobWorker, PersistentJobQueue, RecurringScheduler } from "../application/jobs/Jobs";
 import { PersonalDataService, RetentionUseCase } from "../application/privacy/PersonalData";
-import { COST_POLICY, PRICE_TABLE, SCHEDULES } from "../config/catalog";
+import { COST_POLICY, FEATURE_LABELS, PRICE_TABLE, SCHEDULES } from "../config/catalog";
 import type { IInvoiceIssuer, IMetrics, IPrimarySourceProvider } from "../domain/ports";
 import { FakeInvoiceIssuer } from "../infrastructure/billing/Payments";
 import { DatosGobArSeriesProvider, DocumentLibraryProvider, type SeriesMapping } from "../infrastructure/factcheck/PrimarySources";
@@ -112,6 +112,7 @@ import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMed
 import type { RateRule } from "../domain/model";
 import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
 import { SocialReader } from "../application/social/SocialReader";
+import { AccountQueries } from "../application/web/AccountQueries";
 import { EventRoomPolicy, TeamRoomPolicy } from "../application/participation/RoomPolicies";
 import { EVENT_NOTIFY_JOB, EventRoomService } from "../application/participation/EventRooms";
 import { CachedSocialSource, FallbackSocialSource } from "../infrastructure/social/SocialSources";
@@ -667,7 +668,8 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
   return {
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
-    inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
+    inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
+    account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS), restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,

@@ -78,11 +78,12 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { AbuseRejectedError, AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
+import { AbuseRejectedError, AccessDeniedError, ConflictError, InsufficientDataError, NotFoundError, ValidationError } from "../../domain/errors";
 import type { IAbusePolicy, RestrictionAdmin } from "../../application/abuse/AbuseGuard";
 import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
+import { AccountQueries } from "../../application/web/AccountQueries";
 import type { EventRoomService } from "../../application/participation/EventRooms";
 import type { RoomEvent } from "../../domain/model";
 import type { AccessControl } from "../../application/access/AccessControl";
@@ -144,6 +145,8 @@ export interface HttpApiDeps {
   inbound: IInboundHandler;
   /** Lector de publicaciones de redes. */
   social?: SocialReader;
+  /** Consultas de la web de personas (quién soy, historial, planes, medios). */
+  account?: AccountQueries;
   /** Freno contra el abuso (API, MCP). Sin él, no se limita. */
   abuse?: IAbusePolicy;
   restrictions?: RestrictionAdmin;
@@ -200,7 +203,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     try {
-      const raw = req.method === "POST" ? await readBody(req, maxBody) : Buffer.alloc(0);
+      // PUT y PATCH también traen cuerpo (antes se ignoraba: preferencias y país no se guardaban).
+      const raw = ["POST", "PUT", "PATCH"].includes(req.method ?? "") ? await readBody(req, maxBody) : Buffer.alloc(0);
       await route(req, res, url, raw);
     } catch (err) {
       const [status, body] = toHttpError(err);
@@ -222,11 +226,28 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     if (auth.startsWith("Bearer ")) return deps.apiKeys.authenticate(auth.slice(7));
     const session = cookies(req)[COOKIE];
     if (!session) throw new AccessDeniedError("Falta la clave de API o la sesión.", "no_permission");
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      const origin = String(req.headers.origin ?? req.headers.referer ?? "");
-      if (!origin.startsWith(new URL(deps.publicBaseUrl).origin)) throw new HttpError(403, "Origen no permitido.");
-    }
+    if (req.method !== "GET" && req.method !== "HEAD") requireSameOrigin(req, true);
     return deps.auth.authenticateSession(session);
+  }
+
+  /**
+   * CSRF: un pedido que cambia algo con la cookie tiene que venir del propio sitio. Se compara
+   * el ORIGEN EXACTO (esquema + dominio + puerto): antes, "sinhumo.com.atacante.com" pasaba
+   * por empezar igual. `required`: sin Origin ni Referer también se rechaza.
+   */
+  function requireSameOrigin(req: IncomingMessage, required: boolean): void {
+    const raw = String(req.headers.origin ?? req.headers.referer ?? "");
+    if (!raw) {
+      if (required) throw new HttpError(403, "Origen no permitido.");
+      return;
+    }
+    let origin: string;
+    try {
+      origin = new URL(raw).origin;
+    } catch {
+      throw new HttpError(403, "Origen no permitido.");
+    }
+    if (origin !== new URL(deps.publicBaseUrl).origin) throw new HttpError(403, "Origen no permitido.");
   }
 
   function setSession(res: ServerResponse, token: string | null): void {
@@ -280,6 +301,9 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       if (!pubEv[2]) return json(res, 200, ev);
       return stream(req, res, (send) => deps.participation.rooms.join({ roomId: ev.id }, send));
     }
+    // Portada y precios: planes para personas y medios del catálogo.
+    if (req.method === "GET" && path === "/public/plans") return json(res, 200, await need(deps.account).publicPlans());
+    if (req.method === "GET" && path === "/public/outlets") return json(res, 200, await need(deps.account).publicOutlets());
     // Qué captcha mostrar en las pantallas de alta y acceso (sólo la clave pública).
     if (req.method === "GET" && path === "/public/captcha") return json(res, 200, deps.captcha ?? { provider: null });
 
@@ -346,12 +370,21 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, { ok: true, message: "Si el mail es válido, te llegó un enlace para entrar." });
       }
       if (req.method === "GET" && path === "/auth/magic") {
-        const { token } = await deps.auth.consumeMagicLink(str(url.searchParams.get("token"), "token"), meta(req));
-        setSession(res, token);
-        res.writeHead(302, { location: "/" }).end();
+        // Es un link que se abre desde el mail: si falla, se vuelve a la web con el aviso (no un JSON).
+        try {
+          const { token } = await deps.auth.consumeMagicLink(str(url.searchParams.get("token"), "token"), meta(req));
+          setSession(res, token);
+          res.writeHead(302, { location: "/" }).end();
+        } catch (e) {
+          if (!(e instanceof AccessDeniedError || e instanceof ValidationError)) throw e;
+          res.writeHead(302, { location: "/entrar?error=enlace" }).end();
+        }
         return;
       }
       if (req.method === "POST" && path === "/auth/login") {
+        // Un navegador siempre manda Origin en un POST: si es de otro sitio, es un intento de
+        // hacer entrar a la persona en una cuenta ajena ("login CSRF"). Sin Origin (programas), pasa.
+        requireSameOrigin(req, false);
         const b = body() as { email?: string; password?: string; captchaToken?: string };
         const { token, user } = await deps.auth.loginWithPassword(str(b.email, "email"), str(b.password, "password"), meta(req, b.captchaToken));
         setSession(res, token);
@@ -372,15 +405,22 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         setSession(res, null);
         return json(res, 200, { ok: true });
       }
-      const oauth = path.match(/^\/auth\/([a-z]+)(\/callback)?$/);
+      // (logout y los demás nombres propios de /auth no son proveedores)
+      const oauth = path.match(/^\/auth\/(?!logout|login|magic|password)([a-z]+)(\/callback)?$/);
       if (req.method === "GET" && oauth) {
         if (!oauth[2]) {
-          res.writeHead(302, { location: await deps.auth.startOAuth(oauth[1]!, url.searchParams.get("next") ?? undefined) }).end();
+          const next = url.searchParams.get("next") ?? undefined;
+          res.writeHead(302, { location: await deps.auth.startOAuth(oauth[1]!, next && localPath(next) ? next : undefined) }).end();
           return;
         }
-        const r = await deps.auth.completeOAuth(oauth[1]!, str(url.searchParams.get("state"), "state"), str(url.searchParams.get("code"), "code"), meta(req));
-        setSession(res, r.token);
-        res.writeHead(302, { location: r.redirectAfter?.startsWith("/") ? r.redirectAfter : "/" }).end();
+        try {
+          const r = await deps.auth.completeOAuth(oauth[1]!, str(url.searchParams.get("state"), "state"), str(url.searchParams.get("code"), "code"), meta(req));
+          setSession(res, r.token);
+          res.writeHead(302, { location: r.redirectAfter && localPath(r.redirectAfter) ? r.redirectAfter : "/" }).end();
+        } catch (e) {
+          if (!(e instanceof AccessDeniedError || e instanceof ValidationError)) throw e;
+          res.writeHead(302, { location: "/entrar?error=google" }).end();
+        }
         return;
       }
       throw new HttpError(404, "Ruta inexistente.");
@@ -485,6 +525,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     const classM = path.match(/^\/v1\/classrooms\/([^/]+)\/report$/);
     if (req.method === "GET" && classM) return json(res, 200, await deps.inclusion.learning.report({ teacherId: who.userId, classroomId: decodeURIComponent(classM[1]!) }));
+    const anM = path.match(/^\/v1\/me\/analyses\/([^/]+)$/);
+    if (req.method === "GET" && anM) return json(res, 200, await need(deps.account).analysis(who.userId, decodeURIComponent(anM[1]!)));
     const evM = path.match(/^\/v1\/evidence\/([^/]+)(?:\/(verify|content))?$/);
     if (req.method === "GET" && evM) {
       const id = decodeURIComponent(evM[1]!);
@@ -750,12 +792,28 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/analyze": {
         const text = str(b.text, "text");
         const now = new Date();
-        const a = await deps.gateway.analyzeContent(who, {
-          id: randomUUID(), sourceType: b.url ? "web" : "message", origin: b.url ? { address: String(b.url), domain: new URL(String(b.url)).hostname } : {},
+        let domain: string | undefined;
+        if (b.url) {
+          try {
+            domain = new URL(String(b.url)).hostname;
+          } catch {
+            throw new ValidationError("El link no es válido.");
+          }
+        }
+        const base = {
+          id: randomUUID(), sourceType: b.url ? ("web" as const) : ("message" as const), origin: b.url ? { address: String(b.url), domain } : {},
           text, urls: text.match(/https?:\/\/[^\s)]+/g) ?? [], publishedAt: now, receivedAt: now, attachments: [], metadata: {},
-        });
-        return json(res, 200, { id: a.id, smokeIndex: a.smoke.smokeIndex, facts: a.smoke.facts, findings: a.smoke.findings, cleanVersion: a.smoke.cleanVersion, signals: a.signals, links: a.links });
+        };
+        // Un link a una red: se analiza lo que dice la publicación (igual que por el chat).
+        const shared = deps.social ? await deps.social.readShared(text, { userId: who.userId }) : undefined;
+        const item = shared?.post && deps.social ? deps.social.contentFor(shared.post, base) : base;
+        const a = await deps.gateway.analyzeContent(who, item);
+        return json(res, 200, { ...AccountQueries.view(a, shared?.post), ...(shared?.failed ? { postError: "No se pudo leer la publicación: se analizó el texto." } : {}) });
       }
+      case "GET /v1/me":
+        return json(res, 200, await need(deps.account).me(who.userId));
+      case "GET /v1/me/analyses":
+        return json(res, 200, await need(deps.account).history(who.userId, Number(url.searchParams.get("limit") ?? 30)));
       case "POST /v1/compare": {
         const r = await deps.gateway.compareSources(who, { topic: str(b.topic, "topic"), period: { from: date(b.from, "from"), to: date(b.to, "to") }, urlRules: b.urlRules as never });
         return json(res, 200, r);
@@ -856,6 +914,14 @@ function date(v: unknown, name: string): Date {
   return d;
 }
 
+/**
+ * ¿Es una ruta de ESTE sitio? "/cuenta" sí; "//atacante.com" o "/\atacante.com" no
+ * (el navegador las toma como otro dominio: sería una redirección abierta).
+ */
+export function localPath(p: string): boolean {
+  return /^\/(?![/\\])/.test(p) && !/[\u0000-\u001f]/.test(p);
+}
+
 function need<T>(x: T | undefined): T {
   if (!x) throw new HttpError(404, "Función no disponible.");
   return x;
@@ -867,5 +933,7 @@ function toHttpError(err: unknown): [number, Record<string, unknown>] {
   if (err instanceof ValidationError) return [400, { error: err.message }];
   if (err instanceof NotFoundError) return [404, { error: err.message }];
   if (err instanceof ConflictError) return [409, { error: err.message }];
+  // Faltan datos para responder (p. ej. un medio sin notas en ese período): no es un error del servidor.
+  if (err instanceof InsufficientDataError) return [422, { error: err.message, code: "insufficient_data" }];
   return [500, { error: "Error interno." }];
 }
