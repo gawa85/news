@@ -17,6 +17,7 @@ import type {
 import type { Caller } from "../access/ProductGateway";
 import type { NotificationService } from "../messaging/NotificationService";
 import type { RegisterUserUseCase } from "../users/RegisterUserUseCase";
+import type { IAbusePolicy } from "../abuse/AbuseGuard";
 
 export interface AuthOptions {
   publicBaseUrl: string;
@@ -40,6 +41,13 @@ const COMMON_PASSWORDS = new Set(["1234567890", "contraseña123", "password123",
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const token = () => randomBytes(32).toString("base64url");
 const normEmail = (e: string) => e.trim().toLowerCase();
+
+/** Datos del pedido web que usan los frenos contra el abuso. */
+export interface AuthRequestMeta {
+  ip?: string;
+  userAgent?: string;
+  captchaToken?: string;
+}
 
 /**
  * LOGIN WEB.
@@ -71,15 +79,20 @@ export class AuthService {
     private readonly ids: IIdGenerator,
     private readonly clock: IClock,
     opts: Partial<AuthOptions> = {},
+    /** Freno contra el abuso (límites por red y por mail, captcha). Sin él, no se limita. */
+    private readonly abuse?: IAbusePolicy,
   ) {
     this.opts = { ...DEFAULTS, ...opts };
   }
 
   // ---------------- Enlace mágico ----------------
 
-  async requestMagicLink(email: string): Promise<void> {
+  async requestMagicLink(email: string, meta: AuthRequestMeta = {}): Promise<void> {
     const e = normEmail(email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new ValidationError("Mail inválido.");
+    // Si el mail no tiene cuenta es un alta: pide captcha (si no, cualquiera podría usarnos para mandar mails a terceros).
+    const exists = !!(await this.users.findByChannel("email", e));
+    await this.abuse?.enforce({ action: exists ? "magic_link" : "signup", at: this.clock.now(), email: e, ...meta });
     const t = token();
     await this.magicLinks.save({ id: sha(t), email: e, expiresAt: new Date(this.clock.now().getTime() + this.opts.magicLinkMinutes * 60_000) });
     await this.notifications.sendTo("email", e, {
@@ -115,8 +128,9 @@ export class AuthService {
     await this.credentials.save({ email: e, userId, hash: await this.hasher.hash(password), updatedAt: this.clock.now() });
   }
 
-  async loginWithPassword(email: string, password: string, meta: { userAgent?: string; ip?: string } = {}): Promise<{ token: string; user: User }> {
+  async loginWithPassword(email: string, password: string, meta: AuthRequestMeta = {}): Promise<{ token: string; user: User }> {
     const e = normEmail(email);
+    await this.abuse?.enforce({ action: "login", at: this.clock.now(), email: e, ...meta });
     const idHash = sha(`email:${e}`);
     const now = this.clock.now();
     const failures = await this.attempts.countFailures(idHash, new Date(now.getTime() - this.opts.failedLoginWindowMinutes * 60_000));
@@ -150,6 +164,10 @@ export class AuthService {
     if (!saved || saved.providerId !== providerId || saved.expiresAt < this.clock.now()) throw new AccessDeniedError("La sesión de inicio expiró. Probá de nuevo.", "no_permission");
     const identity = await this.provider(providerId).exchange({ code, codeVerifier: saved.codeVerifier, redirectUri: this.redirectUri(providerId) });
     if (!identity.emailVerified) throw new AccessDeniedError("El proveedor no confirma que ese mail sea tuyo.", "no_permission");
+    // Alta con Google: el proveedor ya verificó a la persona (sin captcha), pero cuentan los límites por red.
+    if (!(await this.users.findByChannel("email", normEmail(identity.email)))) {
+      await this.abuse?.enforce({ action: "signup", at: this.clock.now(), email: identity.email, ip: meta.ip, userAgent: meta.userAgent, captchaExempt: true });
+    }
     const user = await this.userForVerifiedEmail(identity.email, identity.name ?? identity.email);
     return { ...(await this.startSession(user, "oauth", meta)), redirectAfter: saved.redirectAfter };
   }

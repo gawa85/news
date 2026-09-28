@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   "ops:backup", // copias de seguridad (listar, crear, verificar)
   "evidence:capture", // guardar copias de notas con huella y sello de tiempo
   "evidence:read_all", // ver todas las copias archivadas (verificadores)
+  "abuse:manage", // bloquear o poner en observación personas, redes, números o mails
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

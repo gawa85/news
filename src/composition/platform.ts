@@ -108,7 +108,13 @@ import {
 } from "../application/digest/DigestSources";
 import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
-import type { IDigestSource, IInboundMediaFetcher, IOcr, ISpeechToText } from "../domain/ports";
+import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMediaFetcher, IOcr, IRateLimiter, ISpeechToText } from "../domain/ports";
+import type { RateRule } from "../domain/model";
+import { AbuseGuard, RestrictionAdmin } from "../application/abuse/AbuseGuard";
+import { ThrottledInbound } from "../application/abuse/ThrottledInbound";
+import { StoreRateLimiter } from "../infrastructure/abuse/RateLimiters";
+import { AutomationSignalProvider, DisposableEmailSignalProvider } from "../infrastructure/abuse/AbuseAdapters";
+import { AUTO_BLOCK, CAPTCHA_ALWAYS, DISPOSABLE_EMAIL_DOMAINS, RATE_RULES } from "../config/abuse";
 import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "../infrastructure/inclusion/InclusionAdapters";
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
 import { FEATURE_FLAGS } from "../config/flags";
@@ -181,6 +187,19 @@ export interface PlatformConfig {
   evidence?: Partial<EvidenceProviders>;
   /** Partes extra del resumen (se agregan al final de las de siempre). */
   digestSources?: IDigestSource[];
+  /**
+   * Freno contra el abuso. Por defecto: límites de config/abuse.ts contados en la base, señales
+   * de mail descartable y de cliente automatizado, y sin captcha (hay que configurar uno).
+   */
+  abuse?: {
+    captcha?: ICaptchaVerifier;
+    /** Clave pública del captcha (la muestra la web). */
+    captchaSiteKey?: string;
+    limiter?: IRateLimiter;
+    rules?: RateRule[];
+    signals?: IAbuseSignalProvider[];
+    disposableEmailDomains?: string[];
+  };
   /** Lectura fácil (por defecto, reglas; con IA: LLMPlainLanguageRewriter). */
   plainLanguage?: IPlainLanguageRewriter;
   /** Mesa de ayuda externa opcional (Zendesk…). */
@@ -227,6 +246,17 @@ export function buildPlatform(cfg: PlatformConfig) {
   const events = new InMemoryEventBus(logger);
   const domainEvents = new DomainEventPublisher(events, ids, clock);
   new AuditRecorder(repos.audit).attach(events);
+
+  // ---- Freno contra el abuso: límites (datos en config/abuse.ts), señales y captcha ----
+  const rateLimiter = cfg.abuse?.limiter ?? new StoreRateLimiter(repos.rateCounters);
+  const abuseGuard = new AbuseGuard(
+    rateLimiter,
+    repos.restrictions,
+    [new DisposableEmailSignalProvider(cfg.abuse?.disposableEmailDomains ?? DISPOSABLE_EMAIL_DOMAINS), new AutomationSignalProvider(), ...(cfg.abuse?.signals ?? [])],
+    { rules: cfg.abuse?.rules ?? RATE_RULES, captchaAlways: CAPTCHA_ALWAYS, autoBlock: AUTO_BLOCK },
+    domainEvents, ids, logger, metrics, cfg.abuse?.captcha,
+  );
+  const restrictionAdmin = new RestrictionAdmin(repos.restrictions, repos.users, authz, domainEvents, ids, clock);
 
   // ---- Configuración del negocio: temas, parámetros y reglas configurables ----
   const topicIndex = new TopicIndex(repos.taxonomy, clock);
@@ -330,6 +360,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     repos.users, register, repos.sessions, repos.credentials, repos.magicLinks, repos.oauthStates, repos.loginAttempts,
     cfg.passwordHasher ?? new ScryptPasswordHasher(), oauthProviders, notifications, domainEvents, ids, clock,
     { publicBaseUrl: cfg.publicBaseUrl },
+    abuseGuard,
   );
 
   // ---- Alertas ----
@@ -465,6 +496,13 @@ export function buildPlatform(cfg: PlatformConfig) {
   const contentSources = [new ImapMailboxSource(mimeParser), new RssFeedSource(cfg.http)];
   const syncSources = new SyncSourcesUseCase(contentSources, repos.sourceConnections, vault, gateway, clock, logger);
 
+  // ---- Chat entrante (los webhooks usan `abuse.inbound`: este mismo caso de uso con el freno delante) ----
+  const inbound = new HandleInboundMessageUseCase(
+    repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
+    composer, notifications, repos.conversationWindows, repos.optOuts, requestContext,
+    { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence, digests, abuse: abuseGuard },
+  );
+
   return {
     core,
     store: cfg.store,
@@ -493,10 +531,14 @@ export function buildPlatform(cfg: PlatformConfig) {
       saveRules,
       createAlert: new CreateAlertUseCase(repos.alerts, authz, access, ids, clock),
     },
-    inbound: new HandleInboundMessageUseCase(
-      repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
-      composer, notifications, repos.conversationWindows, repos.optOuts, requestContext, { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence, digests },
-    ),
+    inbound,
+    abuse: {
+      guard: abuseGuard,
+      admin: restrictionAdmin,
+      /** Lo que usan los webhooks de WhatsApp y Telegram: el caso de uso con el freno delante. */
+      inbound: new ThrottledInbound(inbound, abuseGuard, rateLimiter, notifications, composer, clock),
+      captcha: cfg.abuse?.captcha && cfg.abuse.captchaSiteKey ? { provider: cfg.abuse.captcha.id, siteKey: cfg.abuse.captchaSiteKey } : undefined,
+    },
     content: {
       connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
       sync: syncSources,
@@ -530,6 +572,7 @@ export function buildPlatform(cfg: PlatformConfig) {
           },
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
           evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
+          abuse_cleanup: async () => void (await repos.rateCounters.deleteExpired(clock.now())),
           evidence_recheck: async () => void (await evidence.recheckDue()),
           send_digests: async () => void (await digests.runDue()),
           [DEFERRED_NOTIFICATION_JOB]: async (p) => {
@@ -571,11 +614,12 @@ export function buildPlatform(cfg: PlatformConfig) {
 export type Platform = ReturnType<typeof buildPlatform>;
 
 /** Dependencias de la API HTTP a partir de la plataforma (un solo lugar para armarlas). */
-export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]; maxBodyBytes?: number; metricsToken?: string }): HttpApiDeps {
+export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]; maxBodyBytes?: number; metricsToken?: string; trustedProxies?: string[] }): HttpApiDeps {
   return {
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
-    inbound: p.inbound, confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
+    inbound: p.abuse.inbound, abuse: p.abuse.guard, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
+    confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,
     publicBaseUrl: p.publicBaseUrl, secrets: opts.secrets, maxBodyBytes: opts.maxBodyBytes,

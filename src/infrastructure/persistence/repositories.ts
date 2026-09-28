@@ -151,6 +151,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const evidence = f.collection(schemas.evidence);
   const evidenceBlobs = f.collection(schemas.evidenceBlobs);
   const digests = f.collection(schemas.digestDeliveries);
+  const rateCounters = f.collection(schemas.rateCounters);
+  const restrictions = f.collection(schemas.restrictions);
   const latestBy = <T extends { version: number }>(items: T[], key: (x: T) => string) => {
     const m = new Map<string, T>();
     for (const x of items) if ((m.get(key(x))?.version ?? -1) < x.version) m.set(key(x), x);
@@ -609,6 +611,37 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     evidenceBlobs: {
       put: (b) => evidenceBlobs.upsert(b),
       get: (key) => evidenceBlobs.get(key),
+    },
+    rateCounters: {
+      // Mismo patrón que los contadores de estadísticas: alta o actualización condicionada a la revisión.
+      increment: async (key, windowStart, expiresAt) => {
+        const id = `${key}|${windowStart.toISOString()}`;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const cur = await rateCounters.get(id);
+          if (!cur) {
+            try {
+              await rateCounters.insert({ id, count: 1, rev: 1, expiresAt });
+              return 1;
+            } catch (e) {
+              if (e instanceof ConflictError) continue;
+              throw e;
+            }
+          }
+          if (await rateCounters.updateIf({ ...cur, count: cur.count + 1, rev: cur.rev + 1 }, { rev: cur.rev })) return cur.count + 1;
+        }
+        throw new ConflictError("No se pudo actualizar el contador (demasiada concurrencia).");
+      },
+      deleteExpired: (now) => rateCounters.deleteWhere({ where: { expiresAt: { lte: now } } }),
+    },
+    restrictions: {
+      save: (r) => restrictions.upsert(r),
+      findById: (id) => restrictions.get(id),
+      findActive: async (targets, now) => {
+        if (targets.length === 0) return [];
+        const found = await restrictions.find({ where: { target: { in: targets.map((t) => `${t.kind}:${t.value}`) } } });
+        return found.filter((r) => !r.liftedAt && (!r.until || r.until > now));
+      },
+      findRecent: (limit) => restrictions.find({ orderBy: { field: "createdAt", direction: "desc" }, limit }),
     },
     digests: {
       insert: (d) => digests.insert(d),

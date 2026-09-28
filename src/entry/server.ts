@@ -21,6 +21,8 @@ async function main() {
       paymentsSecret: env.PAYMENTS_WEBHOOK_SECRET ?? "",
     },
     metricsToken: env.METRICS_TOKEN,
+    // Proxy delante (Caddy, nginx, balanceador): sus IPs o rangos, para tomar la IP real.
+    trustedProxies: (env.TRUSTED_PROXIES ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   }));
   const port = Number(env.PORT ?? 8080);
   await new Promise<void>((r) => api.listen(port, r));

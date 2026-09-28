@@ -15,7 +15,7 @@ import { SqliteClient, sqliteDialect } from "./sql/SqliteClient";
 import { SqlCollectionFactory, type ISqlClient, type SqlDialect } from "./sql/SqlCollections";
 
 /** Tablas efímeras o secretas de corta vida: no se respaldan (al restaurar, hay que volver a iniciar sesión). */
-export const NOT_BACKED_UP = new Set(["verification_codes", "sessions", "magic_links", "oauth_states", "login_attempts", "media_files"]);
+export const NOT_BACKED_UP = new Set(["verification_codes", "sessions", "magic_links", "oauth_states", "login_attempts", "media_files", "rate_counters"]);
 
 function rawOver(factory: () => ICollectionFactory): IRawStore {
   const byName = new Map(Object.values(schemas).map((s) => [(s as CollectionSchema<unknown>).name, s as CollectionSchema<unknown>]));

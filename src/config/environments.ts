@@ -39,6 +39,7 @@ export const ENVIRONMENTS: Record<EnvironmentName, EnvironmentProfile> = {
   production: {
     name: "production", label: "Producción", realRecipients: true, requireHttps: true, requirePostgres: true,
     allowDemoData: false, requireBackups: true,
-    requiredVars: ["DATABASE_URL", "VAULT_MASTER_KEY", "PUBLIC_BASE_URL", "METRICS_TOKEN", "BACKUP_PASSPHRASE", "STATS_PSEUDONYM_SECRET"],
+    // Sin captcha, el alta web queda abierta a cuentas en masa.
+    requiredVars: ["DATABASE_URL", "VAULT_MASTER_KEY", "PUBLIC_BASE_URL", "METRICS_TOKEN", "BACKUP_PASSPHRASE", "STATS_PSEUDONYM_SECRET", "CAPTCHA_SECRET", "CAPTCHA_SITE_KEY"],
   },
 };

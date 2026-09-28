@@ -21,3 +21,17 @@ export class AccessDeniedError extends DomainError {
 }
 
 export class ConflictError extends DomainError {}
+
+/**
+ * Freno contra el abuso: demasiados pedidos ("too_many_attempts", con cuándo reintentar)
+ * o hace falta resolver un captcha ("captcha_required").
+ */
+export class AbuseRejectedError extends AccessDeniedError {
+  constructor(
+    message: string,
+    code: "too_many_attempts" | "captcha_required" | "restricted",
+    readonly retryAfterSeconds?: number,
+  ) {
+    super(message, code);
+  }
+}

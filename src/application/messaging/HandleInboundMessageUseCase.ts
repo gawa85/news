@@ -31,6 +31,7 @@ import type { VoiceNoteService } from "../inclusion/VoiceNotes";
 import type { ScreenshotService } from "../inclusion/Screenshots";
 import type { EvidenceService } from "../evidence/Evidence";
 import type { DigestService } from "../digest/Digests";
+import type { IAbusePolicy } from "../abuse/AbuseGuard";
 
 const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
 const OPT_IN_WORDS = ["alta", "start"];
@@ -60,6 +61,7 @@ export interface InboundExtras {
   screenshots?: ScreenshotService;
   evidence?: EvidenceService;
   digests?: DigestService;
+  abuse?: IAbusePolicy;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -112,6 +114,10 @@ export class HandleInboundMessageUseCase {
 
   private async respond(user: User, msg: InboundMessage): Promise<ResponseContent> {
     if (!msg.audio && !msg.image) return this.respondText(user, msg);
+    // Transcribir y leer imágenes se paga por uso: tope por hora contra el abuso.
+    if (this.extras.abuse && (await this.extras.abuse.check({ action: "expensive", at: msg.receivedAt, userId: user.id })).outcome !== "allow") {
+      return this.composer.info("Llegaste al máximo de audios e imágenes por ahora.", "Probá de nuevo en un rato o mandame el texto.");
+    }
     const from = msg.audio ? "voice" : "image";
     const extracted = from === "voice" ? await this.listen(user, msg) : await this.look(user, msg);
     if (typeof extracted !== "string") return extracted;

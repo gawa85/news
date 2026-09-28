@@ -75,12 +75,14 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
+import { AbuseRejectedError, AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
+import type { IAbusePolicy, RestrictionAdmin } from "../../application/abuse/AbuseGuard";
+import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
+import { clientIp } from "./clientIp";
 import type { AccessControl } from "../../application/access/AccessControl";
 import type { Caller, ProductGateway } from "../../application/access/ProductGateway";
 import type { ImpactReportUseCase } from "../../application/impact/ImpactUseCases";
 import type { ApiKeyService } from "../../application/integrations/IntegrationServices";
-import type { HandleInboundMessageUseCase } from "../../application/messaging/HandleInboundMessageUseCase";
 import type { ResponseComposer } from "../../application/messaging/ResponseComposer";
 import type { ReplyService, TrackedLinkService } from "../../application/replies/ReplyService";
 import type { ReviewService } from "../../application/reviews/ReviewService";
@@ -132,7 +134,15 @@ export interface HttpApiDeps {
   reviews: ReviewService;
   impactReport: ImpactReportUseCase;
   trackedLinks: TrackedLinkService;
-  inbound: HandleInboundMessageUseCase;
+  /** Mensajes de chat (con el freno contra el abuso delante). */
+  inbound: IInboundHandler;
+  /** Freno contra el abuso (API, MCP). Sin él, no se limita. */
+  abuse?: IAbusePolicy;
+  restrictions?: RestrictionAdmin;
+  /** Proxies de confianza (IPs o rangos IPv4): sólo a ellos se les cree X-Forwarded-For. */
+  trustedProxies?: string[];
+  /** Captcha que tiene que mostrar la web (clave pública). */
+  captcha?: { provider: string; siteKey: string };
   confirmPayment: ConfirmPaymentUseCase;
   deliveryStatus: DeliveryStatusCollector;
   outlets: IOutletReader;
@@ -186,6 +196,10 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       await route(req, res, url, raw);
     } catch (err) {
       const [status, body] = toHttpError(err);
+      if (err instanceof AbuseRejectedError) {
+        if (err.retryAfterSeconds && !res.headersSent) res.setHeader("retry-after", String(err.retryAfterSeconds));
+        if (err.code === "captcha_required" && deps.captcha) body.captcha = deps.captcha;
+      }
       if (status >= 500) deps.logger.error("Error en la API", { path: url.pathname, error: String(err) });
       if (!res.headersSent) json(res, status, body);
     }
@@ -214,8 +228,15 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       : `${COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`);
   }
 
-  function meta(req: IncomingMessage) {
-    return { userAgent: String(req.headers["user-agent"] ?? ""), ip: req.socket.remoteAddress };
+  function meta(req: IncomingMessage, captchaToken?: unknown) {
+    const header = req.headers["x-captcha-token"];
+    const token = typeof captchaToken === "string" ? captchaToken : typeof header === "string" ? header : undefined;
+    return { userAgent: String(req.headers["user-agent"] ?? ""), ip: clientIp(req, deps.trustedProxies ?? []), ...(token ? { captchaToken: token } : {}) };
+  }
+
+  /** Frecuencia de la API y el MCP, por persona y por red. */
+  async function limitApi(req: IncomingMessage, who: Caller): Promise<void> {
+    await deps.abuse?.enforce({ action: "api_request", at: new Date(), userId: who.userId, ip: clientIp(req, deps.trustedProxies ?? []) });
   }
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL, raw: Buffer): Promise<void> {
@@ -223,6 +244,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const body = () => parseJson(raw);
 
     if (req.method === "GET" && path === "/health") return json(res, 200, { ok: true, environment: deps.environment ?? "development" });
+    // Qué captcha mostrar en las pantallas de alta y acceso (sólo la clave pública).
+    if (req.method === "GET" && path === "/public/captcha") return json(res, 200, deps.captcha ?? { provider: null });
 
     if (req.method === "GET" && path === "/metrics") {
       const auth = String(req.headers.authorization ?? "");
@@ -282,7 +305,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     // ---- Login web ----
     if (path.startsWith("/auth/")) {
       if (req.method === "POST" && path === "/auth/magic-link") {
-        await deps.auth.requestMagicLink(str((body() as { email?: string }).email, "email"));
+        const b = body() as { email?: string; captchaToken?: string };
+        await deps.auth.requestMagicLink(str(b.email, "email"), meta(req, b.captchaToken));
         return json(res, 200, { ok: true, message: "Si el mail es válido, te llegó un enlace para entrar." });
       }
       if (req.method === "GET" && path === "/auth/magic") {
@@ -292,8 +316,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return;
       }
       if (req.method === "POST" && path === "/auth/login") {
-        const b = body() as { email?: string; password?: string };
-        const { token, user } = await deps.auth.loginWithPassword(str(b.email, "email"), str(b.password, "password"), meta(req));
+        const b = body() as { email?: string; password?: string; captchaToken?: string };
+        const { token, user } = await deps.auth.loginWithPassword(str(b.email, "email"), str(b.password, "password"), meta(req, b.captchaToken));
         setSession(res, token);
         return json(res, 200, { ok: true, userId: user.id });
       }
@@ -363,6 +387,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     if (path === "/mcp") {
       if (req.method !== "POST") throw new HttpError(405, "Usá POST.");
       const who = await caller(req);
+      await limitApi(req, who);
       const server = buildMcpServer({ gateway: deps.gateway, access: deps.access, composer: deps.composer, replies: deps.replies, reviews: deps.reviews, outlets: deps.outlets }, who);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       res.on("close", () => {
@@ -377,7 +402,19 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     // ---- API para bots ----
     if (!path.startsWith("/v1/")) throw new HttpError(404, "Ruta inexistente.");
     const who = await caller(req);
+    await limitApi(req, who);
     const b = ["POST", "PUT", "PATCH"].includes(req.method ?? "") ? (body() as Record<string, unknown>) : {};
+
+    // ---- Restricciones contra el abuso (soporte y administración) ----
+    const rstM = path.match(/^\/v1\/abuse\/restrictions\/([^/]+)\/lift$/);
+    if (req.method === "POST" && rstM) return json(res, 200, await need(deps.restrictions).lift({ actorId: who.userId, id: decodeURIComponent(rstM[1]!) }));
+    if (path === "/v1/abuse/restrictions") {
+      if (req.method === "GET") return json(res, 200, await need(deps.restrictions).list(who.userId, Number(url.searchParams.get("limit") ?? 100)));
+      if (req.method === "POST") {
+        const target = { kind: str(b.kind, "kind") as never, value: str(b.value, "value") };
+        return json(res, 201, await need(deps.restrictions).restrict({ actorId: who.userId, target, level: b.level === "challenge" ? "challenge" : "block", reason: str(b.reason, "reason"), hours: typeof b.hours === "number" ? b.hours : undefined }));
+      }
+    }
 
     const vt = path.match(/^\/v1\/verification\/tasks\/([^/]+)\/(take|suggest|evidence|resolve|discard)$/);
     if (req.method === "POST" && vt) {
@@ -777,6 +814,11 @@ function date(v: unknown, name: string): Date {
   const d = new Date(str(v, name));
   if (Number.isNaN(d.getTime())) throw new ValidationError(`"${name}" no es una fecha válida.`);
   return d;
+}
+
+function need<T>(x: T | undefined): T {
+  if (!x) throw new HttpError(404, "Función no disponible.");
+  return x;
 }
 
 function toHttpError(err: unknown): [number, Record<string, unknown>] {

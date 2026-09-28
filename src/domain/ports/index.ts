@@ -35,3 +35,4 @@ export * from "./ops";
 export * from "./promptSafety";
 export * from "./evidence";
 export * from "./digest";
+export * from "./abuse";

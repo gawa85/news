@@ -63,7 +63,16 @@ import type { Branding, Coupon, CouponRedemption, ReferralCode, ReferralUse } fr
 import type { ConsentRecord } from "../../domain/model";
 import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttempt, QuizItem, Ticket } from "../../domain/model";
 
-import type { DigestDelivery, EvidenceSnapshot } from "../../domain/model";
+import type { DigestDelivery, EvidenceSnapshot, Restriction } from "../../domain/model";
+
+/** Contador de un límite de frecuencia en una ventana (efímero: no se respalda). */
+export interface RateCounterRecord {
+  /** `${clave}|${inicio de la ventana}` */
+  id: string;
+  count: number;
+  rev: number;
+  expiresAt: Date;
+}
 
 /** Copia archivada guardada en la base (evidencias). */
 export interface EvidenceBlobRecord {
@@ -575,6 +584,20 @@ export const schemas = {
       to: { type: "text", get: (d: DigestDelivery) => d.to },
     },
   } satisfies CollectionSchema<DigestDelivery>,
+  rateCounters: {
+    name: "rate_counters",
+    idOf: (c: RateCounterRecord) => c.id,
+    // `rev`: la actualización condicional (updateIf) sólo filtra por columnas indexadas.
+    indexes: { expiresAt: { type: "text", get: (c: RateCounterRecord) => c.expiresAt }, rev: { type: "number", get: (c: RateCounterRecord) => c.rev } },
+  } satisfies CollectionSchema<RateCounterRecord>,
+  restrictions: {
+    name: "abuse_restrictions",
+    idOf: (r: Restriction) => r.id,
+    indexes: {
+      target: { type: "text", get: (r: Restriction) => `${r.target.kind}:${r.target.value}` },
+      createdAt: { type: "text", get: (r: Restriction) => r.createdAt },
+    },
+  } satisfies CollectionSchema<Restriction>,
   evidenceBlobs: {
     name: "evidence_blobs",
     idOf: (b: EvidenceBlobRecord) => b.key,

@@ -12,6 +12,9 @@ import { ClaudeVisionOcr, GoogleVisionOcr } from "../infrastructure/inclusion/Oc
 import type { EvidenceProviders } from "../application/evidence/Evidence";
 import { SinkEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
 import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastructure/evidence/EvidenceAdapters";
+import { HCaptcha, TurnstileCaptcha } from "../infrastructure/abuse/AbuseAdapters";
+import { DISPOSABLE_EMAIL_DOMAINS } from "../config/abuse";
+import { readFileSync } from "node:fs";
 import { OpenAiCompatibleSpeechToText, TelegramFileFetcher, WhatsAppMediaFetcher } from "../infrastructure/inclusion/SpeechAdapters";
 import { profileFor, validateEnvironment } from "../composition/environment";
 import { FileSystemBackupSink, S3BackupSink } from "../infrastructure/ops/BackupSinks";
@@ -68,6 +71,19 @@ function evidenceFromEnv(http: IHttpClient): Partial<EvidenceProviders> {
     ...(blobs ? { blobs } : {}),
     timestamp: env("EVIDENCE_TSA_URL") ? new Rfc3161TimestampAuthority({ url: env("EVIDENCE_TSA_URL")! }) : undefined,
     archives: env("EVIDENCE_WAYBACK") === "1" ? [new WaybackMachineArchive(http, env("EVIDENCE_WAYBACK_AUTH") || undefined)] : [],
+  };
+}
+
+/** Freno contra el abuso: captcha (Turnstile o hCaptcha) y lista ampliada de mails descartables. */
+function abuseFromEnv() {
+  const secret = env("CAPTCHA_SECRET");
+  const captcha = secret ? (env("CAPTCHA_PROVIDER") === "hcaptcha" ? new HCaptcha(secret) : new TurnstileCaptcha(secret)) : undefined;
+  const file = env("DISPOSABLE_EMAIL_DOMAINS_FILE");
+  const extra = file ? readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#")) : [];
+  return {
+    captcha,
+    captchaSiteKey: env("CAPTCHA_SITE_KEY") || undefined,
+    ...(extra.length ? { disposableEmailDomains: [...DISPOSABLE_EMAIL_DOMAINS, ...extra] } : {}),
   };
 }
 
@@ -140,6 +156,7 @@ export async function platformFromEnv() {
     speech: speechFromEnv(),
     ocr: ocrFromEnv(http),
     evidence: evidenceFromEnv(http),
+    abuse: abuseFromEnv(),
     supportDesk: env("ZENDESK_SUBDOMAIN")
       ? new ZendeskSupportDesk(http, { subdomain: env("ZENDESK_SUBDOMAIN")!, email: env("ZENDESK_EMAIL") ?? "", apiToken: env("ZENDESK_API_TOKEN") ?? "" })
       : undefined,

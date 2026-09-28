@@ -167,9 +167,11 @@ describe("Ambientes", () => {
     assert.match(all, /PostgreSQL/);
     assert.match(all, /datos de demo/);
     assert.match(all, /copias/);
+    assert.match(all, /CAPTCHA_SECRET/);
     const ok = validateEnvironment(prod, {
       DATABASE_URL: "postgres://db/sinhumo", VAULT_MASTER_KEY: "k".repeat(40), PUBLIC_BASE_URL: "https://sinhumo.example", METRICS_TOKEN: "m".repeat(30),
       BACKUP_PASSPHRASE: "p".repeat(30), STATS_PSEUDONYM_SECRET: "s".repeat(30), BACKUP_S3_BUCKET: "copias",
+      CAPTCHA_SECRET: "c".repeat(30), CAPTCHA_SITE_KEY: "0x4AAAAAAA",
     });
     assert.deepEqual(ok, []);
     assert.deepEqual(validateEnvironment(profileFor(undefined), {}), [], "desarrollo sin configuración");

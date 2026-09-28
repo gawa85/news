@@ -23,7 +23,7 @@ export const ROLES: Role[] = [
   { id: "fact_checker", name: "Verificador", description: "Verifica afirmaciones y resuelve réplicas de los medios.", scope: "platform", permissions: [...USE, "verdicts:write", "rebuttal:resolve", "corrections:publish", "quality:manage", "taxonomy:manage", "evidence:read_all"] },
   { id: "outlet_rep", name: "Representante de medio", description: "Ejerce el derecho a réplica sobre las evaluaciones de su medio.", scope: "platform", permissions: ["credibility:view", "credibility:timeline", "rebuttal:write"] },
   { id: "teacher", name: "Docente", description: "Crea aulas del modo aprendizaje y ve el progreso (por apodo) de sus estudiantes.", scope: "organization", permissions: ["smoke:analyze", "content:analyze", "sources:compare", "learning:teach"] },
-  { id: "support_agent", name: "Soporte", description: "Atiende los tickets de soporte.", scope: "platform", permissions: ["support:handle"] },
+  { id: "support_agent", name: "Soporte", description: "Atiende los tickets de soporte.", scope: "platform", permissions: ["support:handle", "abuse:manage"] },
   { id: "business_manager", name: "Gestión del negocio", description: "Reglas configurables, parámetros, temas y métricas del negocio.", scope: "platform", permissions: ["stats:business", "rules:business", "taxonomy:manage"] },
   { id: "platform_admin", name: "Administrador de la plataforma", description: "Todos los permisos.", scope: "platform", permissions: [...PERMISSIONS] },
 ];
@@ -152,6 +152,7 @@ export const SCHEDULES: import("../domain/model").RecurringSchedule[] = [
   { name: "media_cleanup", jobType: "media_cleanup", everyMinutes: 1_440 },
   { name: "evidence_recheck", jobType: "evidence_recheck", everyMinutes: 60 },
   { name: "send_digests", jobType: "send_digests", everyMinutes: 15 },
+  { name: "abuse_cleanup", jobType: "abuse_cleanup", everyMinutes: 1_440 },
   { name: "backup_daily", jobType: "backup_daily", everyMinutes: 1_440 },
   { name: "backup_verify", jobType: "backup_verify", everyMinutes: 10_080 },
   { name: "collect_impact", jobType: "collect_impact", everyMinutes: 360 },

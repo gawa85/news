@@ -528,6 +528,21 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - Se envía con `notifyUser`: respeta el horario de silencio (lo posterga), el orden de canales, la marca blanca, la ventana de WhatsApp (afuera, con la plantilla `resumen_sin_humo`, que **hay que aprobar en Meta**) y el límite por destinatario.
   - `DigestAudience` encuentra a quién le toca por índices: personas que lo pidieron y miembros de organizaciones que lo tienen por defecto. Si la organización lo bloquea, ninguno puede apagarlo.
   - El **diario** es de los planes pagos (`daily_digest`); en el plan gratis se manda el semanal. Función en prueba `digest` para el apagado de emergencia. Una parte que falla no tira abajo el resumen.
+- **Abuso y captcha** (`AbuseGuard`): uso automatizado, spam y cuentas en masa. Protege el costo (audios, imágenes y sellos se pagan), la calidad de los números de WhatsApp y a terceros (nadie puede usarnos para mandar mails a una casilla ajena).
+
+  | Puerto | Adaptadores |
+  |---|---|
+  | `IRateLimiter` | `StoreRateLimiter` (en la base, **atómico** con `insert` + `updateIf` sobre una revisión: sirve con varios servidores), `MemoryRateLimiter` |
+  | `ICaptchaVerifier` | `TurnstileCaptcha` (Cloudflare), `HCaptcha`, `FakeCaptcha`. Si el proveedor no responde, no deja pasar |
+  | `IAbuseSignalProvider` | `DisposableEmailSignalProvider` (mails temporales, incluidos sus subdominios: se rechazan), `AutomationSignalProvider` (navegador automatizado o sin identificarse, sólo en las pantallas web: en la API los programas son legítimos) |
+  | `IRestrictionRepository` | bloqueos y "observación" (pedir captcha) sobre una persona, una red, un número o un mail |
+
+  - **Límites como datos** (`config/abuse.ts`): altas por red y por casilla, contraseña por red, enlaces por casilla, mensajes de chat por número (por minuto y por día), API por persona y por red, y funciones con costo por hora. Al pasarlos, se pide captcha o se rechaza con **429 y `Retry-After`**.
+  - **Captcha**: siempre en el **alta** web. En el acceso se pide si las señales o los límites lo piden. Con Google no hace falta: el proveedor ya verificó a la persona. `GET /public/captcha` le dice a la web qué mostrar (sólo la clave pública), y en producción el servidor **no arranca sin captcha**.
+  - **Bloqueo automático**: quien suma 5 rechazos en una hora queda bloqueado 6 horas, y queda registrado (`abuse.restricted`). En un alta, el bloqueo también cae sobre la **casilla atacada**. Soporte (`abuse:manage`) bloquea, pone en observación y levanta restricciones por `/v1/abuse/restrictions`.
+  - **Chat** (`ThrottledInbound`, decorador de `HandleInboundMessageUseCase`): con exceso, **no se crea la cuenta ni se responde a cada mensaje**; sale un solo aviso cada 10 minutos, de mejor esfuerzo, porque el canal espacia las respuestas. A un número bloqueado, silencio: responderle cuesta y le confirma al spammer que el número atiende.
+  - **Cuentas y redes**: en IPv6 se cuenta por **red /64**, porque rotar direcciones no alcanza para saltear el límite. En Gmail, `ana.perez+1@` es la misma casilla que `anaperez@`.
+  - **IP real detrás de un proxy** (`clientIp`): sólo se le cree `X-Forwarded-For` a los proxies de `TRUSTED_PROXIES`. Si no, cualquiera podría escribir una IP falsa en ese encabezado y saltear los límites.
 - **Instrucciones escondidas** ("prompt injection"): textos que le dan órdenes a la IA que los analiza. Llegan en mensajes, capturas, audios y notas web, a veces en texto invisible. Hay tres capas, cada una detrás de una interfaz:
   1. **Limpiar** (`ITextSanitizer` → `UnicodeTextSanitizer`): saca los invisibles (ancho cero, controles bidireccionales, guion blando) y **decodifica el texto escondido en etiquetas Unicode** para inspeccionarlo. Respeta los emojis compuestos (ZWJ) y las banderas.
   2. **Detectar** (`IPromptInjectionDetector`): `RuleBasedInjectionDetector` (reglas en español e inglés, `domain/rules/promptInjection.ts`) y, opcional, `LLMInjectionDetector` (`PROMPT_GUARD_LLM=1`). `PromptSafetyGuard` junta las señales: se suma **por tipo**, así que repetir la frase no infla el puntaje. Con 50 puntos o más el riesgo es alto; con 20, bajo, y sólo se registra en la métrica `sinhumo_prompt_injection_total`. Las reglas evitan el lenguaje de noticias ("el Gobierno **ignoró** las reglas" no es una orden), y hay una prueba contra falsos positivos con el set de evaluación y las notas de la demo.
@@ -553,6 +568,8 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Otro captcha (reCAPTCHA) u otra señal de abuso (reputación de IP) | Clase `ICaptchaVerifier` / `IAbuseSignalProvider` (`abuse.signals`) |
+| Límites en Redis en vez de la base | Otra clase `IRateLimiter` (`abuse.limiter`) |
 | Una parte nueva en el resumen (p. ej. "tu uso de la semana") | Clase `IDigestSource` en la lista de `buildPlatform` o en `digestSources` |
 | Archivar con un navegador sin cabeza (páginas con JavaScript) | Otra clase `IPageCapturer` |
 | Otro archivo público (archive.today) o sello (certificador licenciado) | `IExternalArchive` / `ITimestampAuthority` |
