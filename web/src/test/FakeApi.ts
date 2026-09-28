@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { Analysis, EvidenceSnapshot, EvidenceVerification, Me, Preferences, PublicEvent, RoomEvent, Ticket } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, RoomEvent, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -52,9 +52,77 @@ export class FakeApi implements SinHumoApi {
   async compare(): Promise<never> {
     throw new ApiError(429, "Llegaste al límite de comparaciones del mes.", "quota_exceeded", "Disponible en el plan Personal.");
   }
-  async credibility(): Promise<never> {
-    throw new Error("no usado");
+  async credibility(): Promise<CredibilityReport> {
+    return { outletName: "Diario del Valle", overall: 0.6, sampleSize: 8, disclaimer: "", dimensions: [], corrections: [], rebuttals: [] };
   }
+  async credibilityTimeline(input: { windows: number }): Promise<TimelinePoint[]> {
+    this.log("credibilityTimeline", input);
+    const scores = [0.7, null, 0.5];
+    return scores.map((overall, i) => ({
+      period: { from: `2026-0${i * 2 + 1}-01T00:00:00Z`, to: `2026-0${i * 2 + 2}-28T00:00:00Z` },
+      report: { outletName: "Diario del Valle", overall, sampleSize: overall === null ? 0 : 4, disclaimer: "", dimensions: [{ dimensionId: "accuracy", label: "Precisión", score: overall, confidence: 0.5, summary: "", evidence: [] }] },
+    }));
+  }
+  /** Links que el servidor todavía no tiene guardados (piden el tema). */
+  unknownUrls = new Set<string>();
+  async traceOrigin(url: string, topic?: string): Promise<OriginTrace> {
+    this.log("traceOrigin", url, topic);
+    if (this.unknownUrls.has(url) && !topic) throw new ApiError(400, "No tenemos esa nota todavía: indicá de qué tema habla.");
+    const art = (id: string, outletId: string, day: string, title: string) => ({ id, outletId, title, url: `https://${outletId}.example/${id}`, publishedAt: `2026-03-${day}T12:00:00Z` });
+    const origin = art("ana-1", "ana", "10", "Aprueban aumento del gas");
+    const target = art("ddv-1", "ddv", "11", "Golpe histórico: sube el gas");
+    return {
+      target, origin,
+      chain: [{ article: origin, similarityToOrigin: 1, isNearCopy: false }, { article: target, similarityToOrigin: 0.82, isNearCopy: true }],
+      independentSources: 1, likelyPressRelease: false, echoWarning: undefined,
+    };
+  }
+
+  alertList: AlertRule[] = [];
+  async alerts() {
+    return this.alertList;
+  }
+  async createAlert(input: { topic: string; trigger: AlertTrigger; channel: string; outletId?: string }) {
+    this.log("createAlert", input);
+    const a: AlertRule = { id: `al${this.alertList.length + 1}`, ...input, active: true, createdAt: "2026-09-28T12:00:00Z" };
+    this.alertList = [a, ...this.alertList];
+    return a;
+  }
+  async deactivateAlert(id: string) {
+    this.log("deactivateAlert", id);
+    this.alertList = this.alertList.filter((a) => a.id !== id);
+  }
+
+  keys: ApiKey[] = [];
+  async apiKeys() {
+    return { available: !!this.session?.plan.features.includes("api_access"), scopes: ["content:analyze", "smoke:analyze", "sources:compare"], keys: this.keys };
+  }
+  async createApiKey(name: string, scopes: string[]) {
+    this.log("createApiKey", name, scopes);
+    const key: ApiKey = { id: "k1", prefix: "sh_live_abcd", name, scopes, revoked: false, createdAt: "2026-09-28T12:00:00Z" };
+    this.keys = [key, ...this.keys];
+    return { plaintext: "sh_live_abcdSECRETO", key };
+  }
+  async revokeApiKey(id: string) {
+    this.log("revokeApiKey", id);
+  }
+
+  answered = 0;
+  async learningNext() {
+    return { itemId: "q1", text: "URGENTE: reenviá, mañana cortan el agua en todo el país." };
+  }
+  async learningAnswer(isSmoke: boolean): Promise<QuizResult> {
+    this.log("learningAnswer", isSmoke);
+    this.answered++;
+    return { correct: isSmoke, wasSmoke: true, explanation: "Alarmismo y pedido de reenvío, sin fuente.", streak: isSmoke ? 1 : 0, score: { answered: this.answered, correct: isSmoke ? 1 : 0, level: "Aprendiz" } };
+  }
+  async learningProgress() {
+    return { answered: this.answered, correct: 0, bestStreak: 0, level: "Aprendiz" };
+  }
+  async joinClassroom(code: string, alias: string) {
+    this.log("joinClassroom", code, alias);
+  }
+
   async topics() {
     return [{ id: "c1", name: "Economía", path: "Economía", children: [], topics: [{ id: "t1", name: "tarifas de gas", synonyms: [] }] }];
   }

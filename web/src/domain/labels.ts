@@ -1,5 +1,5 @@
 /** Textos para personas (en castellano rioplatense, como el resto del producto). */
-import type { Price, SmokeType, SocialPlatform } from "../api/types";
+import type { AlertTrigger, Price, SmokeType, SocialPlatform } from "../api/types";
 
 export const SMOKE_LABELS: Record<SmokeType, string> = {
   inflated_adjective: "Adjetivo inflado",
@@ -48,3 +48,28 @@ export const formatNumber = (n: number) => new Intl.NumberFormat("es-AR").format
 
 /** Límite de un plan en palabras. */
 export const limitText = (n: number | null, unit: string) => (n === null ? `${unit} sin límite` : `${formatNumber(n)} ${unit}`);
+
+export const ALERT_TRIGGERS: Record<AlertTrigger, { label: string; hint: string }> = {
+  new_coverage: { label: "Notas nuevas", hint: "Te avisamos cuando aparecen notas nuevas sobre el tema." },
+  new_disagreement: { label: "Datos en disputa", hint: "Te avisamos cuando los medios dan datos distintos sobre lo mismo." },
+  credibility_change: { label: "Cambio de credibilidad", hint: "Te avisamos si la credibilidad de un medio en el tema sube o baja." },
+};
+
+export const CHANNEL_NAMES: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web", api: "API" };
+
+/** Permisos que se le pueden dar a una clave de API, en palabras. */
+export const SCOPE_LABELS: Record<string, string> = {
+  "smoke:analyze": "Analizar textos",
+  "content:analyze": "Analizar mensajes, mails y links",
+  "sources:compare": "Comparar fuentes",
+  "origin:trace": "Rastrear el origen de una nota",
+  "credibility:view": "Ver la credibilidad de los medios",
+  "credibility:timeline": "Ver la evolución de la credibilidad",
+  "alerts:own": "Alertas",
+  "rules:own": "Reglas de fuentes propias",
+  "replies:private": "Responder en privado",
+  "replies:publish_public": "Proponer respuestas públicas",
+  "evidence:capture": "Guardar notas en el archivo",
+  "perspectives:write": "Publicar otras miradas",
+  "sources:connect": "Conectar buzones y feeds",
+};

@@ -12,6 +12,7 @@ import { EvaluateCredibilityUseCase } from "../application/EvaluateCredibilityUs
 import { IngestArticlesUseCase } from "../application/IngestArticlesUseCase";
 import { SourceCollector } from "../application/SourceCollector";
 import { TraceOriginUseCase } from "../application/TraceOriginUseCase";
+import { TraceOriginByUrlUseCase } from "../application/TraceOriginByUrlUseCase";
 import type {
   AdvertisingSpend,
   Article,
@@ -170,11 +171,13 @@ export function buildApp(config: AppConfig) {
   const aggregation = new WeightedAveragePolicy({ accuracy: 3, sourcing: 2, conflict_of_interest: 1, official_advertising: 1, consistency: 1 });
   const evaluateCredibility = new EvaluateCredibilityUseCase(outlets, articles, claims, dimensions, aggregation, clock);
 
+  const traceOrigin = new TraceOriginUseCase(articles, outlets, similarity);
   return {
     analyzeSmoke: new AnalyzeSmokeUseCase(smokeDetector, logger),
     compareSources: new CompareSourcesUseCase(sourceCollector, extractor, clusterer, classifier, articles, claims, logger),
     ingestArticles: new IngestArticlesUseCase(sourceCollector, extractor, articles, claims, logger),
-    traceOrigin: new TraceOriginUseCase(articles, outlets, similarity),
+    traceOrigin,
+    traceOriginByUrl: new TraceOriginByUrlUseCase(articles, fetcher, traceOrigin),
     evaluateCredibility,
     credibilityTimeline: new CredibilityTimelineUseCase(evaluateCredibility),
     /** Acceso de administración (carga de verificaciones). En producción sería otro caso de uso. */

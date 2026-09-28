@@ -24,6 +24,7 @@ import { ReviewService } from "../application/reviews/ReviewService";
 import { UserRulesResolver } from "../application/rules/UserRulesResolver";
 import { ManageRolesUseCase } from "../application/users/ManageRolesUseCase";
 import { CredibilityChangeEvaluator, EvaluateAlertsUseCase, NewCoverageEvaluator, NewDisagreementEvaluator } from "../application/alerts/Alerts";
+import { AlertSettings } from "../application/alerts/AlertSettings";
 import { AuditQueryUseCase, AuditRecorder, DomainEventPublisher } from "../application/audit/Audit";
 import { AuthService } from "../application/auth/AuthService";
 import { ExportService } from "../application/exports/ExportService";
@@ -609,7 +610,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     reviews,
     integrations: { apiKeys, webhooks },
     auth,
-    alerts: { evaluate: evaluateAlerts },
+    alerts: { evaluate: evaluateAlerts, settings: new AlertSettings(repos.alerts, access) },
     jobs: {
       queue,
       scheduler: new RecurringScheduler(queue, SCHEDULES, clock),
@@ -682,6 +683,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
     inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
     account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions),
+    alerts: { settings: p.alerts.settings, create: p.users.createAlert },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

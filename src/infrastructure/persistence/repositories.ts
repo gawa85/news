@@ -2,6 +2,7 @@
  * TODOS los repositorios del sistema, escritos UNA sola vez sobre IDocumentCollection.
  * Funcionan igual en memoria, SQLite o PostgreSQL.
  */
+import { canonicalUrl } from "../../domain/model";
 import { randomUUID } from "node:crypto";
 import { ConflictError } from "../../domain/errors";
 import type {
@@ -169,6 +170,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     },
     articles: {
       findById: (id) => articles.get(id),
+      findByUrl: async (url) => (await articles.find({ where: { url: canonicalUrl(url) }, limit: 1 }))[0],
       find: (flt: ArticleFilter) => {
         const where: Query["where"] = {};
         if (flt.topic) where.topic = flt.topic;

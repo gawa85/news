@@ -277,3 +277,76 @@ export interface AuthOptions {
   providers: string[];
   captcha: { provider: string; siteKey: string } | null;
 }
+
+export interface ApiKey {
+  id: string;
+  prefix: string;
+  name: string;
+  scopes: string[];
+  revoked: boolean;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface ApiKeyList {
+  /** El plan incluye la API y el rol permite crear claves. */
+  available: boolean;
+  /** Permisos que se le pueden dar a una clave (los del rol). */
+  scopes: string[];
+  keys: ApiKey[];
+}
+
+export type AlertTrigger = "new_coverage" | "new_disagreement" | "credibility_change";
+
+export interface AlertRule {
+  id: string;
+  topic: string;
+  trigger: AlertTrigger;
+  channel: string;
+  outletId?: string;
+  active: boolean;
+  createdAt: string;
+  lastCheckedAt?: string;
+}
+
+export interface TracedArticle {
+  id: string;
+  title: string;
+  url: string;
+  outletId: string;
+  publishedAt: string;
+}
+
+export interface OriginTrace {
+  target: TracedArticle;
+  origin: TracedArticle;
+  chain: { article: TracedArticle; similarityToOrigin: number; isNearCopy: boolean }[];
+  independentSources: number;
+  likelyPressRelease: boolean;
+  echoWarning?: string;
+}
+
+export interface TimelinePoint {
+  period: { from: string; to: string };
+  report: Omit<CredibilityReport, "corrections" | "rebuttals">;
+}
+
+export interface QuizQuestion {
+  itemId: string;
+  text: string;
+}
+
+export interface QuizResult {
+  correct: boolean;
+  wasSmoke: boolean;
+  explanation: string;
+  streak: number;
+  score: { answered: number; correct: number; level: string };
+}
+
+export interface LearningProgress {
+  answered: number;
+  correct: number;
+  bestStreak: number;
+  level: string;
+}

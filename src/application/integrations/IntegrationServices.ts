@@ -14,6 +14,9 @@ import type {
 import type { AccessControl } from "../access/AccessControl";
 import type { Caller } from "../access/ProductGateway";
 
+/** Lo que se puede mostrar de una clave: nunca el hash. */
+export type PublicApiKey = Omit<ApiKey, "hash" | "userId">;
+
 export const hashApiKey = (plaintext: string) => createHash("sha256").update(plaintext).digest("hex");
 
 /**
@@ -60,6 +63,20 @@ export class ApiKeyService {
     await this.keys.save(key);
     await this.events.emit("api_key.created", { userId: actor.id, organizationId: actor.organizationId }, { name: key.name, prefix: key.prefix, scopes: key.scopes }, { type: "api_key", id: key.id });
     return { plaintext, key };
+  }
+
+  /**
+   * Mis claves (sin el hash) y qué alcances puedo darles: los permisos de mi rol.
+   * `available` dice si el plan incluye la API (si no, se muestran las que había, sin poder crear).
+   */
+  async list(actorId: string): Promise<{ available: boolean; scopes: Permission[]; keys: PublicApiKey[] }> {
+    const actor = await this.access.userOrThrow(actorId);
+    const perms = await this.authz.permissionsOf(actor);
+    const { plan } = await this.access.planOf(actor);
+    const keys = (await this.keys.findByUser(actor.id))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map(({ hash: _hash, userId: _user, ...k }) => k);
+    return { available: perms.has("api_keys:manage") && plan.features.includes("api_access"), scopes: PERMISSIONS.filter((p) => perms.has(p)), keys };
   }
 
   /** Valida una clave y devuelve quién llama (canal "api" + alcances). */

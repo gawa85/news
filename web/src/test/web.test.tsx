@@ -220,3 +220,95 @@ describe("Cuenta", () => {
     expect(api.calls.find((c) => c.method === "acceptLegal")?.args).toEqual(["terms", "2026-10"]);
   });
 });
+
+const proMe = () =>
+  sampleMe({
+    plan: {
+      id: "profesional", name: "Profesional", price: { amount: 14990, currency: "ARS", interval: "month" },
+      features: ["content_analysis", "origin_trace", "credibility_meter", "credibility_timeline", "alerts", "api_access"],
+      limits: { analysesPerDay: 500, comparisonsPerMonth: 1000, maxSourcesPerComparison: 20, maxIncludeUrls: 20, seats: 1 },
+    },
+  });
+
+describe("Herramientas del plan", () => {
+  test("¿quién lo dijo primero?: pide el tema sólo si la nota es nueva y muestra la cadena", async () => {
+    const api = new FakeApi(proMe());
+    api.unknownUrls.add("https://nueva.example/nota");
+    renderApp(api, "/origen");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Link de la nota"), "https://nueva.example/nota");
+    await user.click(screen.getByRole("button", { name: "Buscar el origen" }));
+    const topic = await screen.findByLabelText(/¿De qué tema habla\?/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.type(topic, "tarifas de gas");
+    await user.click(screen.getByRole("button", { name: "Buscar el origen" }));
+    const result = await screen.findByRole("region", { name: "Resultado" });
+    expect(result).toHaveTextContent(/Lo publicó primero/);
+    expect(result).toHaveTextContent(/1 fuente independiente/);
+    expect(within(result).getByText("casi copia")).toBeInTheDocument();
+    expect(api.calls.filter((c) => c.method === "traceOrigin").at(-1)?.args).toEqual(["https://nueva.example/nota", "tarifas de gas"]);
+  });
+
+  test("sin el plan, las herramientas explican qué plan las trae", async () => {
+    renderApp(new FakeApi(sampleMe()), "/origen");
+    expect(await screen.findByText(/viene con el plan Personal/)).toBeInTheDocument();
+  });
+
+  test("alertas: crear y apagar", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/alertas");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Crear alerta" }));
+    expect(screen.getByText("Escribí un tema.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Tema"), "tarifas de gas");
+    await user.click(screen.getByRole("radio", { name: /Datos en disputa/ }));
+    await user.click(screen.getByRole("button", { name: "Crear alerta" }));
+    expect(await screen.findByText(/te vamos a avisar sobre «tarifas de gas»/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "createAlert")?.args[0]).toEqual({ topic: "tarifas de gas", trigger: "new_disagreement", channel: "email" });
+    await user.click(screen.getByRole("button", { name: "Apagar la alerta de tarifas de gas" }));
+    expect(await screen.findByText("Todavía no tenés alertas.")).toBeInTheDocument();
+  });
+
+  test("claves de API: la clave completa se ve una vez; revocar pide confirmar", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/cuenta");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre"), "bot de la redacción");
+    await user.click(screen.getByRole("button", { name: "Crear clave" }));
+    expect(await screen.findByText("sh_live_abcdSECRETO")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "createApiKey")?.args).toEqual(["bot de la redacción", ["content:analyze", "smoke:analyze"]]);
+    await user.click(screen.getByRole("button", { name: "Ya la guardé" }));
+    expect(screen.queryByText("sh_live_abcdSECRETO")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Revocar la clave bot de la redacción" }));
+    await user.click(screen.getByRole("button", { name: "Sí, revocar" }));
+    expect(await screen.findByText("No tenés claves activas.")).toBeInTheDocument();
+  });
+
+  test("evolución de la credibilidad: tendencia en palabras y tabla con los mismos datos", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/credibilidad");
+    const user = userEvent.setup();
+    await screen.findByRole("option", { name: "Diario del Valle" });
+    await user.selectOptions(screen.getByLabelText("Medio"), "ddv");
+    await user.type(screen.getByLabelText("Tema"), "tarifas de gas");
+    await user.click(screen.getByRole("button", { name: "Ver credibilidad" }));
+    await user.click(await screen.findByRole("button", { name: "Ver la evolución" }));
+    expect(await screen.findByText("Bajó de 70 a 50 sobre 100.")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: /Credibilidad por período/ });
+    expect(within(table).getAllByRole("row")).toHaveLength(4);
+    expect(within(table).getAllByText("—", { selector: "td" }).length).toBeGreaterThan(0); // período sin datos: no se inventa un valor
+    expect(screen.getByRole("img", { name: /Gráfico de la credibilidad/ })).toBeInTheDocument();
+  });
+
+  test("¿esto es humo?: responder y ver la explicación", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/jugar");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Empezar" }));
+    expect(await screen.findByText(/cortan el agua en todo el país/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Es humo" }));
+    expect(await screen.findByText("¡Bien!")).toBeInTheDocument();
+    expect(screen.getByText(/Alarmismo y pedido de reenvío/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Otra" })).toBeInTheDocument();
+  });
+});

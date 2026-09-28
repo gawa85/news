@@ -7,6 +7,7 @@ import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 import { TopicSuggestions, useTopicNames } from "../shared/catalog";
+import { ApiKeysSection } from "./ApiKeysSection";
 
 const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web" };
 
@@ -20,8 +21,14 @@ export function AccountPage() {
         <Link className="btn btn--secondary btn--small" to="/historial">
           Historial
         </Link>
+        <Link className="btn btn--secondary btn--small" to="/alertas">
+          Alertas
+        </Link>
         <Link className="btn btn--secondary btn--small" to="/archivo">
           Archivo de notas
+        </Link>
+        <Link className="btn btn--secondary btn--small" to="/jugar">
+          ¿Esto es humo? (juego)
         </Link>
         <Link className="btn btn--secondary btn--small" to="/ayuda">
           Ayuda
@@ -62,6 +69,7 @@ export function AccountPage() {
       </div>
       <PreferencesForm />
       <FollowedTopics />
+      <ApiKeysSection />
       <SessionAndData />
     </Page>
   );

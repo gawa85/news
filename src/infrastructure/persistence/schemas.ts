@@ -2,6 +2,7 @@
  * Esquema de todas las colecciones: nombre de tabla e índices.
  * Es la única "definición de base de datos" del sistema; vale para todos los motores.
  */
+import { canonicalUrl } from "../../domain/model";
 import type {
   AdvertisingSpend,
   AnalysisFeedback,
@@ -134,6 +135,7 @@ export const schemas = {
       outletId: { type: "text", get: (a: Article) => a.outletId },
       topic: { type: "text", get: (a: Article) => a.topic },
       publishedAt: { type: "text", get: (a: Article) => a.publishedAt },
+      url: { type: "text", get: (a: Article) => canonicalUrl(a.url) },
     },
   } satisfies CollectionSchema<Article>,
   claims: {

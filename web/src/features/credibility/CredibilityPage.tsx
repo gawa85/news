@@ -7,6 +7,7 @@ import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Page, ScoreBar } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 import { isoDay, TopicSuggestions, useOutlets, useTopics } from "../shared/catalog";
+import { CredibilityTimeline } from "./CredibilityTimeline";
 
 /** CREDIBILIDAD de un medio en un tema: por dimensiones (precisión, fuentes, conflictos de interés, pauta…). */
 export function CredibilityPage() {
@@ -18,9 +19,10 @@ export function CredibilityPage() {
   const [topic, setTopic] = useState("");
   const [from, setFrom] = useState(isoDay(365));
   const [to, setTo] = useState(isoDay(0));
-  const run = useAction(() =>
-    api.credibility({ outletId, topic: topic.trim(), from: new Date(`${from}T00:00:00-03:00`).toISOString(), to: new Date(`${to}T23:59:59-03:00`).toISOString() }),
-  );
+  const query = { outletId, topic: topic.trim(), from: new Date(`${from}T00:00:00-03:00`).toISOString(), to: new Date(`${to}T23:59:59-03:00`).toISOString() };
+  // Lo que se pidió (la evolución usa lo mismo aunque después se edite el formulario).
+  const [asked, setAsked] = useState<typeof query>();
+  const run = useAction(() => api.credibility(query));
 
   if (!can("credibility_meter")) {
     return (
@@ -37,7 +39,10 @@ export function CredibilityPage() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (outletId && topic.trim()) void run.run();
+    if (outletId && topic.trim()) {
+      setAsked(query);
+      void run.run();
+    }
   };
 
   return (
@@ -71,6 +76,7 @@ export function CredibilityPage() {
       </form>
       <ErrorAlert error={run.error} />
       {run.result && <ReportView r={run.result} />}
+      {run.result && asked && <CredibilityTimeline key={JSON.stringify(asked)} query={asked} />}
     </Page>
   );
 }

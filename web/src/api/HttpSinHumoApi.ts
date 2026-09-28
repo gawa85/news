@@ -20,6 +20,15 @@ import type {
   EvidenceVerification,
   PublicEvent,
   RoomEvent,
+  AlertRule,
+  AlertTrigger,
+  ApiKey,
+  ApiKeyList,
+  LearningProgress,
+  OriginTrace,
+  QuizQuestion,
+  QuizResult,
+  TimelinePoint,
 } from "./types";
 
 type Fetch = typeof fetch;
@@ -109,6 +118,54 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   credibility(input: { outletId: string; topic: string; from: string; to: string }) {
     return this.request<CredibilityReport>("POST", "/v1/credibility", input);
+  }
+
+  credibilityTimeline(input: { outletId: string; topic: string; from: string; to: string; windows: number }) {
+    return this.request<TimelinePoint[]>("POST", "/v1/credibility/timeline", input);
+  }
+
+  traceOrigin(url: string, topic?: string) {
+    return this.request<OriginTrace>("POST", "/v1/origin", { url, ...(topic ? { topic } : {}) });
+  }
+
+  alerts() {
+    return this.request<AlertRule[]>("GET", "/v1/alerts");
+  }
+
+  createAlert(input: { topic: string; trigger: AlertTrigger; channel: string; outletId?: string }) {
+    return this.request<AlertRule>("POST", "/v1/alerts", input);
+  }
+
+  async deactivateAlert(id: string) {
+    await this.request("POST", `/v1/alerts/${encodeURIComponent(id)}/deactivate`);
+  }
+
+  apiKeys() {
+    return this.request<ApiKeyList>("GET", "/v1/api-keys");
+  }
+
+  createApiKey(name: string, scopes: string[]) {
+    return this.request<{ plaintext: string; key: ApiKey }>("POST", "/v1/api-keys", { name, scopes });
+  }
+
+  async revokeApiKey(id: string) {
+    await this.request("POST", `/v1/api-keys/${encodeURIComponent(id)}/revoke`);
+  }
+
+  learningNext() {
+    return this.request<QuizQuestion>("POST", "/v1/learning/next");
+  }
+
+  learningAnswer(isSmoke: boolean) {
+    return this.request<QuizResult>("POST", "/v1/learning/answer", { isSmoke });
+  }
+
+  learningProgress() {
+    return this.request<LearningProgress>("GET", "/v1/learning/progress");
+  }
+
+  async joinClassroom(code: string, alias: string) {
+    await this.request("POST", "/v1/classrooms/join", { code, alias });
   }
 
   topics() {

@@ -31,6 +31,7 @@ export function Layout() {
               <>
                 <NavLink to="/analizar">Analizar</NavLink>
                 <NavLink to="/comparar">Comparar fuentes</NavLink>
+                <NavLink to="/origen">¿Quién lo dijo?</NavLink>
                 <NavLink to="/credibilidad">Credibilidad</NavLink>
                 <NavLink to="/historial">Historial</NavLink>
                 <NavLink to="/eventos">Eventos</NavLink>
@@ -55,6 +56,8 @@ export function Layout() {
           <span>Sin Humo · Hechos, no humo.</span>
           <nav aria-label="Secundaria" className="row">
             <span>También por WhatsApp, Telegram y mail.</span>
+            {me && <Link to="/alertas">Alertas</Link>}
+            {me && <Link to="/jugar">¿Esto es humo? (juego)</Link>}
             {me && <Link to="/archivo">Archivo de notas</Link>}
             {me && <Link to="/ayuda">Ayuda</Link>}
             <Link to="/planes">Planes</Link>

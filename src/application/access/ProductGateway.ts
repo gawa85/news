@@ -24,6 +24,7 @@ import type { CompareSourcesUseCase } from "../CompareSourcesUseCase";
 import type { CredibilityTimelineUseCase } from "../CredibilityTimelineUseCase";
 import type { EvaluateCredibilityUseCase } from "../EvaluateCredibilityUseCase";
 import type { TraceOriginUseCase } from "../TraceOriginUseCase";
+import type { TraceOriginByUrlUseCase } from "../TraceOriginByUrlUseCase";
 import type { UserRulesResolver } from "../rules/UserRulesResolver";
 import type { AccessControl } from "./AccessControl";
 
@@ -32,6 +33,7 @@ export interface CoreUseCases {
   analyzeContent: AnalyzeContentUseCase;
   compareSources: CompareSourcesUseCase;
   traceOrigin: TraceOriginUseCase;
+  traceOriginByUrl: TraceOriginByUrlUseCase;
   evaluateCredibility: EvaluateCredibilityUseCase;
   credibilityTimeline: CredibilityTimelineUseCase;
 }
@@ -115,6 +117,11 @@ export class ProductGateway {
 
   traceOrigin(caller: Caller, articleId: string): Promise<OriginTrace> {
     return this.run(caller, "trace_origin", {}, () => this.core.traceOrigin.execute({ articleId }));
+  }
+
+  /** Lo mismo, a partir de un link: la nota se trae y se guarda si todavía no estaba. */
+  traceOriginByUrl(caller: Caller, input: { url: string; topic?: string }): Promise<OriginTrace> {
+    return this.run(caller, "trace_origin", {}, () => this.core.traceOriginByUrl.execute(input));
   }
 
   evaluateCredibility(caller: Caller, query: CredibilityQuery): Promise<CredibilityReport & { rebuttals: Rebuttal[]; corrections: Correction[] }> {

@@ -531,3 +531,123 @@ legend {
     scroll-behavior: auto !important;
   }
 }
+
+/* Tablas de datos (también son la versión accesible de los gráficos). */
+.table-wrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.table caption {
+  text-align: start;
+  font-weight: 600;
+  padding-block-end: var(--space-2);
+}
+.table th,
+.table td {
+  text-align: start;
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--border);
+  vertical-align: top;
+}
+.table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Gráfico de líneas simple (SVG): los colores salen de los tokens. */
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart__axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+.chart__line {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 2.5;
+}
+.chart__dot {
+  fill: var(--surface);
+  stroke: var(--brand);
+  stroke-width: 2.5;
+}
+
+/* Cadena de "¿quién lo dijo primero?". */
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-inline-start: 2px solid var(--border);
+}
+.timeline > li {
+  position: relative;
+  padding: 0 0 var(--space-4) var(--space-5);
+}
+.timeline > li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -7px;
+  top: 0.35rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+}
+.timeline > li.is-origin::before {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+/* Clave de API recién creada. */
+.secret {
+  display: block;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+/* Modo aprendizaje. */
+.quiz__text {
+  font-size: 1.15rem;
+  line-height: 1.6;
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  margin: 0;
+}
+.quiz__answers .btn {
+  min-width: 9rem;
+}
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+}
+.stats div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+.stats dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.stats dt {
+  color: var(--text-muted);
+}

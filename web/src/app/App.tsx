@@ -12,6 +12,9 @@ import { EvidencePage } from "../features/evidence/EvidencePage";
 import { EventPage, EventsPage } from "../features/events/EventsPages";
 import { SupportPage } from "../features/support/SupportPage";
 import { NotFoundPage } from "../features/home/NotFoundPage";
+import { AlertsPage } from "../features/alerts/AlertsPage";
+import { LearningPage } from "../features/learning/LearningPage";
+import { OriginPage } from "../features/origin/OriginPage";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
 
@@ -29,6 +32,9 @@ export const routes: RouteObject[] = [
       { path: "/historial/:id", element: guard(<HistoryDetailPage />) },
       { path: "/comparar", element: guard(<ComparePage />) },
       { path: "/credibilidad", element: guard(<CredibilityPage />) },
+      { path: "/origen", element: guard(<OriginPage />) },
+      { path: "/alertas", element: guard(<AlertsPage />) },
+      { path: "/jugar", element: guard(<LearningPage />) },
       { path: "/cuenta", element: guard(<AccountPage />) },
       { path: "/archivo", element: guard(<EvidencePage />) },
       { path: "/ayuda", element: guard(<SupportPage />) },

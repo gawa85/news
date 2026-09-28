@@ -64,6 +64,10 @@
  *  Eventos en vivo:  GET /public/events   GET /public/events/:código[/stream] (SSE, sin cuenta)
  *                    POST /v1/events   POST /v1/events/:id/(close|factcheck|mute)   (events:host)
  *  Redes:  POST /v1/social/read {url}
+ *  Claves de API (sólo con sesión web):  GET/POST /v1/api-keys { name, scopes }   POST /v1/api-keys/:id/revoke
+ *  Alertas:  GET/POST /v1/alerts { topic, trigger, channel, outletId? }   POST /v1/alerts/:id/deactivate
+ *  Origen:  POST /v1/origin { url, topic? }   ("¿quién lo dijo primero?")
+ *  Credibilidad en el tiempo:  POST /v1/credibility/timeline { outletId, topic, from, to, windows }
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups (ops:backup)   GET /health (con el ambiente)
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
@@ -84,9 +88,11 @@ import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
+import type { AlertSettings } from "../../application/alerts/AlertSettings";
+import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
-import type { RoomEvent } from "../../domain/model";
+import type { Article, OriginTrace, RoomEvent } from "../../domain/model";
 import type { AccessControl } from "../../application/access/AccessControl";
 import type { Caller, ProductGateway } from "../../application/access/ProductGateway";
 import type { ImpactReportUseCase } from "../../application/impact/ImpactUseCases";
@@ -148,6 +154,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Mis alertas: ver, crear y apagar. */
+  alerts?: { settings: AlertSettings; create: CreateAlertUseCase };
   /** Cancelar o retomar la suscripción. */
   lifecycle?: SubscriptionLifecycle;
   /** Freno contra el abuso (API, MCP). Sin él, no se limita. */
@@ -618,6 +626,26 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       if (req.method === "GET" && room[2] === "events") return stream(req, res, (send) => P.rooms.join({ actorId: who.userId, roomId }, send));
     }
 
+    // ---- Claves de API: sólo con la sesión de la web (una clave filtrada no puede crear más claves) ----
+    if (path === "/v1/api-keys" || path.startsWith("/v1/api-keys/")) {
+      if (who.channel !== "web") throw new AccessDeniedError("Las claves de API se administran desde la web.", "no_permission");
+      if (req.method === "GET" && path === "/v1/api-keys") return json(res, 200, await deps.apiKeys.list(who.userId));
+      if (req.method === "POST" && path === "/v1/api-keys") {
+        const scopes = Array.isArray(b.scopes) ? b.scopes.map(String) : [];
+        if (!scopes.length) throw new ValidationError("Elegí al menos un permiso para la clave.");
+        const { plaintext, key } = await deps.apiKeys.create({ actorId: who.userId, name: str(b.name, "name").slice(0, 60), scopes: scopes as never });
+        const { hash: _hash, userId: _user, ...shown } = key;
+        return json(res, 201, { plaintext, key: shown });
+      }
+      const revoke = path.match(/^\/v1\/api-keys\/([^/]+)\/revoke$/);
+      if (req.method === "POST" && revoke) {
+        await deps.apiKeys.revoke({ actorId: who.userId, keyId: decodeURIComponent(revoke[1]!) });
+        return json(res, 200, { ok: true });
+      }
+    }
+    const alertOff = path.match(/^\/v1\/alerts\/([^/]+)\/deactivate$/);
+    if (req.method === "POST" && alertOff) return json(res, 200, await need(deps.alerts).settings.deactivate({ actorId: who.userId, alertId: decodeURIComponent(alertOff[1]!) }));
+
     const resolve = path.match(/^\/v1\/rebuttals\/([^/]+)\/resolve$/);
     if (req.method === "POST" && resolve) {
       return json(res, 200, await deps.rebuttals.resolve({ actorId: who.userId, rebuttalId: decodeURIComponent(resolve[1]!), decision: b.decision as never, note: str(b.note, "note") }));
@@ -831,6 +859,25 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         const r = await deps.gateway.evaluateCredibility(who, { outletId: str(b.outletId, "outletId"), topic: str(b.topic, "topic"), period: { from: date(b.from, "from"), to: date(b.to, "to") } });
         return json(res, 200, r);
       }
+      case "GET /v1/alerts":
+        return json(res, 200, await need(deps.alerts).settings.list(who.userId));
+      case "POST /v1/alerts": {
+        const r = await need(deps.alerts).create.execute({
+          actorId: who.userId, topic: str(b.topic, "topic").trim().slice(0, 120), trigger: str(b.trigger, "trigger") as never,
+          channel: str(b.channel, "channel") as never, outletId: typeof b.outletId === "string" && b.outletId ? b.outletId : undefined,
+        });
+        return json(res, 201, (await need(deps.alerts).settings.list(who.userId)).find((a) => a.id === r.id));
+      }
+      case "POST /v1/origin":
+        return json(res, 200, originView(await deps.gateway.traceOriginByUrl(who, { url: str(b.url, "url"), topic: typeof b.topic === "string" ? b.topic : undefined })));
+      case "POST /v1/credibility/timeline": {
+        const points = await deps.gateway.credibilityTimeline(
+          who,
+          { outletId: str(b.outletId, "outletId"), topic: str(b.topic, "topic"), period: { from: date(b.from, "from"), to: date(b.to, "to") } },
+          Number(b.windows ?? 6),
+        );
+        return json(res, 200, points);
+      }
       case "GET /v1/plan": {
         const user = await deps.access.userOrThrow(who.userId);
         const { plan } = await deps.access.planOf(user);
@@ -906,6 +953,19 @@ function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [columns.join(","), ...rows.map((r) => columns.map((c) => cell(r[c])).join(","))].join("\r\n") + "\r\n";
+}
+
+/** La traza sin el cuerpo de cada nota (la web sólo muestra título, medio, fecha y link). */
+function originView(t: OriginTrace) {
+  const art = (a: Article) => ({ id: a.id, title: a.title, url: a.url, outletId: a.outletId, publishedAt: a.publishedAt });
+  return {
+    target: art(t.target),
+    origin: art(t.origin),
+    chain: t.chain.map((l) => ({ article: art(l.article), similarityToOrigin: l.similarityToOrigin, isNearCopy: l.isNearCopy })),
+    independentSources: t.independentSources,
+    likelyPressRelease: t.likelyPressRelease,
+    echoWarning: t.echoWarning,
+  };
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {

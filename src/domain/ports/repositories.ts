@@ -13,6 +13,8 @@ export interface ArticleFilter {
 export interface IArticleReader {
   findById(id: string): Promise<Article | undefined>;
   find(filter: ArticleFilter): Promise<Article[]>;
+  /** La nota guardada con ese link (se compara la URL canónica: sin esquema, "www." ni parámetros de rastreo). */
+  findByUrl(url: string): Promise<Article | undefined>;
 }
 
 export interface IArticleWriter {

@@ -18,6 +18,15 @@ import type {
   EvidenceVerification,
   PublicEvent,
   RoomEvent,
+  AlertRule,
+  AlertTrigger,
+  ApiKey,
+  ApiKeyList,
+  LearningProgress,
+  OriginTrace,
+  QuizQuestion,
+  QuizResult,
+  TimelinePoint,
 } from "./types";
 
 /**
@@ -40,6 +49,10 @@ export interface SinHumoApi {
   feedback(analysisId: string, useful: boolean, reason?: string, comment?: string): Promise<void>;
   compare(input: { topic: string; from: string; to: string; include?: string[] }): Promise<Comparison>;
   credibility(input: { outletId: string; topic: string; from: string; to: string }): Promise<CredibilityReport>;
+  /** La credibilidad partida en `windows` períodos iguales (plan Profesional). */
+  credibilityTimeline(input: { outletId: string; topic: string; from: string; to: string; windows: number }): Promise<TimelinePoint[]>;
+  /** "¿Quién lo dijo primero?": el tema hace falta si la nota todavía no está guardada. */
+  traceOrigin(url: string, topic?: string): Promise<OriginTrace>;
 
   // Catálogo público
   topics(): Promise<CategoryNode[]>;
@@ -60,6 +73,22 @@ export interface SinHumoApi {
   deleteAccount(confirmation: string): Promise<void>;
   /** Link para bajar todos mis datos (Ley 25.326). */
   myDataUrl(): string;
+
+  // Alertas
+  alerts(): Promise<AlertRule[]>;
+  createAlert(input: { topic: string; trigger: AlertTrigger; channel: string; outletId?: string }): Promise<AlertRule>;
+  deactivateAlert(id: string): Promise<void>;
+
+  // Claves de API (la clave completa se ve una sola vez, al crearla)
+  apiKeys(): Promise<ApiKeyList>;
+  createApiKey(name: string, scopes: string[]): Promise<{ plaintext: string; key: ApiKey }>;
+  revokeApiKey(id: string): Promise<void>;
+
+  // Modo aprendizaje: "¿esto es humo?"
+  learningNext(): Promise<QuizQuestion>;
+  learningAnswer(isSmoke: boolean): Promise<QuizResult>;
+  learningProgress(): Promise<LearningProgress>;
+  joinClassroom(code: string, alias: string): Promise<void>;
 
   // Soporte
   tickets(): Promise<Ticket[]>;
