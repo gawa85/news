@@ -229,6 +229,11 @@ export interface PlatformConfig {
   supportDesk?: ISupportDesk;
   /** Ambiente: fuera de producción, sólo se envía a la lista del equipo y con prefijo. */
   environment?: { name: string; sandbox?: { allowlist: string[]; prefix: string } };
+  /**
+   * Webhooks salientes: cliente HTTP para entregarlos (en producción, sólo destinos públicos:
+   * PublicDestinationHttpClient) y si se aceptan destinos localhost (sólo desarrollo).
+   */
+  webhooks?: { http?: IHttpClient; allowLocal?: boolean };
   /** Copias de seguridad (sin esto, los trabajos de copia avisan que no están configuradas). */
   backups?: { sink: IBackupSink; passphrase: string; scratch: () => IDataStore };
 }
@@ -387,7 +392,8 @@ export function buildPlatform(cfg: PlatformConfig) {
 
   // ---- Integraciones: API, webhooks, MCP ----
   const apiKeys = new ApiKeyService(repos.apiKeys, repos.users, authz, access, ids, clock, domainEvents);
-  const webhooks = new WebhookService(repos.webhooks, vault, authz, access, ids, clock, domainEvents);
+  const webhookDispatcher = new WebhookDispatcher(repos.webhooks, vault, cfg.webhooks?.http ?? cfg.http, logger, clock);
+  const webhooks = new WebhookService(repos.webhooks, vault, authz, access, ids, clock, domainEvents, webhookDispatcher, { allowLocal: cfg.webhooks?.allowLocal });
 
   // ---- Login web ----
   const oauthProviders: IOAuthProvider[] = cfg.oauth?.google ? [new GoogleOAuthProvider(cfg.http, cfg.oauth.google)] : [];
@@ -541,7 +547,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     gateway, access, authz, repos.contentAnalyses, impactReport, auditQuery, repos.outlets, domainEvents, clock, statsService,
   );
   const scheduledReports = new ScheduledReportService(repos.reportSchedules, exports, access, repos.users, notifications, domainEvents, ids, clock, logger, params);
-  new WebhookDispatcher(repos.webhooks, vault, cfg.http, logger).attach(events);
+  webhookDispatcher.attach(events);
 
   // ---- Fuentes conectadas ----
   const contentSources = [new ImapMailboxSource(mimeParser), new RssFeedSource(cfg.http)];
@@ -695,6 +701,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions),
     alerts: { settings: p.alerts.settings, create: p.users.createAlert },
     organizations: p.organizations,
+    webhooks: p.integrations.webhooks,
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

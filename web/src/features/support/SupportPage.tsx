@@ -4,6 +4,7 @@ import type { Ticket, TicketCategory } from "../../api/types";
 import { formatDateTime } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
+import { RatePlatform } from "./RatePlatform";
 
 const CATEGORIES: Record<TicketCategory, string> = {
   account: "Mi cuenta",
@@ -76,6 +77,7 @@ export function SupportPage() {
           <TicketView key={t.id} ticket={t} onChange={() => void list.reload()} />
         ))}
       </section>
+      <RatePlatform />
     </Page>
   );
 }

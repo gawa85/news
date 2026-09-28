@@ -31,6 +31,12 @@ import type {
   TeamRoomDetails,
   InvitationPreview,
   OrganizationOverview,
+  DeliveryResult,
+  MyReview,
+  RatingSummary,
+  ReviewTarget,
+  Webhook,
+  WebhookList,
 } from "./types";
 
 /**
@@ -115,6 +121,17 @@ export interface SinHumoApi {
   watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
   /** `verificacion`: chequeo del equipo (sólo quien modera). */
   postToRoom(roomId: string, text: string, kind?: "verificacion"): Promise<void>;
+
+  // Webhooks (el secreto de firma se ve una sola vez, al crearlo)
+  webhooks(): Promise<WebhookList>;
+  createWebhook(url: string, events: string[]): Promise<{ webhook: Webhook; signingSecret: string }>;
+  testWebhook(id: string): Promise<DeliveryResult>;
+  removeWebhook(id: string): Promise<void>;
+
+  // Calificaciones
+  myReview(target: ReviewTarget): Promise<MyReview | null>;
+  review(target: ReviewTarget, rating: number | null, text?: string): Promise<MyReview>;
+  reviewSummary(target: ReviewTarget): Promise<RatingSummary>;
 
   // Mi organización. undefined = no soy parte de ninguna.
   organization(): Promise<OrganizationOverview | undefined>;

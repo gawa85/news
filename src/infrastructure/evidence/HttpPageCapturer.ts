@@ -9,45 +9,18 @@
  */
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { isPublicAddress } from "../../domain/rules/network";
 import { ValidationError } from "../../domain/errors";
 import type { CapturedPage, IPageCapturer } from "../../domain/ports";
+
+/** (Se re-exporta: antes vivía acá.) */
+export { isPublicAddress };
 
 type FetchFn = typeof fetch;
 /** Todas las IPs de un nombre (inyectable para tests). */
 export type Resolver = (host: string) => Promise<string[]>;
 
 const dnsResolver: Resolver = async (host) => (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);
-
-function ipv4ToInt(ip: string): number {
-  return ip.split(".").reduce((n, o) => n * 256 + Number(o), 0);
-}
-
-const V4_BLOCKED: [string, number][] = [
-  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12],
-  ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 3],
-];
-
-/** ¿Es una dirección de internet pública? (no interna, local, de enlace, multicast ni reservada) */
-export function isPublicAddress(ip: string): boolean {
-  const kind = isIP(ip);
-  if (kind === 4) {
-    const n = ipv4ToInt(ip);
-    return !V4_BLOCKED.some(([base, bits]) => (n >>> (32 - bits)) === (ipv4ToInt(base) >>> (32 - bits)));
-  }
-  if (kind === 6) {
-    const v = ip.toLowerCase().replace(/^\[|\]$/g, "");
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v);
-    if (mapped) return isPublicAddress(mapped[1]!);
-    if (v === "::" || v === "::1") return false;
-    const first = parseInt(v.split(":")[0] || "0", 16);
-    if ((first & 0xfe00) === 0xfc00) return false; // fc00::/7 privadas
-    if ((first & 0xffc0) === 0xfe80) return false; // fe80::/10 de enlace
-    if ((first & 0xff00) === 0xff00) return false; // multicast
-    if (v.startsWith("64:ff9b:") || v.startsWith("2001:db8:")) return false; // traducción / documentación
-    return true;
-  }
-  return false;
-}
 
 const decodeEntities = (s: string) =>
   s

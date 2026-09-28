@@ -436,3 +436,42 @@ describe("Organización", () => {
     expect(await screen.findByText(/venció o ya se usó/)).toBeInTheDocument();
   });
 });
+
+describe("Webhooks y calificaciones", () => {
+  test("webhooks: crear (el secreto se ve una vez), probar y ver que falló", async () => {
+    const api = new FakeApi(sampleMe({ plan: { ...sampleMe().plan, features: ["webhooks"] } }));
+    renderApp(api, "/cuenta");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Dirección (https)"), "https://redaccion.example/hook");
+    await user.click(screen.getByRole("checkbox", { name: "Saltó una alerta" }));
+    await user.click(screen.getByRole("button", { name: "Crear webhook" }));
+    expect(await screen.findByText("whsec_SECRETO")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "createWebhook")?.args).toEqual(["https://redaccion.example/hook", ["analysis.completed", "alert.triggered"]]);
+    await user.click(screen.getByRole("button", { name: "Ya lo guardé" }));
+    expect(screen.queryByText("whsec_SECRETO")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Mandar una prueba" }));
+    expect(await screen.findByText(/Último envío: falló \(Respondió HTTP 500.\)/)).toBeInTheDocument();
+  });
+
+  test("webhooks: una dirección que no es https se avisa en el campo", async () => {
+    const api = new FakeApi(sampleMe({ plan: { ...sampleMe().plan, features: ["webhooks"] } }));
+    renderApp(api, "/cuenta");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Dirección (https)"), "http://inseguro.example");
+    await user.click(screen.getByRole("button", { name: "Crear webhook" }));
+    expect(screen.getByText("Tiene que ser una dirección https.")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.method === "createWebhook")).toBe(false);
+  });
+
+  test("calificar Sin Humo desde Ayuda: estrellas con teclado y comentario en revisión", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/ayuda");
+    const user = userEvent.setup();
+    expect(await screen.findByText(/Promedio: 4,3 de 5 \(12 calificaciones\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /4 de 5: Bien/ }));
+    await user.type(screen.getByLabelText("Comentario (opcional)"), "Muy útil para las cadenas");
+    await user.click(screen.getByRole("button", { name: "Enviar calificación" }));
+    expect(await screen.findByText(/queda en revisión/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "review")?.args).toEqual([4, "Muy útil para las cadenas"]);
+  });
+});

@@ -6,6 +6,11 @@ export interface IApiKeyRepository {
   save(key: ApiKey): Promise<void>;
 }
 
+/** Entrega de un aviso a un webhook (firma, reintentos y registro del resultado). */
+export interface IWebhookDelivery {
+  deliver(sub: WebhookSubscription, event: { id: string; type: string; occurredAt: Date; data: Record<string, unknown> }): Promise<{ ok: boolean; status?: number; error?: string }>;
+}
+
 export interface IWebhookRepository {
   findActiveForEvent(userId: string, event: DomainEventType): Promise<WebhookSubscription[]>;
   findByUser(userId: string): Promise<WebhookSubscription[]>;

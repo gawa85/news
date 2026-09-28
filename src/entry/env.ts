@@ -28,6 +28,7 @@ import { ConsoleEmailTransport, RecordingEmailTransport, NodemailerSmtpTransport
 import { TelegramBotSender, WhatsAppCloudSender } from "../infrastructure/messaging/ChannelAdapters";
 import { createMemoryStore, createPostgresStore, createSqliteStore } from "../infrastructure/persistence/stores";
 import { FetchHttpClient } from "../infrastructure/system/EventsAndHttp";
+import { PublicDestinationHttpClient } from "../infrastructure/integrations/PublicDestinationHttpClient";
 import { FakeInvoiceIssuer } from "../infrastructure/billing/Payments";
 import { ConsoleLogger } from "../infrastructure/system/System";
 
@@ -206,6 +207,12 @@ export async function platformFromEnv() {
       : undefined,
     oauth: env("GOOGLE_CLIENT_ID") ? { google: { clientId: env("GOOGLE_CLIENT_ID")!, clientSecret: env("GOOGLE_CLIENT_SECRET") ?? "" } } : undefined,
     http,
+    // Webhooks: el destino lo elige una persona → sólo direcciones públicas y sin seguir redirecciones.
+    // En desarrollo se permite localhost para probarlos.
+    webhooks: {
+      http: new PublicDestinationHttpClient(new FetchHttpClient(10_000, { followRedirects: false }), { allowPrivate: profile.name === "development" }),
+      allowLocal: profile.name === "development",
+    },
     senders,
     mail: {
       transport,

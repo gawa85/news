@@ -388,3 +388,42 @@ export interface InvitationPreview {
   email: string;
   expiresAt: string;
 }
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  createdAt: string;
+  lastDelivery?: { at: string; ok: boolean; status?: number; error?: string };
+}
+
+export interface WebhookList {
+  available: boolean;
+  events: string[];
+  webhooks: Webhook[];
+}
+
+export interface DeliveryResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
+
+export interface ReviewTarget {
+  type: "analysis" | "reply" | "outlet" | "platform";
+  id: string;
+}
+
+export interface MyReview {
+  rating: number | null;
+  text?: string;
+  status: "published" | "pending_moderation" | "rejected";
+  updatedAt: string;
+}
+
+export interface RatingSummary {
+  count: number;
+  average: number | null;
+  distribution: Record<"1" | "2" | "3" | "4" | "5", number>;
+}

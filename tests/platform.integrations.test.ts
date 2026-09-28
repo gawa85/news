@@ -10,6 +10,9 @@ import { httpApiDeps } from "../src/composition/platform";
 import { createHttpApi } from "../src/infrastructure/http/HttpApi";
 import { buildMcpServer } from "../src/infrastructure/integrations/McpServer";
 import { signWebhook } from "../src/infrastructure/integrations/WebhookDispatcher";
+import { PublicDestinationHttpClient } from "../src/infrastructure/integrations/PublicDestinationHttpClient";
+import { StubHttpClient } from "../src/infrastructure/system/EventsAndHttp";
+import { ValidationError } from "../src/domain/errors";
 import { parseFeed } from "../src/infrastructure/content/RssSource";
 import { testPlatform, userWithPlan, type Handler } from "./helpers/platform";
 
@@ -151,6 +154,52 @@ describe("Webhooks salientes y fuentes conectadas", () => {
     assert.equal(call.headers["x-sinhumo-event"], "analysis.completed");
     const expected = `sha256=${signWebhook(signingSecret, call.headers["x-sinhumo-timestamp"]!, call.body as string)}`;
     assert.equal(call.headers["x-sinhumo-signature"], expected);
+  });
+
+  test("mis webhooks: listar sin secreto, probar (queda el último envío) y apagar; localhost sólo si se permite", async () => {
+    const t = await testPlatform({ http: hooks });
+    const W = t.p.integrations.webhooks;
+    const u = await userWithPlan(t, "profesional");
+    for (const url of ["https://localhost/hook", "http://localhost:9000/hook", "https://10.1.2.3/hook", "https://[::1]/hook", "https://api.internal/hook"]) {
+      await assert.rejects(W.register({ actorId: u.id, url, events: ["analysis.completed"] }), /dirección pública/, url);
+    }
+    const { subscription } = await W.register({ actorId: u.id, url: "https://hooks.example/sinhumo", events: ["analysis.completed"] });
+    const broken = (await W.register({ actorId: u.id, url: "https://hooks.example/roto", events: ["alert.triggered"] })).subscription;
+
+    const list = await W.list(u.id);
+    assert.equal(list.available, true);
+    assert.equal(list.webhooks.length, 2);
+    assert.ok(!("secretRef" in list.webhooks[0]!) && !("userId" in list.webhooks[0]!));
+
+    assert.deepEqual(await W.test({ actorId: u.id, webhookId: subscription.id }), { ok: true, status: 200 });
+    const test = t.http.requests.filter((r) => r.url === "https://hooks.example/sinhumo").at(-1)!;
+    assert.equal(test.headers["x-sinhumo-event"], "webhook.test");
+    const bad = await W.test({ actorId: u.id, webhookId: broken.id });
+    assert.deepEqual([bad.ok, bad.status], [false, 404]);
+    const after = (await W.list(u.id)).webhooks.find((w) => w.id === broken.id)!;
+    assert.equal(after.lastDelivery?.ok, false);
+
+    const other = await userWithPlan(t, "profesional");
+    await assert.rejects(W.test({ actorId: other.id, webhookId: subscription.id }), /No existe/);
+    await W.deactivate({ actorId: u.id, webhookId: subscription.id });
+    assert.equal((await W.list(u.id)).webhooks.length, 1);
+
+    const dev = await testPlatform({ http: hooks, extra: { webhooks: { allowLocal: true } } });
+    const d = await userWithPlan(dev, "profesional");
+    assert.ok(await dev.p.integrations.webhooks.register({ actorId: d.id, url: "http://localhost:9000/hook", events: ["analysis.completed"] }));
+  });
+
+  test("los avisos sólo salen hacia direcciones públicas (nada de red interna ni metadatos de la nube)", async () => {
+    const inner = new StubHttpClient(() => ({ status: 200 }));
+    const dns: Record<string, string[]> = { "hooks.example": ["93.184.216.34"], "interno.example": ["10.0.0.5"], "mixto.example": ["93.184.216.34", "127.0.0.1"] };
+    const client = new PublicDestinationHttpClient(inner, {}, async (h) => dns[h] ?? []);
+    assert.equal((await client.send("POST", "https://hooks.example/x", "{}")).status, 200);
+    for (const url of ["https://interno.example/x", "https://mixto.example/x", "https://169.254.169.254/latest", "https://[::1]/x", "http://hooks.example/x", "https://no-existe.example/x"]) {
+      await assert.rejects(client.send("POST", url, "{}"), ValidationError, url);
+    }
+    assert.equal(inner.requests.length, 1, "lo rechazado no sale");
+    const dev = new PublicDestinationHttpClient(inner, { allowPrivate: true }, async () => ["127.0.0.1"]);
+    assert.equal((await dev.send("POST", "http://localhost:9000/x", "{}")).status, 200);
   });
 
   test("RSS: conectar (se prueba antes de guardar), sincronizar sólo lo nuevo y analizarlo", async () => {

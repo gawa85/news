@@ -73,3 +73,17 @@ export const SCOPE_LABELS: Record<string, string> = {
   "perspectives:write": "Publicar otras miradas",
   "sources:connect": "Conectar buzones y feeds",
 };
+
+/** Eventos a los que se suscribe un webhook, en palabras. */
+export const WEBHOOK_EVENT_LABELS: Record<string, string> = {
+  "analysis.completed": "Terminó un análisis",
+  "comparison.completed": "Terminó una comparación de fuentes",
+  "alert.triggered": "Saltó una alerta",
+  "reply.pending_review": "Una respuesta pública espera revisión",
+  "reply.published": "Se publicó una respuesta",
+  "rebuttal.submitted": "Un medio pidió derecho a réplica",
+  "correction.published": "Se publicó una fe de erratas",
+  "verification.resolved": "Se resolvió una verificación",
+  "campaign.launched": "Se lanzó una campaña",
+  "perspective.published": "Se publicó otra mirada",
+};

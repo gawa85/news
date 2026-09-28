@@ -23,7 +23,11 @@ export class InMemoryEventBus implements IEventBus {
 
 /** Cliente HTTP real con fetch y tiempo límite. */
 export class FetchHttpClient implements IHttpClient {
-  constructor(private readonly timeoutMs = 15_000) {}
+  constructor(
+    private readonly timeoutMs = 15_000,
+    /** false: un 3xx se devuelve tal cual (para destinos que elige una persona: ver PublicDestinationHttpClient). */
+    private readonly opts: { followRedirects?: boolean } = {},
+  ) {}
 
   get(url: string, headers: Record<string, string> = {}): Promise<HttpResponse> {
     return this.request("GET", url, undefined, headers);
@@ -40,6 +44,7 @@ export class FetchHttpClient implements IHttpClient {
       headers: { ...(body !== undefined && !isString ? { "content-type": "application/json" } : {}), ...headers },
       body: body === undefined ? undefined : isString ? body : JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: this.opts.followRedirects === false ? "manual" : "follow",
     });
     return { status: res.status, text: await res.text(), headers: Object.fromEntries(res.headers.entries()) };
   }

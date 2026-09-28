@@ -69,6 +69,8 @@
  *  Organización:  GET/POST /v1/organization { name }   POST /v1/organization/invitations { email, roleId? }
  *    POST /v1/organization/invitations/:id/revoke   GET /public/invitations/:token   POST /v1/organization/join { token }
  *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
+ *  Webhooks (sólo con sesión web):  GET/POST /v1/webhooks { url, events }   POST /v1/webhooks/:id/(test|remove)
+ *  Reseñas:  GET /v1/reviews/mine?type=&id=
  *  Alertas:  GET/POST /v1/alerts { topic, trigger, channel, outletId? }   POST /v1/alerts/:id/deactivate
  *  Origen:  POST /v1/origin { url, topic? }   ("¿quién lo dijo primero?")
  *  Credibilidad en el tiempo:  POST /v1/credibility/timeline { outletId, topic, from, to, windows }
@@ -101,7 +103,7 @@ import type { Article, OriginTrace, RoomEvent } from "../../domain/model";
 import type { AccessControl } from "../../application/access/AccessControl";
 import type { Caller, ProductGateway } from "../../application/access/ProductGateway";
 import type { ImpactReportUseCase } from "../../application/impact/ImpactUseCases";
-import type { ApiKeyService } from "../../application/integrations/IntegrationServices";
+import type { ApiKeyService, WebhookService } from "../../application/integrations/IntegrationServices";
 import type { ResponseComposer } from "../../application/messaging/ResponseComposer";
 import type { ReplyService, TrackedLinkService } from "../../application/replies/ReplyService";
 import type { ReviewService } from "../../application/reviews/ReviewService";
@@ -159,6 +161,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Webhooks salientes: ver, crear, probar y apagar. */
+  webhooks?: WebhookService;
   /** Mi organización: equipo, invitaciones y roles. */
   organizations?: OrganizationService;
   /** Mis alertas: ver, crear y apagar. */
@@ -680,6 +684,26 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       if (req.method === "POST" && orgMember[2] === "remove") return json(res, 200, await need(deps.organizations).removeMember({ actorId: who.userId, memberId }));
     }
 
+    // ---- Webhooks: sólo con la sesión de la web (una clave filtrada no puede desviar los avisos) ----
+    if (path === "/v1/webhooks" || path.startsWith("/v1/webhooks/")) {
+      if (who.channel !== "web") throw new AccessDeniedError("Los webhooks se administran desde la web.", "no_permission");
+      const W = need(deps.webhooks);
+      if (req.method === "GET" && path === "/v1/webhooks") return json(res, 200, await W.list(who.userId));
+      if (req.method === "POST" && path === "/v1/webhooks") {
+        const events = Array.isArray(b.events) ? b.events.map(String) : [];
+        const { subscription, signingSecret } = await W.register({ actorId: who.userId, url: str(b.url, "url").trim(), events: events as never });
+        const { secretRef: _s, userId: _u, ...shown } = subscription;
+        return json(res, 201, { webhook: shown, signingSecret });
+      }
+      const wh = path.match(/^\/v1\/webhooks\/([^/]+)\/(test|remove)$/);
+      if (req.method === "POST" && wh) {
+        const webhookId = decodeURIComponent(wh[1]!);
+        if (wh[2] === "test") return json(res, 200, await W.test({ actorId: who.userId, webhookId }));
+        await W.deactivate({ actorId: who.userId, webhookId });
+        return json(res, 200, { ok: true });
+      }
+    }
+
     const alertOff = path.match(/^\/v1\/alerts\/([^/]+)\/deactivate$/);
     if (req.method === "POST" && alertOff) return json(res, 200, await need(deps.alerts).settings.deactivate({ actorId: who.userId, alertId: decodeURIComponent(alertOff[1]!) }));
 
@@ -933,6 +957,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       case "POST /v1/reviews":
         return json(res, 201, await deps.reviews.submit({ userId: who.userId, target: b.target as never, rating: (b.rating as number | null) ?? null, text: b.text as string | undefined }));
+      case "GET /v1/reviews/mine":
+        return json(res, 200, (await deps.reviews.mine(who.userId, { type: str(url.searchParams.get("type"), "type") as never, id: str(url.searchParams.get("id"), "id") })) ?? null);
       case "GET /v1/reviews/summary":
         return json(res, 200, await deps.reviews.summary({ type: str(url.searchParams.get("type"), "type") as never, id: str(url.searchParams.get("id"), "id") }));
       case "POST /v1/replies":

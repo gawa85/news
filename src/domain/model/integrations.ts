@@ -54,6 +54,7 @@ export const DOMAIN_EVENTS = [
   "api_key.created",
   "api_key.revoked",
   "webhook.registered",
+  "webhook.removed",
   "rebuttal.resolved",
   "outlet_representative.assigned",
   "auth.login",
@@ -114,4 +115,6 @@ export interface WebhookSubscription {
   secretRef: string;
   active: boolean;
   createdAt: Date;
+  /** Último envío: para mostrar si el sistema del otro lado está respondiendo. */
+  lastDelivery?: { at: Date; ok: boolean; status?: number; error?: string };
 }

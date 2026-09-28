@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, OrganizationOverview, RoomEvent, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -241,6 +241,36 @@ export class FakeApi implements SinHumoApi {
   }
   async postToRoom(roomId: string, text: string, kind?: string) {
     this.log("postToRoom", roomId, text, kind);
+  }
+
+  hooks: Webhook[] = [];
+  async webhooks() {
+    return { available: !!this.session?.plan.features.includes("webhooks"), events: ["analysis.completed", "alert.triggered"], webhooks: this.hooks };
+  }
+  async createWebhook(url: string, events: string[]) {
+    this.log("createWebhook", url, events);
+    const webhook: Webhook = { id: "w1", url, events, active: true, createdAt: "2026-09-28T12:00:00Z" };
+    this.hooks = [webhook, ...this.hooks];
+    return { webhook, signingSecret: "whsec_SECRETO" };
+  }
+  async testWebhook(id: string) {
+    this.log("testWebhook", id);
+    return { ok: false, status: 500, error: "Respondió HTTP 500." };
+  }
+  async removeWebhook(id: string) {
+    this.log("removeWebhook", id);
+  }
+  myRating: MyReview | null = null;
+  async myReview() {
+    return this.myRating;
+  }
+  async review(_target: unknown, rating: number | null, text?: string) {
+    this.log("review", rating, text);
+    this.myRating = { rating, text, status: text ? "pending_moderation" : "published", updatedAt: "2026-09-28T12:00:00Z" };
+    return this.myRating;
+  }
+  async reviewSummary() {
+    return { count: 12, average: 4.3, distribution: { "1": 0, "2": 1, "3": 1, "4": 3, "5": 7 } };
   }
 
   org: OrganizationOverview | undefined;

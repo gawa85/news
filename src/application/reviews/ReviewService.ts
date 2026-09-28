@@ -90,6 +90,11 @@ export class ReviewService {
     return { imported: reviews.length, cursor };
   }
 
+  /** Mi calificación de algo (para editarla). */
+  async mine(userId: string, target: ReviewTarget): Promise<Review | undefined> {
+    return this.reviews.findById(`internal:${target.type}:${target.id}:${userId}`);
+  }
+
   async summary(target: ReviewTarget): Promise<RatingSummary> {
     const published = (await this.reviews.findByTarget(target, "published")).filter((r) => r.rating !== null);
     const avg = (xs: Review[]) => (xs.length ? Math.round((xs.reduce((s, r) => s + r.rating!, 0) / xs.length) * 10) / 10 : null);

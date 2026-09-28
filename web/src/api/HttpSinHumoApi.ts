@@ -33,6 +33,12 @@ import type {
   TeamRoomDetails,
   InvitationPreview,
   OrganizationOverview,
+  DeliveryResult,
+  MyReview,
+  RatingSummary,
+  ReviewTarget,
+  Webhook,
+  WebhookList,
 } from "./types";
 
 type Fetch = typeof fetch;
@@ -283,6 +289,36 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async postToRoom(roomId: string, text: string, kind?: "verificacion") {
     await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text, ...(kind ? { kind } : {}) });
+  }
+
+  webhooks() {
+    return this.request<WebhookList>("GET", "/v1/webhooks");
+  }
+
+  createWebhook(url: string, events: string[]) {
+    return this.request<{ webhook: Webhook; signingSecret: string }>("POST", "/v1/webhooks", { url, events });
+  }
+
+  testWebhook(id: string) {
+    return this.request<DeliveryResult>("POST", `/v1/webhooks/${encodeURIComponent(id)}/test`);
+  }
+
+  async removeWebhook(id: string) {
+    await this.request("POST", `/v1/webhooks/${encodeURIComponent(id)}/remove`);
+  }
+
+  async myReview(target: ReviewTarget) {
+    // Sin calificación todavía, el servidor responde null.
+    const r = await this.request<MyReview | null>("GET", `/v1/reviews/mine?type=${target.type}&id=${encodeURIComponent(target.id)}`);
+    return r && typeof r === "object" && "status" in r ? r : null;
+  }
+
+  review(target: ReviewTarget, rating: number | null, text?: string) {
+    return this.request<MyReview>("POST", "/v1/reviews", { target, rating, ...(text ? { text } : {}) });
+  }
+
+  reviewSummary(target: ReviewTarget) {
+    return this.request<RatingSummary>("GET", `/v1/reviews/summary?type=${target.type}&id=${encodeURIComponent(target.id)}`);
   }
 
   async organization(): Promise<OrganizationOverview | undefined> {

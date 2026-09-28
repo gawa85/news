@@ -8,6 +8,7 @@ import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 import { TopicSuggestions, useTopicNames } from "../shared/catalog";
 import { ApiKeysSection } from "./ApiKeysSection";
+import { WebhooksSection } from "./WebhooksSection";
 
 const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web" };
 
@@ -73,6 +74,7 @@ export function AccountPage() {
       <PreferencesForm />
       <FollowedTopics />
       <ApiKeysSection />
+      <WebhooksSection />
       <SessionAndData />
     </Page>
   );

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AccessDeniedError, ValidationError } from "../../domain/errors";
+import { AccessDeniedError, NotFoundError, ValidationError } from "../../domain/errors";
+import { isLocalHostname } from "../../domain/rules/network";
 import { PERMISSIONS, WEBHOOK_EVENTS, type ApiKey, type Permission, type WebhookEventType, type WebhookSubscription } from "../../domain/model";
 import type {
   IApiKeyRepository,
@@ -9,6 +10,7 @@ import type {
   IIdGenerator,
   ISecretVault,
   IUserRepository,
+  IWebhookDelivery,
   IWebhookRepository,
 } from "../../domain/ports";
 import type { AccessControl } from "../access/AccessControl";
@@ -16,6 +18,9 @@ import type { Caller } from "../access/ProductGateway";
 
 /** Lo que se puede mostrar de una clave: nunca el hash. */
 export type PublicApiKey = Omit<ApiKey, "hash" | "userId">;
+
+/** Lo que se muestra de un webhook: nunca la referencia al secreto. */
+export type PublicWebhook = Omit<WebhookSubscription, "secretRef" | "userId">;
 
 export const hashApiKey = (plaintext: string) => createHash("sha256").update(plaintext).digest("hex");
 
@@ -100,8 +105,9 @@ export class ApiKeyService {
 
 /**
  * Webhooks salientes: avisos a sistemas externos cuando pasan cosas.
- * REGLAS: permiso `webhooks:manage` + plan con `webhooks`; sólo URLs https
- * (salvo localhost para desarrollo); el secreto de firma se muestra una vez.
+ * REGLAS: permiso `webhooks:manage` + plan con `webhooks`; sólo URLs https (localhost sólo
+ * si la composición lo permite: desarrollo); el secreto de firma se muestra una vez.
+ * Cada uno ve, prueba y apaga sólo los suyos.
  */
 export class WebhookService {
   constructor(
@@ -112,7 +118,40 @@ export class WebhookService {
     private readonly ids: IIdGenerator,
     private readonly clock: IClock,
     private readonly events: IDomainEvents,
+    private readonly delivery?: IWebhookDelivery,
+    private readonly opts: { allowLocal?: boolean } = {},
   ) {}
+
+  /** Mis webhooks (sin el secreto) y si el plan los incluye. */
+  async list(actorId: string): Promise<{ available: boolean; events: readonly WebhookEventType[]; webhooks: PublicWebhook[] }> {
+    const actor = await this.access.userOrThrow(actorId);
+    const perms = await this.authz.permissionsOf(actor);
+    const { plan } = await this.access.planOf(actor);
+    const webhooks = (await this.webhooks.findByUser(actor.id))
+      .filter((w) => w.active)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map(({ secretRef: _s, userId: _u, ...w }) => w);
+    return { available: perms.has("webhooks:manage") && plan.features.includes("webhooks"), events: WEBHOOK_EVENTS, webhooks };
+  }
+
+  async deactivate(input: { actorId: string; webhookId: string }): Promise<void> {
+    const sub = await this.own(input.actorId, input.webhookId);
+    await this.webhooks.save({ ...sub, active: false });
+    await this.events.emit("webhook.removed", { userId: input.actorId }, { url: sub.url }, { type: "webhook", id: sub.id });
+  }
+
+  /** Manda un aviso de prueba ("webhook.test") y devuelve qué respondió el otro lado. */
+  async test(input: { actorId: string; webhookId: string }): Promise<{ ok: boolean; status?: number; error?: string }> {
+    const sub = await this.own(input.actorId, input.webhookId);
+    if (!this.delivery) throw new ValidationError("El envío de webhooks no está configurado.");
+    return this.delivery.deliver(sub, { id: this.ids.next("evt"), type: "webhook.test", occurredAt: this.clock.now(), data: { message: "Prueba desde Sin Humo" } });
+  }
+
+  private async own(actorId: string, webhookId: string): Promise<WebhookSubscription> {
+    const sub = (await this.webhooks.findByUser(actorId)).find((w) => w.id === webhookId && w.active);
+    if (!sub) throw new NotFoundError("No existe ese webhook.");
+    return sub;
+  }
 
   async register(input: { actorId: string; url: string; events: WebhookEventType[] }): Promise<{ subscription: WebhookSubscription; signingSecret: string }> {
     const actor = await this.access.userOrThrow(input.actorId);
@@ -127,8 +166,10 @@ export class WebhookService {
     } catch {
       throw new ValidationError("URL inválida.");
     }
-    const local = ["localhost", "127.0.0.1"].includes(url.hostname);
+    const local = isLocalHostname(url.hostname);
+    if (local && !this.opts.allowLocal) throw new ValidationError("El webhook tiene que apuntar a una dirección pública de internet.");
     if (url.protocol !== "https:" && !local) throw new ValidationError("El webhook tiene que usar https.");
+    if (url.username || url.password) throw new ValidationError("La dirección no puede llevar usuario ni clave (usá la firma para autenticar).");
     const bad = input.events.filter((e) => !(WEBHOOK_EVENTS as readonly string[]).includes(e));
     if (bad.length || !input.events.length) throw new ValidationError(`Eventos inválidos: ${bad.join(", ") || "(ninguno)"}`);
 
