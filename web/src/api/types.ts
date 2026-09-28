@@ -436,3 +436,64 @@ export interface MediaCheckReport {
   signals: { id: string; level: "info" | "warning"; label: string; detail: string }[];
   file: { width?: number; height?: number; capturedAt?: string; device?: string; software?: string[]; seconds?: number };
 }
+
+export interface ObservatoryReport {
+  period: { from: string; to: string };
+  minGroupSize: number;
+  rounding: number;
+  totals: { analyses: number; smokeRate: number | null };
+  smokeTypes: { type: string; count: number }[];
+  channels: { channel: string; count: number }[];
+  topics: { topic: string; count: number }[];
+  narratives: { id: string; sample: string; occurrences: number; firstSeen: string; lastSeen: string; countered: boolean }[];
+  suppressedGroups: number;
+  methodology: string;
+}
+
+export interface CirculatingNarrative {
+  id: string;
+  sample: string;
+  topic?: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  occurrences: number;
+  avgSmokeIndex: number;
+  status: "circulating" | "countered" | "fading";
+  countered: boolean;
+}
+
+export interface PublicCorrection {
+  id: string;
+  target: { type: string; id: string };
+  outletId?: string;
+  description: string;
+  publishedAt: string;
+  rebuttalId?: string;
+}
+
+export interface PublicRebuttal {
+  id: string;
+  outletId: string;
+  statement: string;
+  evidenceUrls: string[];
+  status: "submitted" | "accepted" | "partially_accepted" | "rejected";
+  createdAt: string;
+  resolution?: { note: string; at: string };
+}
+
+export interface OutletProfile {
+  outlet: Outlet;
+  owners: { name: string; businessSectors: string[]; since: string; until?: string; source?: string }[];
+  advertising: { payer: string; jurisdiction: string; amount: number; currency: string; source?: string }[];
+  rebuttals: PublicRebuttal[];
+  corrections: PublicCorrection[];
+}
+
+export interface OpenDataset {
+  id: string;
+  title: string;
+  description: string;
+  license: string;
+  updateFrequency: string;
+  columns: { name: string; description: string }[];
+}

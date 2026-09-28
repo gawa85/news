@@ -128,6 +128,39 @@ export class FakeApi implements SinHumoApi {
     this.log("joinClassroom", code, alias);
   }
 
+  async observatory(month: string) {
+    return {
+      period: { from: `${month}-01T03:00:00Z`, to: `${month}-28T03:00:00Z` }, minGroupSize: 10, rounding: 5,
+      totals: { analyses: 12_345, smokeRate: 0.42 },
+      smokeTypes: [{ type: "alarmism", count: 3200 }, { type: "chain_call", count: 2100 }],
+      channels: [{ channel: "whatsapp", count: 9000 }],
+      topics: [{ topic: "tarifas de gas", count: 800 }],
+      narratives: [], suppressedGroups: 2, methodology: "Se cuentan análisis por día; se publican grupos grandes y redondeados.",
+    };
+  }
+  async narratives() {
+    return [{ id: "n1", sample: "Mañana cortan el agua en todo el país", firstSeenAt: "2026-09-20T12:00:00Z", lastSeenAt: "2026-09-28T12:00:00Z", occurrences: 340, avgSmokeIndex: 81, status: "circulating" as const, countered: false }];
+  }
+  async outletProfile(id: string) {
+    if (id !== "ddv") throw new ApiError(404, "No existe ese medio.");
+    return {
+      outlet: { id: "ddv", name: "Diario del Valle", url: "https://ddv.example", kind: "newspaper", region: { country: "AR", province: "Valle" } },
+      owners: [{ name: "Grupo Andino", businessSectors: ["energía"], since: "2019-01-01T00:00:00Z", source: "registro público" }],
+      advertising: [{ payer: "Gobierno de la Provincia del Valle", jurisdiction: "provincial", amount: 96_000_000, currency: "ARS" }],
+      rebuttals: [{ id: "r1", outletId: "ddv", statement: "La nota citaba la resolución oficial.", evidenceUrls: [], status: "accepted" as const, createdAt: "2026-09-01T00:00:00Z", resolution: { note: "Tenían razón.", at: "2026-09-03T00:00:00Z" } }],
+      corrections: [{ id: "c1", target: { type: "verdict", id: "x" }, outletId: "ddv", description: "Corregimos el veredicto sobre la baja del gas.", publishedAt: "2026-09-03T00:00:00Z", rebuttalId: "r1" }],
+    };
+  }
+  async corrections() {
+    return [{ id: "c1", target: { type: "verdict", id: "x" }, outletId: "ddv", description: "Corregimos el veredicto sobre la baja del gas.", publishedAt: "2026-09-03T00:00:00Z", rebuttalId: "r1" }];
+  }
+  async datasets() {
+    return [{ id: "humo-mensual", title: "Humo por mes", description: "Análisis y tipos de humo por mes.", license: "CC BY 4.0", updateFrequency: "cada día", columns: [{ name: "mes", description: "AAAA-MM" }] }];
+  }
+  datasetUrl(id: string, format: string) {
+    return `/public/datasets/${id}.${format}`;
+  }
+
   async topics() {
     return [{ id: "c1", name: "Economía", path: "Economía", children: [], topics: [{ id: "t1", name: "tarifas de gas", synonyms: [] }] }];
   }

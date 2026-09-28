@@ -6,14 +6,12 @@ import type {
   ChannelType,
   ContentAnalysis,
   ContentItem,
-  Correction,
   CredibilityQuery,
   CredibilityReport,
   CredibilityTimelinePoint,
   DomainEventType,
   OriginTrace,
   Permission,
-  Rebuttal,
   SmokeAnalysis,
   SourceComparison,
 } from "../../domain/model";
@@ -27,6 +25,7 @@ import type { TraceOriginUseCase } from "../TraceOriginUseCase";
 import type { TraceOriginByUrlUseCase } from "../TraceOriginByUrlUseCase";
 import type { UserRulesResolver } from "../rules/UserRulesResolver";
 import type { AccessControl } from "./AccessControl";
+import type { PublicCorrection, PublicRebuttal } from "../rebuttals/Rebuttals";
 
 export interface CoreUseCases {
   analyzeSmoke: AnalyzeSmokeUseCase;
@@ -52,7 +51,7 @@ export interface GatewayObservability {
   context?: IRequestContext;
 }
 
-type PublicRecord = (outletId: string) => Promise<{ rebuttals: Rebuttal[]; corrections: Correction[] }>;
+type PublicRecord = (outletId: string) => Promise<{ rebuttals: PublicRebuttal[]; corrections: PublicCorrection[] }>;
 
 /**
  * PUNTO DE ENTRADA ÚNICO al producto. Web, WhatsApp, Telegram, mail, API, bots y MCP
@@ -124,7 +123,7 @@ export class ProductGateway {
     return this.run(caller, "trace_origin", {}, () => this.core.traceOriginByUrl.execute(input));
   }
 
-  evaluateCredibility(caller: Caller, query: CredibilityQuery): Promise<CredibilityReport & { rebuttals: Rebuttal[]; corrections: Correction[] }> {
+  evaluateCredibility(caller: Caller, query: CredibilityQuery): Promise<CredibilityReport & { rebuttals: PublicRebuttal[]; corrections: PublicCorrection[] }> {
     return this.run(caller, "evaluate_credibility", {}, async () => {
       const r = await this.core.evaluateCredibility.evaluate(query);
       return { ...r, ...(await this.publicRecord(query.outletId)) };

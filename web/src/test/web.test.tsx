@@ -631,3 +631,36 @@ describe("Fotos y videos", () => {
     expect(screen.getByRole("button", { name: "Revisar" })).toBeDisabled();
   });
 });
+
+describe("Páginas públicas (sin cuenta)", () => {
+  test("observatorio: lo que circula y el mes, con metodología", async () => {
+    renderApp(new FakeApi(), "/observatorio");
+    expect(await screen.findByText("«Mañana cortan el agua en todo el país»")).toBeInTheDocument();
+    expect(await screen.findByText("42 %")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Tipos de humo" })).toHaveTextContent("Alarmismo");
+    expect(screen.getByText(/se ocultaron 2 grupos/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Observatorio" }).length).toBeGreaterThan(0); // menú y pie
+  });
+
+  test("ficha de un medio: dueños, pauta con su monto y réplicas; sin sesión, la credibilidad pide entrar", async () => {
+    renderApp(new FakeApi(), "/medios/ddv");
+    expect(await screen.findByRole("heading", { level: 1, name: "Diario del Valle" })).toBeInTheDocument();
+    expect(screen.getByText("Grupo Andino")).toBeInTheDocument();
+    expect(screen.getByText(/también tiene negocios en energía/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Pauta oficial por quién paga" })).toHaveTextContent(/96\.000\.000/);
+    expect(screen.getByText(/Réplica · Aceptada/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mirá su credibilidad por tema" })).toHaveAttribute("href", "/entrar?next=%2Fcredibilidad");
+  });
+
+  test("fe de erratas", async () => {
+    renderApp(new FakeApi(), "/fe-de-erratas");
+    expect(await screen.findByText("Corregimos el veredicto sobre la baja del gas.")).toBeInTheDocument();
+  });
+
+  test("datos abiertos: se bajan con su licencia", async () => {
+    renderApp(new FakeApi(), "/datos");
+    const csv = await screen.findByRole("link", { name: /Bajar CSV/ });
+    expect(csv).toHaveAttribute("href", "/public/datasets/humo-mensual.csv");
+    expect(csv).toHaveTextContent("Bajar CSV de Humo por mes");
+  });
+});

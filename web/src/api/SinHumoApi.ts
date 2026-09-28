@@ -38,6 +38,11 @@ import type {
   Webhook,
   WebhookList,
   MediaCheckReport,
+  CirculatingNarrative,
+  ObservatoryReport,
+  OpenDataset,
+  OutletProfile,
+  PublicCorrection,
 } from "./types";
 
 /**
@@ -65,6 +70,14 @@ export interface SinHumoApi {
   credibilityTimeline(input: { outletId: string; topic: string; from: string; to: string; windows: number }): Promise<TimelinePoint[]>;
   /** "¿Quién lo dijo primero?": el tema hace falta si la nota todavía no está guardada. */
   traceOrigin(url: string, topic?: string): Promise<OriginTrace>;
+
+  // Público (sin cuenta): observatorio, medios, fe de erratas y datos abiertos
+  observatory(month: string): Promise<ObservatoryReport>;
+  narratives(days: number): Promise<CirculatingNarrative[]>;
+  outletProfile(id: string): Promise<OutletProfile>;
+  corrections(): Promise<PublicCorrection[]>;
+  datasets(): Promise<OpenDataset[]>;
+  datasetUrl(id: string, format: "csv" | "json"): string;
 
   // Catálogo público
   topics(): Promise<CategoryNode[]>;

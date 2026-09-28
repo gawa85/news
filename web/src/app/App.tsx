@@ -16,6 +16,7 @@ import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
 import { MediaCheckPage } from "../features/media/MediaCheckPage";
+import { CorrectionsPage, ObservatoryPage, OpenDataPage, OutletPage, OutletsPage } from "../features/public/PublicPages";
 import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
 import { JoinPage, OrganizationPage } from "../features/organization/OrganizationPages";
 import { AdminLayout } from "../features/admin/AdminLayout";
@@ -72,6 +73,11 @@ export const routes: RouteObject[] = [
       { path: "/archivo", element: guard(<EvidencePage />) },
       { path: "/ayuda", element: guard(<SupportPage />) },
       { path: "/eventos", element: <EventsPage /> },
+      { path: "/observatorio", element: <ObservatoryPage /> },
+      { path: "/medios", element: <OutletsPage /> },
+      { path: "/medios/:id", element: <OutletPage /> },
+      { path: "/fe-de-erratas", element: <CorrectionsPage /> },
+      { path: "/datos", element: <OpenDataPage /> },
       { path: "/eventos/:code", element: <EventPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

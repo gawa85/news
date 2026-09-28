@@ -41,6 +41,11 @@ import type {
   Webhook,
   WebhookList,
   MediaCheckReport,
+  CirculatingNarrative,
+  ObservatoryReport,
+  OpenDataset,
+  OutletProfile,
+  PublicCorrection,
 } from "./types";
 
 
@@ -158,6 +163,30 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async joinClassroom(code: string, alias: string) {
     await this.request("POST", "/v1/classrooms/join", { code, alias });
+  }
+
+  observatory(month: string) {
+    return this.request<ObservatoryReport>("GET", `/public/observatory?month=${encodeURIComponent(month)}`);
+  }
+
+  narratives(days: number) {
+    return this.request<CirculatingNarrative[]>("GET", `/public/narratives?days=${days}`);
+  }
+
+  outletProfile(id: string) {
+    return this.request<OutletProfile>("GET", `/public/outlets/${encodeURIComponent(id)}`);
+  }
+
+  corrections() {
+    return this.request<PublicCorrection[]>("GET", "/public/corrections");
+  }
+
+  datasets() {
+    return this.request<OpenDataset[]>("GET", "/public/datasets");
+  }
+
+  datasetUrl(id: string, format: "csv" | "json") {
+    return `${this.base}/public/datasets/${encodeURIComponent(id)}.${format}`;
   }
 
   topics() {

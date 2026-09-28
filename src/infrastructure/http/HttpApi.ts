@@ -82,6 +82,7 @@
  *
  *  Público:
  *    GET /r/:code   link de seguimiento → redirección
+ *    GET /public/outlets/:id          ficha: dueños, pauta oficial, réplicas y fe de erratas
  *    GET /public/outlets/:id/record  réplicas y correcciones de un medio
  *    GET /public/corrections         fe de erratas
  *    GET /health
@@ -98,6 +99,7 @@ import { AccountQueries } from "../../application/web/AccountQueries";
 import type { AlertSettings } from "../../application/alerts/AlertSettings";
 import type { OrganizationService } from "../../application/organizations/Organizations";
 import type { MediaCheckService } from "../../application/media/MediaCheck";
+import type { OutletProfileService } from "../../application/catalog/OutletProfile";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -163,6 +165,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Ficha pública de cada medio (dueños, pauta oficial, réplicas y fe de erratas). */
+  outletProfiles?: OutletProfileService;
   /** Revisar fotos y videos (¿ya circularon?, ¿qué dicen sus datos?). */
   mediaCheck?: MediaCheckService;
   /** Webhooks salientes: ver, crear, probar y apagar. */
@@ -357,6 +361,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
 
     // ---- Público ----
+    const outletM = path.match(/^\/public\/outlets\/([^/]+)$/);
+    if (req.method === "GET" && outletM) return json(res, 200, await need(deps.outletProfiles).profile(decodeURIComponent(outletM[1]!)));
     const record = path.match(/^\/public\/outlets\/([^/]+)\/record$/);
     if (req.method === "GET" && record) return json(res, 200, await deps.rebuttals.publicRecord(decodeURIComponent(record[1]!)));
     if (req.method === "GET" && path === "/public/corrections") return json(res, 200, await deps.rebuttals.recentCorrections());

@@ -27,6 +27,7 @@ import { CredibilityChangeEvaluator, EvaluateAlertsUseCase, NewCoverageEvaluator
 import { AlertSettings } from "../application/alerts/AlertSettings";
 import { OrganizationService } from "../application/organizations/Organizations";
 import { MediaCheckService } from "../application/media/MediaCheck";
+import { OutletProfileService } from "../application/catalog/OutletProfile";
 import { InboundMediaDownloader } from "../application/inclusion/InboundMedia";
 import { LocalMediaInspector } from "../infrastructure/media/LocalMediaInspector";
 import { AuditQueryUseCase, AuditRecorder, DomainEventPublisher } from "../application/audit/Audit";
@@ -581,6 +582,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
   );
 
+  const outletProfiles = new OutletProfileService(repos.outlets, repos.catalog, rebuttals, clock);
   const manageRoles = new ManageRolesUseCase(repos.users, repos.roles, authz, domainEvents);
   const createOrganization = new CreateOrganizationUseCase(cfg.store, ids, clock, { adminRoleId: "org_admin", defaultPlanId: "equipo" }, domainEvents);
   const organizations = new OrganizationService(
@@ -594,6 +596,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     store: cfg.store,
     organizations,
     mediaCheck,
+    outletProfiles,
     publicBaseUrl: cfg.publicBaseUrl,
     gateway,
     access,
@@ -715,6 +718,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     organizations: p.organizations,
     webhooks: p.integrations.webhooks,
     mediaCheck: p.mediaCheck,
+    outletProfiles: p.outletProfiles,
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

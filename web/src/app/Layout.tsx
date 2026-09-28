@@ -43,6 +43,8 @@ export function Layout() {
               </>
             ) : (
               <>
+                <NavLink to="/observatorio">Observatorio</NavLink>
+                <NavLink to="/medios">Medios</NavLink>
                 <NavLink to="/eventos">Eventos en vivo</NavLink>
                 <NavLink to="/planes">Planes</NavLink>
                 <NavLink to="/entrar">Entrar</NavLink>
@@ -64,6 +66,10 @@ export function Layout() {
             {me && <Link to="/jugar">¿Esto es humo? (juego)</Link>}
             {me && <Link to="/archivo">Archivo de notas</Link>}
             {me && <Link to="/ayuda">Ayuda</Link>}
+            <Link to="/observatorio">Observatorio</Link>
+            <Link to="/medios">Medios</Link>
+            <Link to="/fe-de-erratas">Fe de erratas</Link>
+            <Link to="/datos">Datos abiertos</Link>
             <Link to="/planes">Planes</Link>
           </nav>
         </div>

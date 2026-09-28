@@ -130,13 +130,17 @@ export class RebuttalService {
   }
 
   /** Fe de erratas pública, lo más reciente primero. */
-  recentCorrections(limit = 50): Promise<Correction[]> {
-    return this.corrections.findRecent(limit);
+  /** Fe de erratas pública: sin el id interno de quien la publicó. */
+  async recentCorrections(limit = 50): Promise<PublicCorrection[]> {
+    return (await this.corrections.findRecent(limit)).map(publicCorrection);
   }
 
   /** Lo público de un medio: réplicas (todas, con su estado) y correcciones. */
-  async publicRecord(outletId: string): Promise<{ rebuttals: Rebuttal[]; corrections: Correction[] }> {
-    return { rebuttals: await this.rebuttals.findByOutlet(outletId), corrections: await this.corrections.findByOutlet(outletId) };
+  async publicRecord(outletId: string): Promise<{ rebuttals: PublicRebuttal[]; corrections: PublicCorrection[] }> {
+    return {
+      rebuttals: (await this.rebuttals.findByOutlet(outletId)).map(publicRebuttal),
+      corrections: (await this.corrections.findByOutlet(outletId)).map(publicCorrection),
+    };
   }
 
   private async user(id: string): Promise<User> {
@@ -176,3 +180,10 @@ export class AssignOutletRepresentativeUseCase {
     return target;
   }
 }
+
+/** Lo que se publica de una réplica: el medio, qué pidió y cómo se resolvió; no quién (ids internos). */
+export type PublicRebuttal = Omit<Rebuttal, "submittedBy" | "resolution"> & { resolution?: { note: string; at: Date } };
+export type PublicCorrection = Omit<Correction, "publishedBy">;
+
+const publicRebuttal = ({ submittedBy: _s, resolution, ...r }: Rebuttal): PublicRebuttal => ({ ...r, ...(resolution ? { resolution: { note: resolution.note, at: resolution.at } } : {}) });
+const publicCorrection = ({ publishedBy: _p, ...c }: Correction): PublicCorrection => c;

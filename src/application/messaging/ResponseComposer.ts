@@ -3,11 +3,9 @@ import {
   formatPrice,
   SMOKE_LABELS,
   type ContentAnalysis,
-  type Correction,
   type CredibilityReport,
   type EvidenceSnapshot,
   type Digest,
-  type Rebuttal,
   type Plan,
   type ResponseContent,
   type SavedRuleSet,
@@ -16,6 +14,7 @@ import {
   type EffectivePreferences,
   type ResponseFormat,
 } from "../../domain/model";
+import type { PublicCorrection, PublicRebuttal } from "../rebuttals/Rebuttals";
 import type { IOutletReader } from "../../domain/ports";
 
 const pct = (n: number | null) => (n === null ? "sin datos" : `${Math.round(n * 100)}/100`);
@@ -89,7 +88,7 @@ export class ResponseComposer {
     };
   }
 
-  credibility(r: CredibilityReport & { rebuttals?: Rebuttal[]; corrections?: Correction[] }): ResponseContent {
+  credibility(r: CredibilityReport & { rebuttals?: PublicRebuttal[]; corrections?: PublicCorrection[] }): ResponseContent {
     const state = { submitted: "en revisión", accepted: "aceptada", partially_accepted: "aceptada en parte", rejected: "no aceptada" } as const;
     const rebuttals = (r.rebuttals ?? []).slice(0, 3).map((x) => `(${state[x.status]}) ${x.statement.length > 200 ? `${x.statement.slice(0, 199)}…` : x.statement}`);
     const corrections = (r.corrections ?? []).slice(0, 3).map((c) => c.description);

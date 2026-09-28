@@ -179,6 +179,10 @@ describe("Derecho a réplica y fe de erratas", () => {
     const shown = t.p.composer.credibility(report);
     assert.ok(shown.sections.some((s) => s.heading === "Réplica del medio"));
     assert.equal((await t.p.rebuttals.recentCorrections())[0]!.rebuttalId, r.id);
+    // Lo público no expone ids internos de quien presentó, resolvió o publicó.
+    const pub = await t.p.rebuttals.publicRecord("ddv");
+    assert.ok(!("submittedBy" in pub.rebuttals[0]!) && !("by" in (pub.rebuttals[0]!.resolution ?? {})));
+    assert.ok(!("publishedBy" in pub.corrections[0]!) && !("publishedBy" in (await t.p.rebuttals.recentCorrections())[0]!));
   });
 });
 
