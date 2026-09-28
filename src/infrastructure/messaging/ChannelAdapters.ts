@@ -170,6 +170,49 @@ export class TelegramBotSender implements IMessageSender {
   }
 }
 
+/**
+ * Puesta en marcha del bot de Telegram (se usa una vez, desde la línea de comandos):
+ * quién es el bot, quiénes le escribieron (para la lista de prueba) y dónde avisa los mensajes.
+ */
+export class TelegramBotAdmin {
+  constructor(
+    private readonly http: IHttpClient,
+    private readonly botToken: string,
+  ) {}
+
+  private async call<T>(method: string, body?: unknown): Promise<T> {
+    const url = `https://api.telegram.org/bot${this.botToken}/${method}`;
+    const res = body === undefined ? await this.http.get(url) : await this.http.send("POST", url, body);
+    const data = JSON.parse(res.text || "{}") as { ok?: boolean; result?: T; description?: string };
+    if (!data.ok) throw new Error(`Telegram (${method}): ${data.description ?? `HTTP ${res.status}`}`);
+    return data.result as T;
+  }
+
+  me() {
+    return this.call<{ id: number; username: string; first_name: string }>("getMe");
+  }
+
+  /** Últimos que le escribieron al bot. Sólo funciona mientras NO hay webhook (después, los mensajes van al webhook). */
+  async recentChats(): Promise<{ chatId: string; name: string; text: string }[]> {
+    const updates = await this.call<{ message?: { chat: { id: number }; from?: { first_name?: string; username?: string }; text?: string } }[]>("getUpdates", { limit: 50 });
+    const seen = new Map<string, { chatId: string; name: string; text: string }>();
+    for (const u of updates) {
+      if (!u.message) continue;
+      const chatId = String(u.message.chat.id);
+      seen.set(chatId, { chatId, name: u.message.from?.username ? `@${u.message.from.username}` : (u.message.from?.first_name ?? ""), text: (u.message.text ?? "").slice(0, 40) });
+    }
+    return [...seen.values()];
+  }
+
+  setWebhook(url: string, secretToken: string) {
+    return this.call<boolean>("setWebhook", { url, secret_token: secretToken, allowed_updates: ["message"], drop_pending_updates: true });
+  }
+
+  webhookInfo() {
+    return this.call<{ url: string; pending_update_count: number; last_error_message?: string; last_error_date?: number }>("getWebhookInfo");
+  }
+}
+
 // ---------------- Mail como canal ----------------
 
 /** El canal "email" usa cualquier IEmailTransport (SMTP, SES, Resend...). */

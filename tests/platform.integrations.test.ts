@@ -108,6 +108,22 @@ describe("API HTTP", () => {
     assert.match(t.whatsapp.outbox.at(-1)!.text, /cómo usarlo/);
   });
 
+  test("un webhook sin secreto configurado no existe (no se compara contra vacío)", async () => {
+    const open = createHttpApi(httpApiDeps(t.p, { secrets: { whatsappVerifyToken: "", whatsappAppSecret: "", telegramSecretToken: "", paymentsSecret: "" } }));
+    await new Promise<void>((r) => open.listen(0, "127.0.0.1", r));
+    const b = `http://127.0.0.1:${(open.address() as AddressInfo).port}`;
+    try {
+      const tg = { message: { message_id: 1, date: 1, chat: { id: 123 }, from: { id: 123, first_name: "X" }, text: "/ayuda" } };
+      assert.equal((await fetch(`${b}/webhooks/telegram`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(tg) })).status, 404);
+      const empty = `sha256=${createHmac("sha256", "").update("{}").digest("hex")}`;
+      assert.equal((await fetch(`${b}/webhooks/payments`, { method: "POST", headers: { "content-type": "application/json", "x-signature": empty }, body: "{}" })).status, 404);
+      assert.equal((await fetch(`${b}/webhooks/whatsapp`, { method: "POST", headers: { "content-type": "application/json", "x-hub-signature-256": empty }, body: "{}" })).status, 404);
+      assert.equal((await fetch(`${b}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=&hub.challenge=42`)).status, 404);
+    } finally {
+      await new Promise<void>((r) => open.close(() => r()));
+    }
+  });
+
   test("links de seguimiento: /r/:código redirige y cuenta", async () => {
     const draft = await t.p.replies.request({
       actorId: (await t.p.integrations.apiKeys.authenticate(key)).userId,

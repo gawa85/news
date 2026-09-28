@@ -36,9 +36,8 @@ services:
     build:
       context: .
       target: runtime
-    # Para pasar más variables (IA, WhatsApp, SMTP...), agregalas acá como ${NOMBRE:-}
-    # o descomentá env_file teniendo un .env creado.
-    # env_file: .env
+    # Todas las variables que lee la API. Se completan desde el archivo .env (junto a este
+    # archivo; no se sube al repo). Vacía = función apagada. Ver .env.example.
     environment:
       APP_ENV: ${APP_ENV:-development}
       NODE_ENV: ${APP_ENV:-development}
@@ -46,29 +45,86 @@ services:
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:-clave-de-desarrollo-no-usar-en-produccion}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8090}
       LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-1}
+      LOG_VERBOSE: ${LOG_VERBOSE:-}
+      # Fuera de producción sólo se manda a esta lista (mails, números, chat ids de Telegram)
+      SANDBOX_RECIPIENTS: ${SANDBOX_RECIPIENTS:-}
+      # La web (nginx) está delante en la red de Docker: se le cree X-Forwarded-For.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.16.0.0/12}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      # IA
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      PROMPT_GUARD_LLM: ${PROMPT_GUARD_LLM:-0}
+      # Canales
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_SECRET_TOKEN: ${TELEGRAM_SECRET_TOKEN:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      SMTP_INBOUND_PORT: ${SMTP_INBOUND_PORT:-}
+      SMTP_ACCEPTED_DOMAINS: ${SMTP_ACCEPTED_DOMAINS:-}
+      MAIL_TRUSTED_AUTHSERV_IDS: ${MAIL_TRUSTED_AUTHSERV_IDS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Audio, imágenes e idiomas
       SPEECH_TO_TEXT_API_KEY: ${SPEECH_TO_TEXT_API_KEY:-}
       SPEECH_TO_TEXT_BASE_URL: ${SPEECH_TO_TEXT_BASE_URL:-}
       SPEECH_TO_TEXT_MODEL: ${SPEECH_TO_TEXT_MODEL:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      PROMPT_GUARD_LLM: ${PROMPT_GUARD_LLM:-0}
-      EVIDENCE_TSA_URL: ${EVIDENCE_TSA_URL:-}
-      EVIDENCE_WAYBACK: ${EVIDENCE_WAYBACK:-0}
-      EVIDENCE_DIR: ${EVIDENCE_DIR:-}
-      CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-turnstile}
-      CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY:-}
-      CAPTCHA_SECRET: ${CAPTCHA_SECRET:-}
-      # La web (nginx) está delante en la red de Docker: se le cree X-Forwarded-For.
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.16.0.0/12}
-      TRANSLATOR: ${TRANSLATOR:-}
-      DEEPL_API_KEY: ${DEEPL_API_KEY:-}
-      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
-      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
-      META_OEMBED_TOKEN: ${META_OEMBED_TOKEN:-}
+      GOOGLE_TTS_API_KEY: ${GOOGLE_TTS_API_KEY:-}
       OCR_PROVIDER: ${OCR_PROVIDER:-}
       OCR_MODEL: ${OCR_MODEL:-}
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
+      TRANSLATOR: ${TRANSLATOR:-}
+      TRANSLATOR_MODEL: ${TRANSLATOR_MODEL:-}
+      DEEPL_API_KEY: ${DEEPL_API_KEY:-}
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
+      # Redes
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      META_OEMBED_TOKEN: ${META_OEMBED_TOKEN:-}
+      # Archivo de evidencias
+      EVIDENCE_DIR: ${EVIDENCE_DIR:-}
+      EVIDENCE_TSA_URL: ${EVIDENCE_TSA_URL:-}
+      EVIDENCE_WAYBACK: ${EVIDENCE_WAYBACK:-0}
+      EVIDENCE_WAYBACK_AUTH: ${EVIDENCE_WAYBACK_AUTH:-}
+      EVIDENCE_S3_BUCKET: ${EVIDENCE_S3_BUCKET:-}
+      EVIDENCE_S3_REGION: ${EVIDENCE_S3_REGION:-}
+      EVIDENCE_S3_ENDPOINT: ${EVIDENCE_S3_ENDPOINT:-}
+      EVIDENCE_S3_ACCESS_KEY_ID: ${EVIDENCE_S3_ACCESS_KEY_ID:-}
+      EVIDENCE_S3_SECRET_ACCESS_KEY: ${EVIDENCE_S3_SECRET_ACCESS_KEY:-}
+      EVIDENCE_S3_PREFIX: ${EVIDENCE_S3_PREFIX:-}
+      # Freno contra el abuso
+      CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-turnstile}
+      CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY:-}
+      CAPTCHA_SECRET: ${CAPTCHA_SECRET:-}
+      DISPOSABLE_EMAIL_DOMAINS_FILE: ${DISPOSABLE_EMAIL_DOMAINS_FILE:-}
+      # Pagos y facturación
+      PAYMENTS_WEBHOOK_SECRET: ${PAYMENTS_WEBHOOK_SECRET:-}
+      SELLER_TAX_CONDITION: ${SELLER_TAX_CONDITION:-}
+      SELLER_POINT_OF_SALE: ${SELLER_POINT_OF_SALE:-}
+      # Estadísticas, analítica y mesa de ayuda
+      STATS_PSEUDONYM_SECRET: ${STATS_PSEUDONYM_SECRET:-}
+      STATS_MIN_GROUP_SIZE: ${STATS_MIN_GROUP_SIZE:-}
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+      ZENDESK_SUBDOMAIN: ${ZENDESK_SUBDOMAIN:-}
+      ZENDESK_EMAIL: ${ZENDESK_EMAIL:-}
+      ZENDESK_API_TOKEN: ${ZENDESK_API_TOKEN:-}
+      # Copias de seguridad
       BACKUP_DIR: /backups
       BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-frase-de-desarrollo-no-usar-en-produccion}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-}
     ports:
       - "${API_PORT:-8091}:8080"
     volumes:
@@ -87,6 +143,16 @@ services:
       - "${WEB_PORT:-8090}:8080"
     depends_on:
       - api
+
+  # Túnel público (Cloudflare, sin cuenta) para que Telegram/WhatsApp lleguen a esta máquina.
+  # La URL https://….trycloudflare.com sale en: docker compose logs tunel
+  # Cambia cada vez que se reinicia el túnel.
+  tunel:
+    image: cloudflare/cloudflared:2025.9.1
+    command: tunnel --no-autoupdate --url http://web:8080
+    depends_on:
+      - web
+    profiles: ["tunel"]
 
   web-test:
     build:

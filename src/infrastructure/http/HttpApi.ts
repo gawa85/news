@@ -443,12 +443,12 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     // ---- Webhooks de proveedores ----
     if (path === "/webhooks/whatsapp") {
       if (req.method === "GET") {
-        const ok = url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === deps.secrets.whatsappVerifyToken;
+        const ok = url.searchParams.get("hub.mode") === "subscribe" && safeEqual(url.searchParams.get("hub.verify_token") ?? "", configured(deps.secrets.whatsappVerifyToken, "WhatsApp"));
         if (!ok) throw new HttpError(403, "Token de verificación inválido.");
         res.writeHead(200, { "content-type": "text/plain" }).end(url.searchParams.get("hub.challenge") ?? "");
         return;
       }
-      verifyHmac(raw, String(req.headers["x-hub-signature-256"] ?? ""), deps.secrets.whatsappAppSecret);
+      verifyHmac(raw, String(req.headers["x-hub-signature-256"] ?? ""), configured(deps.secrets.whatsappAppSecret, "WhatsApp"));
       const payload = body() as { entry?: { changes?: { value?: { statuses?: { id: string; status: string }[] } }[] }[] };
       for (const s of payload.entry?.[0]?.changes?.[0]?.value?.statuses ?? []) {
         if (s.status === "delivered" || s.status === "read") deps.deliveryStatus.record(s.id, s.status);
@@ -459,14 +459,14 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       return;
     }
     if (req.method === "POST" && path === "/webhooks/telegram") {
-      if (!safeEqual(String(req.headers["x-telegram-bot-api-secret-token"] ?? ""), deps.secrets.telegramSecretToken)) throw new HttpError(403, "Token inválido.");
+      if (!safeEqual(String(req.headers["x-telegram-bot-api-secret-token"] ?? ""), configured(deps.secrets.telegramSecretToken, "Telegram"))) throw new HttpError(403, "Token inválido.");
       const msg = deps.parsers.telegram.parse(body());
       json(res, 200, { ok: true });
       if (msg) deps.inbound.execute(msg).catch((e) => deps.logger.error("Falló un mensaje de Telegram", { error: String(e) }));
       return;
     }
     if (req.method === "POST" && path === "/webhooks/payments") {
-      verifyHmac(raw, String(req.headers["x-signature"] ?? ""), deps.secrets.paymentsSecret);
+      verifyHmac(raw, String(req.headers["x-signature"] ?? ""), configured(deps.secrets.paymentsSecret, "Pagos"));
       const { subscriptionId } = body() as { subscriptionId?: string };
       if (!subscriptionId) throw new ValidationError("Falta subscriptionId.");
       const sub = await deps.confirmPayment.execute({ subscriptionId });
@@ -1003,6 +1003,15 @@ function date(v: unknown, name: string): Date {
  */
 export function localPath(p: string): boolean {
   return /^\/(?![/\\])/.test(p) && !/[\u0000-\u001f]/.test(p);
+}
+
+/**
+ * Secreto de un webhook. Sin configurar, el webhook no existe: comparar contra "" dejaría
+ * pasar a cualquiera (y una firma HMAC con clave vacía la puede calcular cualquiera).
+ */
+function configured(secret: string, what: string): string {
+  if (!secret.trim()) throw new HttpError(404, `${what} no está configurado.`);
+  return secret;
 }
 
 function need<T>(x: T | undefined): T {

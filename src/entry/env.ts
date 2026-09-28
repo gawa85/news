@@ -31,7 +31,11 @@ import { FetchHttpClient } from "../infrastructure/system/EventsAndHttp";
 import { FakeInvoiceIssuer } from "../infrastructure/billing/Payments";
 import { ConsoleLogger } from "../infrastructure/system/System";
 
-const env = (k: string, def?: string) => process.env[k] ?? def;
+/** Variable de entorno; vacía cuenta como no configurada (Docker Compose pasa "" cuando falta en .env). */
+const env = (k: string, def?: string) => {
+  const v = process.env[k];
+  return v === undefined || v.trim() === "" ? def : v;
+};
 
 export function storeFromEnv(): IDataStore {
   const url = env("DATABASE_URL");

@@ -183,18 +183,23 @@ export class EvidenceService {
 
   // ---------------- Sello y copia pública (por la cola) ----------------
 
-  /** Copia pública (si falla, se registra y sigue) y sello de tiempo (si falla, la cola reintenta). */
+  /**
+   * Copia pública y sello de tiempo. Lo que falle se reintenta por la cola (con espera creciente):
+   * lo que ya salió bien no se vuelve a pedir. La Wayback Machine, por ejemplo, responde 429 seguido.
+   */
   async seal(id: string): Promise<void> {
     const s = await this.repo.findById(id);
     if (!s) return;
     const copies = [...s.externalCopies];
+    let archiveFailure: unknown;
     if (s.status === "captured") {
       for (const a of this.archives) {
         if (copies.some((c) => c.provider === a.id)) continue;
         try {
           copies.push({ provider: a.id, ...(await a.archive(s.finalUrl)) });
         } catch (e) {
-          this.logger.warn("No se pudo guardar la copia pública", { provider: a.id, id, error: String(e) });
+          this.logger.warn("No se pudo guardar la copia pública (se reintenta)", { provider: a.id, id, error: String(e) });
+          archiveFailure = e;
         }
       }
     }
@@ -212,7 +217,7 @@ export class EvidenceService {
     // Se relee: mientras tanto pudo llegar una captura nueva (supersededBy).
     const fresh = (await this.repo.findById(id))!;
     await this.repo.save({ ...fresh, externalCopies: copies, ...(timestamp ? { timestamp } : {}) });
-    if (failure) throw failure;
+    if (failure ?? archiveFailure) throw failure ?? archiveFailure;
   }
 
   // ---------------- Seguimiento ----------------

@@ -31,6 +31,30 @@ docker compose down                                  # agregar -v para borrar ta
 - El servicio `test` monta `src/` y `tests/`, así que los cambios se prueban sin reconstruir la imagen. Si cambia `package.json`, hay que reconstruirla con `docker compose build test`.
 - Las claves de `docker-compose.yml` son **sólo para desarrollo**. En producción se usa la imagen `runtime` con los secretos reales (ver OPERATIONS.md).
 
+## Probar con servicios reales
+
+Todas las claves van en `.env` (junto a `docker-compose.yml`; no se sube al repo). Plantilla completa: `.env.example`. Una variable vacía = función apagada. Después de cambiar `.env`: `docker compose up -d api`.
+
+**Sin cuenta:**
+
+```bash
+EVIDENCE_TSA_URL=https://freetsa.org/tsr     # sello de tiempo RFC 3161 (para uso legal: un certificador licenciado)
+EVIDENCE_WAYBACK=1                           # copia en la Wayback Machine (sin cuenta responde 429 seguido: se reintenta
+                                             # sola; con una cuenta gratis de archive.org, EVIDENCE_WAYBACK_AUTH=clave:secreto)
+CAPTCHA_SITE_KEY=1x00000000000000000000AA    # claves de PRUEBA de Cloudflare Turnstile: siempre aprueba
+CAPTCHA_SECRET=1x0000000000000000000000000000000AA   # (2x0000000000000000000000000000000AA: siempre rechaza)
+```
+
+**Telegram** (el bot sale gratis con @BotFather → `/newbot`):
+
+1. En `.env`: `TELEGRAM_BOT_TOKEN=<token>` y `TELEGRAM_SECRET_TOKEN=<al menos 16 letras/números al azar>`. `docker compose up -d api`.
+2. Mandale "hola" a tu bot y mirá tu chat id: `docker compose exec api node dist/src/entry/telegram-setup.js`
+3. Fuera de producción sólo se le manda a quien esté en la lista: `SANDBOX_RECIPIENTS=<tu chat id>` (y los mails o números del equipo, separados por coma). `docker compose up -d api`.
+4. Telegram necesita una URL pública https. Túnel gratis de Cloudflare (sin cuenta): `docker compose --profile tunel up -d tunel` y la URL `https://….trycloudflare.com` sale en `docker compose logs tunel`.
+5. Registrar el webhook: `docker compose exec api node dist/src/entry/telegram-setup.js https://….trycloudflare.com`
+
+La URL del túnel cambia cada vez que se reinicia: hay que repetir el paso 5. Todo lo que sale en desarrollo lleva el prefijo `[PRUEBA]`.
+
 ## Probarlo sin Docker
 
 ```bash

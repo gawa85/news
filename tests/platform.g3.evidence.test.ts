@@ -152,6 +152,21 @@ describe("Evidencias: servicio", () => {
     assert.equal(archive.archived.length, 1, "no se vuelve a pedir la copia pública");
   });
 
+  test("si la copia pública falla (Wayback saturada), el sello queda y la copia se reintenta", async () => {
+    const { t, archive, u } = await evidencePlatform();
+    archive.fail = true;
+    const { snapshot: s } = await t.p.evidence.capture({ actorId: u.id, url: NOTE });
+    await assert.rejects(t.p.evidence.seal(s.id), /429/);
+    const half = await t.p.evidence.get(u.id, s.id);
+    assert.ok(half.timestamp, "el sello no espera a la copia");
+    assert.equal(half.externalCopies.length, 0);
+    archive.fail = false;
+    await t.p.evidence.seal(s.id);
+    const done = await t.p.evidence.get(u.id, s.id);
+    assert.equal(done.externalCopies.length, 1);
+    assert.equal(done.timestamp!.token, half.timestamp!.token, "no se vuelve a sellar");
+  });
+
   test("seguimiento: sin cambios no crea otra captura; una edición silenciosa y un borrado quedan registrados", async () => {
     const { t, pages, u } = await evidencePlatform();
     const { snapshot: first } = await t.p.evidence.capture({ actorId: u.id, url: NOTE, monitor: true });

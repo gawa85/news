@@ -155,8 +155,11 @@ export class FakeTimestampAuthority implements ITimestampAuthority {
 export class FakeExternalArchive implements IExternalArchive {
   readonly id = "fake-archive";
   readonly archived: string[] = [];
+  /** Para simular que el archivo está saturado (p. ej. la Wayback Machine responde 429). */
+  fail = false;
 
   async archive(url: string): Promise<{ url: string; at: Date }> {
+    if (this.fail) throw new Error("El archivo respondió HTTP 429.");
     this.archived.push(url);
     return { url: `https://archivo.example/${encodeURIComponent(url)}`, at: new Date() };
   }
