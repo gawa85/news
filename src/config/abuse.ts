@@ -25,6 +25,8 @@ export const RATE_RULES: RateRule[] = [
   { action: "api_request", per: "ip", limit: 600, windowSeconds: 60, onExceed: "deny" },
   // Funciones con costo por uso (audio, imagen, archivo): tope por hora.
   { action: "expensive", per: "user", limit: 40, windowSeconds: 3_600, onExceed: "deny" },
+  // Salas y eventos: además del modo lento, un tope por persona (frena a quien copa la conversación).
+  { action: "room_message", per: "user", limit: 30, windowSeconds: 600, onExceed: "deny" },
 ];
 
 /** Acciones que SIEMPRE piden captcha en la web (si hay un verificador configurado). */

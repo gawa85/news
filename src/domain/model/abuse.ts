@@ -10,7 +10,8 @@ export type AbuseAction =
   | "magic_link" // pedir un enlace de acceso por mail
   | "inbound_message" // mensaje por WhatsApp, Telegram…
   | "api_request" // pedido a la API o al MCP
-  | "expensive"; // funciones con costo por uso (audio, imagen, archivo)
+  | "expensive" // funciones con costo por uso (audio, imagen, archivo)
+  | "room_message"; // mensaje en una sala (sobre todo, eventos públicos)
 
 /** A quién se le aplica un límite o una restricción. */
 export type AbuseTargetKind = "user" | "ip" | "address" | "email";

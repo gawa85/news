@@ -55,6 +55,14 @@ export interface IPerspectiveRepository {
   vote(v: PerspectiveVote): Promise<PerspectiveVote | undefined>;
 }
 
+/** Quiénes reciben por chat los chequeos de un evento en vivo. */
+export interface IEventSubscriptionRepository {
+  subscribe(roomId: string, userId: string, at: Date): Promise<void>;
+  unsubscribe(roomId: string, userId: string): Promise<void>;
+  findSubscribers(roomId: string): Promise<string[]>;
+  deleteByUser(userId: string): Promise<void>;
+}
+
 export interface IRoomRepository {
   findById(id: string): Promise<Room | undefined>;
   findByOrganization(organizationId: string): Promise<Room[]>;
@@ -64,6 +72,9 @@ export interface IRoomRepository {
   findMessage(id: string): Promise<RoomMessage | undefined>;
   history(roomId: string, limit: number): Promise<RoomMessage[]>;
   lastMessageBy(roomId: string, userId: string): Promise<RoomMessage | undefined>;
+  /** Eventos públicos (los más nuevos primero). */
+  findEvents(limit: number): Promise<Room[]>;
+  findByEventCode(code: string): Promise<Room | undefined>;
 }
 
 /**

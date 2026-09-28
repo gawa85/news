@@ -17,7 +17,7 @@ import type { IEvidenceRepository } from "./evidence";
 import type { IDigestDeliveryRepository } from "./digest";
 import type { IRateCounterRepository, IRestrictionRepository } from "./abuse";
 import type { ICatalogRepository, IQualityRepository } from "./catalogData";
-import type { ICampaignRepository, INarrativeRepository, IPerspectiveRepository, IRoomRepository } from "./participation";
+import type { ICampaignRepository, IEventSubscriptionRepository, INarrativeRepository, IPerspectiveRepository, IRoomRepository } from "./participation";
 import type { ICostRepository } from "./observability";
 import type { IBillingProfileRepository, IInvoiceRepository } from "./billingDocs";
 import type { IOfficialDocumentRepository, IVerificationTaskRepository } from "./factcheck";
@@ -120,6 +120,7 @@ export interface Repositories {
   campaigns: ICampaignRepository;
   perspectives: IPerspectiveRepository;
   rooms: IRoomRepository;
+  eventSubscriptions: IEventSubscriptionRepository;
   catalog: ICatalogRepository;
   quality: IQualityRepository;
   stats: IStatsRepository;

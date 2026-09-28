@@ -112,6 +112,8 @@ import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMed
 import type { RateRule } from "../domain/model";
 import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
 import { SocialReader } from "../application/social/SocialReader";
+import { EventRoomPolicy, TeamRoomPolicy } from "../application/participation/RoomPolicies";
+import { EVENT_NOTIFY_JOB, EventRoomService } from "../application/participation/EventRooms";
 import { CachedSocialSource, FallbackSocialSource } from "../infrastructure/social/SocialSources";
 import { MultilingualCommandParser, ResponseLocalizer } from "../application/language/Translation";
 import { CachedTranslator, MeteredTranslator, StopwordLanguageDetector } from "../infrastructure/language/LanguageAdapters";
@@ -431,7 +433,13 @@ export function buildPlatform(cfg: PlatformConfig) {
   );
   const perspectives = new PerspectiveService(repos.perspectives, repos.verificationTasks, repos.users, authz, moderator, domainEvents, clock);
   const realtime = cfg.realtime ?? new InMemoryRealtimeHub();
-  const rooms = new RoomService(repos.rooms, realtime, repos.users, authz, access, moderator, ids, clock);
+  // Salas: qué puede hacer cada quien lo decide la política de cada tipo de sala (equipo, evento).
+  const rooms = new RoomService(
+    repos.rooms, realtime, repos.users,
+    new TeamRoomPolicy(authz, access),
+    [new EventRoomPolicy(authz, params, clock, `${cfg.vaultMasterKey}:seudonimos-de-salas`)],
+    moderator, ids, clock, abuseGuard,
+  );
 
   // ---- Datos reales: catálogo importable y noticias desde los feeds ----
   const importCatalog = new ImportCatalogUseCase(cfg.catalogSources ?? [], repos.catalog, repos.outlets, repos.users, authz, domainEvents, countries);
@@ -462,6 +470,11 @@ export function buildPlatform(cfg: PlatformConfig) {
   const referrals = new ReferralService(repos.referrals, commerce, repos.users, repos.subscriptions, params, domainEvents, clock, tell("aviso_premio"));
   referrals.attach(events);
   const flags = new FeatureFlagService(FEATURE_FLAGS, repos.featureFlags, repos.users, authz, domainEvents, clock);
+  const eventRooms = new EventRoomService(
+    repos.rooms, repos.eventSubscriptions, rooms, realtime, repos.users, authz, domainEvents, queue,
+    async (u, content, tpl) => notifications.notifyUser(u, content, (await access.planOf(u)).plan.channels, { name: tpl.name, language: "es_AR", params: tpl.params }),
+    ids, clock, flags,
+  );
   const media = new SignedMediaStore(repos.media, `${cfg.vaultMasterKey}:media`, cfg.publicBaseUrl, clock);
   const ttsPrice = PRICE_TABLE.textToSpeechPerMillionCharsUsd ?? 0;
   const audio = cfg.tts ? new AudioReplyService(cfg.tts, media, 1500, 7 * 24 * 3600, (chars) => costs.units("text_to_speech", cfg.tts!.id, { characters: chars }, (chars / 1_000_000) * ttsPrice)) : undefined;
@@ -533,6 +546,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       localizer: translator ? new ResponseLocalizer(translator) : undefined,
       languageDetector,
       social,
+      events: eventRooms,
     },
   );
 
@@ -607,6 +621,7 @@ export function buildPlatform(cfg: PlatformConfig) {
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
           evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
           abuse_cleanup: async () => void (await repos.rateCounters.deleteExpired(clock.now())),
+          [EVENT_NOTIFY_JOB]: async (p) => void (await eventRooms.notifySubscribers(String(p.roomId), String(p.messageId))),
           evidence_recheck: async () => void (await evidence.recheckDue()),
           send_digests: async () => void (await digests.runDue()),
           [DEFERRED_NOTIFICATION_JOB]: async (p) => {
@@ -625,7 +640,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     costs: { tracker: costs, report: new CostReportUseCase(repos.costs, repos.subscriptions, repos.plans, repos.users, authz, COST_POLICY) },
     metrics,
     requestContext,
-    participation: { narratives, campaigns, perspectives, rooms },
+    participation: { narratives, campaigns, perspectives, rooms, events: eventRooms },
     catalog: { import: importCatalog, ingestFeeds },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },

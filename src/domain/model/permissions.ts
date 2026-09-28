@@ -54,6 +54,7 @@ export const PERMISSIONS = [
   "evidence:capture", // guardar copias de notas con huella y sello de tiempo
   "evidence:read_all", // ver todas las copias archivadas (verificadores)
   "abuse:manage", // bloquear o poner en observación personas, redes, números o mails
+  "events:host", // organizar eventos en vivo: crear, cerrar, silenciar y publicar chequeos
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -149,6 +149,7 @@ export class ResponseComposer {
           "/jugar → ¿esto es humo? (practicá) · /progreso · /aula <código> <apodo>",
           "/invitar → tu código para invitar · /codigo <código> → usar una invitación",
           "/soporte <tu consulta> → hablar con una persona · /tickets",
+          "/eventos → debates y eventos en vivo · /evento <código> → recibir sus chequeos",
           "/resumen → tus novedades ya · /resumen diario | semanal | no → recibirlo solo",
           "/guardar <link> [seguir] → copia de la nota con sello de tiempo (y aviso si la editan o la borran)",
           "/reglas · /plan · /ayuda · BAJA (dejar de recibir avisos)",

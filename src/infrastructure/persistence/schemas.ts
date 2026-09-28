@@ -65,6 +65,15 @@ import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttemp
 
 import type { DigestDelivery, EvidenceSnapshot, Restriction } from "../../domain/model";
 
+/** Suscripción por chat a los chequeos de un evento en vivo. */
+export interface EventSubscriptionRecord {
+  /** `${roomId}|${userId}` */
+  id: string;
+  roomId: string;
+  userId: string;
+  at: Date;
+}
+
 /** Contador de un límite de frecuencia en una ventana (efímero: no se respalda). */
 export interface RateCounterRecord {
   /** `${clave}|${inicio de la ventana}` */
@@ -404,8 +413,18 @@ export const schemas = {
   rooms: {
     name: "rooms",
     idOf: (r: Room) => r.id,
-    indexes: { organizationId: { type: "text", get: (r: Room) => r.organizationId } },
+    indexes: {
+      organizationId: { type: "text", get: (r: Room) => r.organizationId ?? null },
+      kind: { type: "text", get: (r: Room) => r.kind ?? "team" },
+      eventCode: { type: "text", get: (r: Room) => r.event?.code ?? null },
+      createdAt: { type: "text", get: (r: Room) => r.createdAt },
+    },
   } satisfies CollectionSchema<Room>,
+  eventSubscriptions: {
+    name: "event_subscriptions",
+    idOf: (s: EventSubscriptionRecord) => s.id,
+    indexes: { roomId: { type: "text", get: (s: EventSubscriptionRecord) => s.roomId }, userId: { type: "text", get: (s: EventSubscriptionRecord) => s.userId } },
+  } satisfies CollectionSchema<EventSubscriptionRecord>,
   roomMessages: {
     name: "room_messages",
     idOf: (m: RoomMessage) => m.id,

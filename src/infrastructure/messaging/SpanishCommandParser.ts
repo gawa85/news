@@ -77,6 +77,14 @@ export class SpanishCommandParser implements ICommandParser {
         return rest ? { type: "support", text: rest } : { type: "support_list" };
       case "tickets":
         return { type: "support_list" };
+      case "eventos":
+        return { type: "event_list" };
+      case "evento": {
+        // "/evento ABC123" → recibir sus chequeos; "/evento no ABC123" → dejar de recibirlos.
+        const [first = "", second = ""] = rest.split(/\s+/);
+        if (!first) return { type: "event_list" };
+        return /^(no|salir|off|dejar)$/i.test(first) ? { type: "event_follow", code: second.toUpperCase(), on: false } : { type: "event_follow", code: first.toUpperCase(), on: true };
+      }
       case "idioma":
         return { type: "set_language", language: rest.toLowerCase().split(/\s+/)[0] ?? "" };
       case "resumen": {

@@ -528,6 +528,23 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - Se envía con `notifyUser`: respeta el horario de silencio (lo posterga), el orden de canales, la marca blanca, la ventana de WhatsApp (afuera, con la plantilla `resumen_sin_humo`, que **hay que aprobar en Meta**) y el límite por destinatario.
   - `DigestAudience` encuentra a quién le toca por índices: personas que lo pidieron y miembros de organizaciones que lo tienen por defecto. Si la organización lo bloquea, ninguno puede apagarlo.
   - El **diario** es de los planes pagos (`daily_digest`); en el plan gratis se manda el semanal. Función en prueba `digest` para el apagado de emergencia. Una parte que falla no tira abajo el resumen.
+- **Eventos en vivo** (debates, elecciones, cadenas nacionales): salas públicas donde la gente comenta y el equipo del evento publica chequeos en el momento.
+  - **Strategy (OCP)**: `RoomService` ya no sabe de organizaciones ni de eventos. Cada tipo de sala tiene su `RoomPolicy`, que decide quién lee, quién escribe, quién modera, el modo lento, qué se muestra de cada mensaje y cómo se informa la presencia:
+    - `TeamRoomPolicy`: las reglas de siempre;
+    - `EventRoomPolicy`: la nueva.
+
+    Un tipo de sala nuevo es otra clase. Las salas guardadas sin tipo siguen siendo de equipo, sin migración.
+  - **Leer**: cualquiera, incluso **sin cuenta** (`GET /public/events`, `/public/events/:código/stream` por SSE), para insertarlo en el sitio de un medio.
+  - **Escribir** tiene reglas:
+    - sólo en vivo;
+    - con una cuenta de cierta antigüedad (`events.min_account_minutes`), para frenar las cuentas creadas para copar la sala;
+    - con modo lento (`events.slow_mode_seconds`) y tope por persona (`room_message` en el freno contra el abuso);
+    - sin estar silenciado.
+  - **Privacidad**: nadie ve quién es quién. Cada persona tiene un **seudónimo por sala** ("Participante 4F2A"), calculado con una clave secreta: estable en la sala, distinto en cada una. La presencia es una cantidad y el público nunca recibe ids.
+  - **Equipo del evento** (`events:host`, roles `fact_checker` y `event_host`): crea (hasta 24 h, con un código corto), cierra, silencia a partir de un mensaje (sólo ve seudónimos) y publica **chequeos**, que se fijan arriba y firma "Equipo del evento".
+  - **Por chat**: `/eventos` lista los eventos y `/evento <código>` suscribe a sus chequeos (`/evento no <código>` para dejarlos). Los avisos salen **por la cola** (un evento puede tener miles de suscriptores) y respetan el silencio, los canales y la plantilla de WhatsApp `chequeo_en_vivo`, que hay que aprobar en Meta.
+  - Hay una función en prueba (`event_rooms`) para apagarlo de emergencia. Las suscripciones se borran con la cuenta.
+  - Límite conocido: el transporte en tiempo real es en memoria (`InMemoryRealtimeHub`). Con varios servidores hay que poner Redis pub/sub u otro bus detrás de `IRealtimeTransport`.
 - **Redes sociales como fuente** (`SocialReader` + `ISocialSource`): cuando alguien reenvía un link a un posteo, un video o un reel (con, a lo sumo, un comentario corto), se analiza **lo que dice la publicación**, no el link. La respuesta empieza con qué se leyó: red, autor, fecha y vistas. Si no se puede leer, se analiza el mensaje y se avisa.
 
   | Lector (del más rico al más básico) | Qué da |
@@ -591,6 +608,8 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Un tipo de sala nuevo (p. ej. aulas en vivo) | Otra clase `RoomPolicy` registrada en `RoomService` |
+| Salas en tiempo real con varios servidores | `IRealtimeTransport` con Redis pub/sub |
 | Otra red (Bluesky, Reddit, Kwai) | Otra clase `ISocialSource` en la cadena de `social.sources` (y su dominio en `domain/rules/social.ts`) |
 | Otro idioma (francés, italiano) | Agregarlo a `config/languages.ts` (y sus alias de comandos); el traductor hace el resto |
 | Otro traductor (Azure, un modelo propio) | Otra clase `ITranslator` |

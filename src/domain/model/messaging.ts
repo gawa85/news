@@ -96,5 +96,7 @@ export type Command =
   | { type: "archive_url"; url: string; monitor: boolean }
   | { type: "digest_now" }
   | { type: "set_language"; language: string }
+  | { type: "event_list" }
+  | { type: "event_follow"; code: string; on: boolean }
   | { type: "digest_set"; frequency: import("./preferences").DigestFrequency }
   | { type: "help" };

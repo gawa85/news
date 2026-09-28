@@ -34,6 +34,7 @@ import type { DigestService } from "../digest/Digests";
 import type { IAbusePolicy } from "../abuse/AbuseGuard";
 import type { ResponseLocalizer } from "../language/Translation";
 import type { SocialReader } from "../social/SocialReader";
+import type { EventRoomService } from "../participation/EventRooms";
 import type { ILanguageDetector } from "../../domain/ports";
 import { BASE_LANGUAGE, MIN_DETECTION_CONFIDENCE, SUPPORTED_LANGUAGES } from "../../config/languages";
 
@@ -72,6 +73,8 @@ export interface InboundExtras {
   languageDetector?: ILanguageDetector;
   /** Links a redes: se lee la publicación. */
   social?: SocialReader;
+  /** Eventos en vivo: suscribirse a sus chequeos. */
+  events?: EventRoomService;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -367,6 +370,27 @@ export class HandleInboundMessageUseCase {
         if (lang.code !== BASE_LANGUAGE && !this.extras.localizer) return this.composer.info("Por ahora respondo sólo en castellano.");
         await this.prefs().update({ actorId: user.id, values: { language: lang.code } });
         return this.composer.info(`Listo: te respondo en ${lang.name}.`);
+      }
+      case "event_list": {
+        const list = (await this.need(this.extras.events, "Los eventos").list(5)).filter((e) => e.status !== "closed");
+        if (list.length === 0) return this.composer.info("No hay eventos en vivo ni programados.");
+        const when = (d: Date) => `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+        return {
+          kind: "info",
+          title: "Eventos en vivo",
+          sections: list.map((e) => ({ heading: `${e.status === "live" ? "🔴 En vivo" : "🗓️ Próximo"} · ${e.title}`, lines: [`Organiza: ${e.host} · ${e.status === "live" ? `termina ${when(e.endsAt)}` : `empieza ${when(e.startsAt)}`}`, `Para recibir los chequeos por acá: /evento ${e.code}`] })),
+          links: [],
+        };
+      }
+      case "event_follow": {
+        const E = this.need(this.extras.events, "Los eventos");
+        if (!cmd.code) throw new ValidationError("Mandame /evento y el código del evento (lo ves con /eventos).");
+        if (!cmd.on) {
+          await E.unsubscribe({ userId: user.id, code: cmd.code });
+          return this.composer.info("Listo: no te mando más chequeos de ese evento.");
+        }
+        const room = await E.subscribe({ userId: user.id, code: cmd.code });
+        return this.composer.info(`Listo: te mando los chequeos de «${room.event!.title}».`, `Cuando el equipo verifique algo en vivo, te llega por acá. Para dejar de recibirlos: /evento no ${room.event!.code}`);
       }
       case "digest_now":
         return this.need(this.extras.digests, "El resumen").preview(user);

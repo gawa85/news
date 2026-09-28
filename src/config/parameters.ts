@@ -21,5 +21,7 @@ export const PARAMETERS: ParameterDefinition[] = [
   { key: "digest.hour", description: "Hora local a la que sale el resumen.", type: "number", default: 8, min: 0, max: 23, unit: "hora" },
   { key: "digest.weekday", description: "Día del resumen semanal (1 = lunes … 7 = domingo).", type: "number", default: 1, min: 1, max: 7 },
   { key: "digest.send_empty", description: "Mandar el resumen aunque no haya novedades.", type: "boolean", default: false },
+  { key: "events.min_account_minutes", description: "Antigüedad mínima de una cuenta para escribir en un evento en vivo (frena cuentas creadas para copar la sala).", type: "number", default: 60, min: 0, max: 10_080, unit: "minutos" },
+  { key: "events.slow_mode_seconds", description: "Modo lento mínimo en los eventos en vivo.", type: "number", default: 15, min: 0, max: 600, unit: "segundos" },
   { key: "support.first_response_hours_default", description: "Horas para la primera respuesta de soporte (planes sin prioridad).", type: "number", default: 48, min: 1, max: 240, unit: "horas" },
 ];

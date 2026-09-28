@@ -142,12 +142,37 @@ export interface PerspectiveVote {
 }
 
 // =====================================================================
-// SALAS EN TIEMPO REAL (organizaciones)
+// SALAS EN TIEMPO REAL (equipos de una organización y eventos públicos)
 // =====================================================================
+
+/** Sin tipo = sala de equipo (así quedan las salas que ya existían). */
+export type RoomKind = "team" | "event";
+
+/**
+ * Evento en vivo (debate, elecciones, cadena nacional): sala pública con horario, anfitrión,
+ * chequeos fijados y participantes silenciados. Cualquiera lee; escribir tiene reglas.
+ */
+export interface EventInfo {
+  /** Corto, para "/evento <código>" y para el link público. */
+  code: string;
+  title: string;
+  description?: string;
+  startsAt: Date;
+  endsAt: Date;
+  closedAt?: Date;
+  /** Quién organiza (se muestra): un medio, una ONG, Sin Humo… */
+  host: string;
+  muted: { userId: string; until: Date }[];
+  /** Chequeos fijados arriba (ids de mensajes). */
+  pinned: string[];
+}
 
 export interface Room {
   id: string;
-  organizationId: string;
+  kind?: RoomKind;
+  /** Sólo en las salas de equipo. */
+  organizationId?: string;
+  event?: EventInfo;
   name: string;
   topic?: string;
   /** Sobre qué se trabaja: una tarea de verificación, una campaña, un análisis… */
@@ -165,14 +190,24 @@ export interface RoomMessage {
   authorId: string;
   text: string;
   links: string[];
-  /** Mensajes con cifras y sin link se marcan "sin fuente" hasta que alguien la agregue. */
-  flags: ("sin_fuente")[];
+  /**
+   * "sin_fuente": cifras sin link (hasta que alguien la agregue).
+   * "verificacion": chequeo publicado por el equipo del evento (se fija arriba).
+   */
+  flags: ("sin_fuente" | "verificacion")[];
+  /** En eventos públicos: seudónimo estable por sala ("Participante 4F2A"), nunca el nombre ni el número. */
+  alias?: string;
   replyTo?: string;
   at: Date;
   deleted: boolean;
 }
 
+/** Lo que ve el público de un mensaje de un evento: sin quién lo escribió (sólo el seudónimo). */
+export type PublicRoomMessage = Omit<RoomMessage, "authorId">;
+
 export type RoomEvent =
-  | { type: "message"; message: RoomMessage }
+  | { type: "message"; message: RoomMessage | PublicRoomMessage }
   | { type: "deleted"; messageId: string }
-  | { type: "presence"; userIds: string[] };
+  /** En equipos, quiénes están; en eventos, cuántos (no quiénes). */
+  | { type: "presence"; userIds?: string[]; count?: number }
+  | { type: "closed" };

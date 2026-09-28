@@ -61,6 +61,8 @@
  *  Soporte:  GET/POST /v1/support/tickets   POST /v1/support/tickets/:id/(messages|reply|rate)   GET /v1/support/queue
  *  Funciones en prueba:  GET /v1/flags   PATCH /v1/flags/:key
  *  Audios firmados:  GET /media/:id?exp=&sig=
+ *  Eventos en vivo:  GET /public/events   GET /public/events/:código[/stream] (SSE, sin cuenta)
+ *                    POST /v1/events   POST /v1/events/:id/(close|factcheck|mute)   (events:host)
  *  Redes:  POST /v1/social/read {url}
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups (ops:backup)   GET /health (con el ambiente)
@@ -81,6 +83,8 @@ import type { IAbusePolicy, RestrictionAdmin } from "../../application/abuse/Abu
 import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
+import type { EventRoomService } from "../../application/participation/EventRooms";
+import type { RoomEvent } from "../../domain/model";
 import type { AccessControl } from "../../application/access/AccessControl";
 import type { Caller, ProductGateway } from "../../application/access/ProductGateway";
 import type { ImpactReportUseCase } from "../../application/impact/ImpactUseCases";
@@ -164,7 +168,7 @@ export interface HttpApiDeps {
   billingProfile: SetBillingProfileUseCase;
   invoices: IInvoiceRepository;
   costReport: CostReportUseCase;
-  participation: { narratives: NarrativeTracker; campaigns: CampaignService; perspectives: PerspectiveService; rooms: RoomService };
+  participation: { narratives: NarrativeTracker; campaigns: CampaignService; perspectives: PerspectiveService; rooms: RoomService; events: EventRoomService };
   catalog: { import: ImportCatalogUseCase };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
   config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
@@ -238,6 +242,26 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     return { userAgent: String(req.headers["user-agent"] ?? ""), ip: clientIp(req, deps.trustedProxies ?? []), ...(token ? { captchaToken: token } : {}) };
   }
 
+  /**
+   * Server-Sent Events: el navegador mantiene la conexión y recibe cada novedad de la sala.
+   * Primero se entra (si falla, responde el error como JSON); después, historial y novedades.
+   */
+  async function stream(req: IncomingMessage, res: ServerResponse, join: (send: (e: RoomEvent) => void) => Promise<{ history: unknown[]; leave: () => void }>): Promise<void> {
+    const pending: RoomEvent[] = [];
+    let open = false;
+    const send = (e: unknown) => (open ? res.write(`data: ${JSON.stringify(e)}\n\n`) : pending.push(e as RoomEvent));
+    const { history, leave } = await join(send);
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
+    open = true;
+    send({ type: "history", messages: history });
+    pending.splice(0).forEach(send);
+    const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
+    req.on("close", () => {
+      clearInterval(ping);
+      leave();
+    });
+  }
+
   /** Frecuencia de la API y el MCP, por persona y por red. */
   async function limitApi(req: IncomingMessage, who: Caller): Promise<void> {
     await deps.abuse?.enforce({ action: "api_request", at: new Date(), userId: who.userId, ip: clientIp(req, deps.trustedProxies ?? []) });
@@ -248,6 +272,14 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const body = () => parseJson(raw);
 
     if (req.method === "GET" && path === "/health") return json(res, 200, { ok: true, environment: deps.environment ?? "development" });
+    // ---- Eventos en vivo: se leen sin cuenta (para insertarlos en el sitio de un medio) ----
+    if (req.method === "GET" && path === "/public/events") return json(res, 200, await deps.participation.events.list(Number(url.searchParams.get("limit") ?? 20)));
+    const pubEv = path.match(/^\/public\/events\/([A-Za-z0-9_-]+)(\/stream)?$/);
+    if (req.method === "GET" && pubEv) {
+      const ev = await deps.participation.events.get(decodeURIComponent(pubEv[1]!));
+      if (!pubEv[2]) return json(res, 200, ev);
+      return stream(req, res, (send) => deps.participation.rooms.join({ roomId: ev.id }, send));
+    }
     // Qué captcha mostrar en las pantallas de alta y acceso (sólo la clave pública).
     if (req.method === "GET" && path === "/public/captcha") return json(res, 200, deps.captcha ?? { provider: null });
 
@@ -518,23 +550,25 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     const pvote = path.match(/^\/v1\/perspectives\/(.+)\/vote$/);
     if (req.method === "POST" && pvote) return json(res, 200, await P.perspectives.vote({ actorId: who.userId, perspectiveId: decodeURIComponent(pvote[1]!), helpful: !!b.helpful }));
+    // ---- Eventos en vivo: gestión (events:host) ----
+    if (req.method === "POST" && path === "/v1/events") {
+      return json(res, 201, await P.events.create({
+        actorId: who.userId, title: str(b.title, "title"), description: b.description as string | undefined, host: b.host as string | undefined,
+        startsAt: date(b.startsAt, "startsAt"), endsAt: date(b.endsAt, "endsAt"), slowModeSeconds: b.slowModeSeconds as number | undefined,
+      }));
+    }
+    const evAct = path.match(/^\/v1\/events\/([^/]+)\/(close|factcheck|mute)$/);
+    if (req.method === "POST" && evAct) {
+      const roomId = decodeURIComponent(evAct[1]!);
+      if (evAct[2] === "close") return json(res, 200, await P.events.close({ actorId: who.userId, roomId }));
+      if (evAct[2] === "factcheck") return json(res, 201, await P.events.factCheck({ actorId: who.userId, roomId, text: str(b.text, "text") }));
+      return json(res, 200, await P.events.mute({ actorId: who.userId, messageId: str(b.messageId, "messageId"), minutes: Number(b.minutes ?? 30), removeMessage: b.remove === true }));
+    }
     const room = path.match(/^\/v1\/rooms\/([^/]+)\/(events|messages)$/);
     if (room) {
       const roomId = decodeURIComponent(room[1]!);
       if (req.method === "POST" && room[2] === "messages") return json(res, 201, await P.rooms.post({ actorId: who.userId, roomId, text: str(b.text, "text"), replyTo: b.replyTo as string | undefined }));
-      if (req.method === "GET" && room[2] === "events") {
-        // Server-Sent Events: el navegador mantiene la conexión y recibe cada novedad.
-        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
-        const send = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-        const { history, leave } = await P.rooms.join({ actorId: who.userId, roomId }, send);
-        send({ type: "history", messages: history });
-        const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
-        req.on("close", () => {
-          clearInterval(ping);
-          leave();
-        });
-        return;
-      }
+      if (req.method === "GET" && room[2] === "events") return stream(req, res, (send) => P.rooms.join({ actorId: who.userId, roomId }, send));
     }
 
     const resolve = path.match(/^\/v1\/rebuttals\/([^/]+)\/resolve$/);

@@ -81,6 +81,7 @@ export const DOMAIN_EVENTS = [
   "evidence.gone",
   "abuse.restricted",
   "abuse.lifted",
+  "event.created",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number];

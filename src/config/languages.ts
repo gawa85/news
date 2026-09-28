@@ -26,12 +26,13 @@ export const COMMAND_ALIASES: Record<string, Record<string, string>> = {
     temas: "temas", formato: "formato", audio: "audio", áudio: "audio", silencio: "silencio", silêncio: "silencio", preferencias: "preferencias",
     preferências: "preferencias", jogar: "jugar", progresso: "progreso", convidar: "invitar", codigo: "codigo", código: "codigo", suporte: "soporte",
     resumo: "resumen", guardar: "guardar", arquivar: "guardar", plano: "plan", regras: "reglas", idioma: "idioma", lingua: "idioma", língua: "idioma",
+    evento: "evento", eventos: "eventos",
   },
   en: {
     help: "ayuda", compare: "comparar", credibility: "credibilidad", exclude: "excluir", follow: "seguir", unfollow: "dejar", topics: "temas",
     format: "formato", audio: "audio", quiet: "silencio", preferences: "preferencias", settings: "preferencias", play: "jugar", progress: "progreso",
     invite: "invitar", code: "codigo", support: "soporte", tickets: "tickets", digest: "resumen", summary: "resumen", save: "guardar", archive: "guardar",
-    plan: "plan", rules: "reglas", language: "idioma",
+    plan: "plan", rules: "reglas", language: "idioma", event: "evento", events: "eventos",
   },
 };
 

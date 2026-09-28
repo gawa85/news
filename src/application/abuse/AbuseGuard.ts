@@ -41,6 +41,7 @@ const AUTO_BLOCK_TARGET: Record<AbuseAction, AbuseTargetKind[]> = {
   inbound_message: ["address"],
   api_request: ["user", "ip"],
   expensive: ["user"],
+  room_message: ["user"],
 };
 
 /**

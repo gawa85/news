@@ -116,6 +116,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const pvotes = f.collection(schemas.perspectiveVotes);
   const rooms = f.collection(schemas.rooms);
   const rmessages = f.collection(schemas.roomMessages);
+  const eventSubs = f.collection(schemas.eventSubscriptions);
   const owners = f.collection(schemas.owners);
   const ownership = f.collection(schemas.ownership);
   const advertising = f.collection(schemas.advertising);
@@ -435,6 +436,14 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findMessage: (id) => rmessages.get(id),
       history: async (roomId, limit) => (await rmessages.find({ where: { roomId }, orderBy: { field: "at", direction: "desc" }, limit })).reverse(),
       lastMessageBy: async (roomId: string, userId: string) => (await rmessages.find({ where: { roomId, authorId: userId }, orderBy: { field: "at", direction: "desc" }, limit: 1 }))[0],
+      findEvents: (limit) => rooms.find({ where: { kind: "event" }, orderBy: { field: "createdAt", direction: "desc" }, limit }),
+      findByEventCode: async (code) => (await rooms.find({ where: { eventCode: code.toUpperCase() }, limit: 1 }))[0],
+    },
+    eventSubscriptions: {
+      subscribe: (roomId, userId, at) => eventSubs.upsert({ id: `${roomId}|${userId}`, roomId, userId, at }),
+      unsubscribe: (roomId, userId) => eventSubs.deleteWhere({ where: { id: `${roomId}|${userId}` } }),
+      findSubscribers: async (roomId) => (await eventSubs.find({ where: { roomId } })).map((s) => s.userId),
+      deleteByUser: (userId) => eventSubs.deleteWhere({ where: { userId } }),
     },
     catalog: {
       findOwners: (ids) => (ids ? owners.find({ where: { id: { in: ids } } }) : owners.find()),
