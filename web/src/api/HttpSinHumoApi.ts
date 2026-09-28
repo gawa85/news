@@ -142,6 +142,14 @@ export class HttpSinHumoApi implements SinHumoApi {
     return this.request<Checkout>("POST", "/v1/checkout", { planId, interval, couponCode });
   }
 
+  async cancelSubscription() {
+    await this.request("POST", "/v1/subscription/cancel");
+  }
+
+  async resumeSubscription() {
+    await this.request("POST", "/v1/subscription/resume");
+  }
+
   async acceptLegal(docId: string, version: string) {
     await this.request("POST", "/v1/legal/accept", { docId, version });
   }

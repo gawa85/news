@@ -113,6 +113,8 @@ import type { RateRule } from "../domain/model";
 import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
 import { SocialReader } from "../application/social/SocialReader";
 import { AccountQueries } from "../application/web/AccountQueries";
+import { SubscriptionLifecycle } from "../application/billing/SubscriptionLifecycle";
+import type { IRecurringCharges } from "../domain/ports";
 import { EventRoomPolicy, TeamRoomPolicy } from "../application/participation/RoomPolicies";
 import { EVENT_NOTIFY_JOB, EventRoomService } from "../application/participation/EventRooms";
 import { CachedSocialSource, FallbackSocialSource } from "../infrastructure/social/SocialSources";
@@ -149,6 +151,8 @@ export interface PlatformConfig {
   mail: { transport: IEmailTransport; from: string; trustedAuthServIds: string[] };
   forums?: { discourse?: DiscourseSite[]; wordpress?: WordPressSite[]; sites?: OwnSite[] };
   payments?: IPaymentGateway;
+  /** Cobros recurrentes del proveedor (para dejar de cobrar al cancelar). */
+  recurringCharges?: IRecurringCharges;
   reviewSources?: IReviewSource[];
   /** Reglas de negocio extra (se agregan a las de siempre). */
   extraRules?: IBusinessRule[];
@@ -409,6 +413,11 @@ export function buildPlatform(cfg: PlatformConfig) {
   );
 
   // ---- Facturación ----
+  // Cancelar, deshacer y vencer: al vencer, las personas pasan al plan gratis (nunca quedan bloqueadas).
+  const lifecycle = new SubscriptionLifecycle(
+    repos.subscriptions, repos.plans, repos.users, authz, cfg.store, domainEvents, ids, clock,
+    { freePlanId: "gratis" }, cfg.recurringCharges, tell("plan_vencido"),
+  );
   const invoicing = new InvoicingService(
     repos.invoices, repos.billingProfiles, repos.subscriptions, repos.plans,
     cfg.invoicing?.issuer ?? new FakeInvoiceIssuer(), domainEvents, clock,
@@ -623,6 +632,7 @@ export function buildPlatform(cfg: PlatformConfig) {
           },
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
           evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
+          expire_subscriptions: async () => void (await lifecycle.expireDue()),
           abuse_cleanup: async () => void (await repos.rateCounters.deleteExpired(clock.now())),
           [EVENT_NOTIFY_JOB]: async (p) => void (await eventRooms.notifySubscribers(String(p.roomId), String(p.messageId))),
           evidence_recheck: async () => void (await evidence.recheckDue()),
@@ -638,7 +648,7 @@ export function buildPlatform(cfg: PlatformConfig) {
         }, clock, logger, opts),
     },
     verification,
-    billing: { setProfile: new SetBillingProfileUseCase(repos.billingProfiles, repos.users, authz, clock, countries), invoicing },
+    billing: { setProfile: new SetBillingProfileUseCase(repos.billingProfiles, repos.users, authz, clock, countries), invoicing, lifecycle },
     privacy: { personalData, retention },
     costs: { tracker: costs, report: new CostReportUseCase(repos.costs, repos.subscriptions, repos.plans, repos.users, authz, COST_POLICY) },
     metrics,
@@ -671,7 +681,8 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
     inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
-    account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS), restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
+    account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions),
+    lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,

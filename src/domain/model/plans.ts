@@ -90,6 +90,12 @@ export interface Subscription {
   interval?: "month" | "year";
   /** Lo que efectivamente se cobra (con cupón, país e impuestos). Si falta, el precio del plan. */
   charged?: { amount: number; currency: string; listAmount: number; couponCode?: string; discountCycles?: number | null; country?: string };
+  /**
+   * La persona canceló: sigue con el plan hasta `currentPeriodEnd` (ya lo pagó) y después
+   * no se renueva. Se puede deshacer mientras tanto.
+   */
+  cancelAtPeriodEnd?: boolean;
+  canceledAt?: Date;
 }
 
 export type UsageMetric = "analyses" | "comparisons";

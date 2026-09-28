@@ -89,6 +89,7 @@ export interface Me {
   roles: string[];
   channels: { type: string; address: string; verified: boolean }[];
   plan: { id: string; name: string; features: string[]; limits: PlanLimits; price: Price | null };
+  subscription?: { status: string; interval?: "month" | "year"; currentPeriodEnd: string; cancelAtPeriodEnd: boolean; managedByOrganization: boolean };
   usage: { analyses: number; comparisons: number };
   pendingLegal: LegalDocument[];
 }

@@ -47,6 +47,9 @@ export interface SinHumoApi {
   unfollow(topic: string): Promise<Topic>;
   quote(planId: string, interval: "month" | "year", coupon?: string): Promise<Quote>;
   checkout(planId: string, interval: "month" | "year", couponCode?: string): Promise<Checkout>;
+  /** Cancelar: sigue hasta el fin del período pagado. Retomar: deshace la cancelación. */
+  cancelSubscription(): Promise<void>;
+  resumeSubscription(): Promise<void>;
   acceptLegal(docId: string, version: string): Promise<void>;
   deleteAccount(confirmation: string): Promise<void>;
   /** Link para bajar todos mis datos (Ley 25.326). */

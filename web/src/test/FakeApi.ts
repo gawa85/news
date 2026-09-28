@@ -87,6 +87,14 @@ export class FakeApi implements SinHumoApi {
   async checkout(): Promise<never> {
     throw new Error("no usado");
   }
+  async cancelSubscription() {
+    this.log("cancelSubscription");
+    if (this.session?.subscription) this.session = { ...this.session, subscription: { ...this.session.subscription, cancelAtPeriodEnd: true } };
+  }
+  async resumeSubscription() {
+    this.log("resumeSubscription");
+    if (this.session?.subscription) this.session = { ...this.session, subscription: { ...this.session.subscription, cancelAtPeriodEnd: false } };
+  }
   async acceptLegal(docId: string, version: string) {
     this.log("acceptLegal", docId, version);
   }

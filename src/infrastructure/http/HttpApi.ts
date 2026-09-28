@@ -84,6 +84,7 @@ import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
+import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
 import type { RoomEvent } from "../../domain/model";
 import type { AccessControl } from "../../application/access/AccessControl";
@@ -147,6 +148,8 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Cancelar o retomar la suscripción. */
+  lifecycle?: SubscriptionLifecycle;
   /** Freno contra el abuso (API, MCP). Sin él, no se limita. */
   abuse?: IAbusePolicy;
   restrictions?: RestrictionAdmin;
@@ -812,6 +815,10 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         const a = await deps.gateway.analyzeContent(who, item);
         return json(res, 200, { ...AccountQueries.view(a, shared?.post), ...(shared?.failed ? { postError: "No se pudo leer la publicación: se analizó el texto." } : {}) });
       }
+      case "POST /v1/subscription/cancel":
+        return json(res, 200, await need(deps.lifecycle).cancel({ actorId: who.userId }));
+      case "POST /v1/subscription/resume":
+        return json(res, 200, await need(deps.lifecycle).resume({ actorId: who.userId }));
       case "GET /v1/me":
         return json(res, 200, await need(deps.account).me(who.userId));
       case "GET /v1/me/analyses":

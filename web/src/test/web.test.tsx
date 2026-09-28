@@ -139,6 +139,24 @@ describe("Cuenta", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Dejar de seguir tarifas de gas" })).toBeInTheDocument());
   });
 
+  test("cancelar el plan: dice hasta cuándo sigue, pide confirmar y se puede deshacer", async () => {
+    const api = new FakeApi(
+      sampleMe({
+        plan: { id: "personal", name: "Personal", features: ["content_analysis"], limits: { analysesPerDay: 50, comparisonsPerMonth: 60, maxSourcesPerComparison: 8, maxIncludeUrls: 5, seats: 1 }, price: { amount: 4990, currency: "ARS", interval: "month" } },
+        subscription: { status: "active", interval: "month", currentPeriodEnd: "2026-10-28T12:00:00Z", cancelAtPeriodEnd: false, managedByOrganization: false },
+      }),
+    );
+    renderApp(api, "/cuenta");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Cancelar mi plan" }));
+    expect(screen.getByRole("group", { name: "Confirmar la cancelación" })).toHaveTextContent(/hasta el 28 de oct\.? de 2026/);
+    await user.click(screen.getByRole("button", { name: "Sí, cancelar" }));
+    expect(await screen.findByText("Cancelaste tu plan")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Seguir con Personal" }));
+    expect(await screen.findByRole("button", { name: "Cancelar mi plan" })).toBeInTheDocument();
+    expect(api.calls.map((c) => c.method).filter((m) => /Subscription/.test(m))).toEqual(["cancelSubscription", "resumeSubscription"]);
+  });
+
   test("borrar la cuenta pide escribir la confirmación exacta", async () => {
     const api = new FakeApi(sampleMe());
     renderApp(api, "/cuenta");

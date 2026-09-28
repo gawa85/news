@@ -1,5 +1,5 @@
 import type { Plan, Subscription } from "../../domain/model";
-import type { IPaymentGateway } from "../../domain/ports";
+import type { IPaymentGateway, IRecurringCharges } from "../../domain/ports";
 
 /**
  * Pasarela de pagos de prueba. Para producción se implementa IPaymentGateway con
@@ -14,6 +14,20 @@ export class FakePaymentGateway implements IPaymentGateway {
   async createCheckout(sub: Subscription, plan: Plan): Promise<{ checkoutUrl: string }> {
     this.checkouts.push({ subscriptionId: sub.id, planId: plan.id, amount: sub.charged?.amount ?? plan.price?.amount ?? 0 });
     return { checkoutUrl: `${this.baseUrl}/${sub.id}` };
+  }
+}
+
+/** Cobros recurrentes de prueba: registra qué suscripciones se dejaron de cobrar o se retomaron. */
+export class FakeRecurringCharges implements IRecurringCharges {
+  readonly stopped: string[] = [];
+  readonly resumed: string[] = [];
+
+  async stop(sub: Subscription): Promise<void> {
+    this.stopped.push(sub.id);
+  }
+
+  async resume(sub: Subscription): Promise<void> {
+    this.resumed.push(sub.id);
   }
 }
 

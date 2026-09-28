@@ -72,6 +72,20 @@ export async function testPlatform(opts: { store?: IDataStore; http?: Handler; n
   return { p, store, clock, whatsapp, telegram, mail, http, payments, invoiceIssuer, tts, dns };
 }
 
+/**
+ * Corre la cola hasta vaciarla. El worker toma de a tandas y hay más tareas periódicas que el
+ * tamaño de una tanda: con una sola, qué trabajo entra depende del orden (y en PostgreSQL varía).
+ */
+export async function drainJobs(t: Awaited<ReturnType<typeof testPlatform>>, maxBatches = 10): Promise<number> {
+  let ran = 0;
+  for (let i = 0; i < maxBatches; i++) {
+    const r = await t.p.jobs.worker().runOnce();
+    if (r.ran === 0) break;
+    ran += r.ran;
+  }
+  return ran;
+}
+
 /** Mensaje entrante de WhatsApp ya normalizado. */
 export function wa(from: string, text: string, at: Date, extra: Record<string, unknown> = {}) {
   return { channel: "whatsapp" as const, from, text, externalId: `wamid.${Math.random().toString(36).slice(2)}`, receivedAt: at, displayName: "Ana", ...extra };

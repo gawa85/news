@@ -213,6 +213,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
         (await subs.find({ where: { subject: subjectKeyOf(subject), status: { in: ["trialing", "active", "past_due", "canceled"] } }, orderBy: { field: "createdAt", direction: "desc" }, limit: 1 }))[0],
       save: (s: Subscription) => subs.upsert(s),
       findAll: () => subs.find({ orderBy: { field: "createdAt", direction: "asc" } }),
+      findDue: (now, limit) =>
+        subs.find({ where: { status: { in: ["active", "trialing", "past_due"] }, currentPeriodEnd: { lte: new Date(now.getTime() - 1) } }, orderBy: { field: "currentPeriodEnd", direction: "asc" }, limit }),
     },
     usage: {
       count: (subjectId: string, metric: UsageMetric, since: Date) =>

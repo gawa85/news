@@ -1,6 +1,6 @@
 import { NotFoundError } from "../../domain/errors";
 import type { ContentAnalysis, Feature, Plan, SocialPost } from "../../domain/model";
-import type { IContentAnalysisRepository, IOutletReader, IPlanRepository } from "../../domain/ports";
+import type { IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
 import type { AccessControl } from "../access/AccessControl";
 import type { LegalService } from "../legal/Legal";
 
@@ -54,13 +54,19 @@ export class AccountQueries {
     private readonly plans: IPlanRepository,
     private readonly outlets: IOutletReader,
     private readonly featureLabels: Record<Feature, string>,
+    private readonly subscriptions?: ISubscriptionRepository,
   ) {}
 
   /** Quién soy: datos de la cuenta, plan, uso de hoy y documentos legales por aceptar. */
   async me(userId: string) {
     const user = await this.access.userOrThrow(userId);
-    const { plan } = await this.access.planOf(user);
+    const { plan, subject } = await this.access.planOf(user);
+    const sub = await this.subscriptions?.findCurrent(subject);
     return {
+      /** Para mostrar "se renueva / termina el …" y el botón de cancelar o retomar. */
+      subscription: sub
+        ? { status: sub.status, interval: sub.interval, currentPeriodEnd: sub.currentPeriodEnd, cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd, managedByOrganization: subject.type === "organization" }
+        : undefined,
       id: user.id,
       name: user.name,
       country: user.country,

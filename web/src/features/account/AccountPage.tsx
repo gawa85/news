@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import type { Digest, Preferences, ResponseFormat } from "../../api/types";
-import { formatPrice, limitText } from "../../domain/labels";
+import { formatDate, formatPrice, limitText } from "../../domain/labels";
 import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
@@ -41,15 +41,81 @@ export function AccountPage() {
               Comparaciones este mes: {me.usage.comparisons} de {limitText(me.plan.limits.comparisonsPerMonth, "por mes")}
             </li>
           </ul>
-          <Link className="btn btn--secondary" to="/planes">
-            Cambiar de plan
-          </Link>
+          <div className="row">
+            <Link className="btn btn--secondary" to="/planes">
+              Cambiar de plan
+            </Link>
+          </div>
+          {me.plan.price && me.subscription && !me.subscription.managedByOrganization && <CancelSubscription />}
         </section>
       </div>
       <PreferencesForm />
       <FollowedTopics />
       <SessionAndData />
     </Page>
+  );
+}
+
+/**
+ * Cancelar sin trampas: se dice cuándo termina, se confirma una sola vez y se puede deshacer.
+ * Sigue con su plan hasta el fin del período que ya pagó; después, plan Gratis.
+ */
+function CancelSubscription() {
+  const api = useApi();
+  const { me, refresh } = useSession();
+  const [confirming, setConfirming] = useState(false);
+  const cancel = useAction(async () => {
+    await api.cancelSubscription();
+    await refresh();
+    setConfirming(false);
+    return true;
+  });
+  const resume = useAction(async () => {
+    await api.resumeSubscription();
+    await refresh();
+    return true;
+  });
+  const sub = me!.subscription!;
+  const until = formatDate(sub.currentPeriodEnd);
+  if (sub.cancelAtPeriodEnd) {
+    return (
+      <div className="stack" style={{ marginTop: "var(--space-4)" }}>
+        <Notice title="Cancelaste tu plan">
+          <p>
+            Seguís con {me!.plan.name} hasta el {until}. Después pasás al plan Gratis y no se te cobra más.
+          </p>
+          <button type="button" className="btn btn--small" onClick={() => void resume.run()} disabled={resume.pending}>
+            Seguir con {me!.plan.name}
+          </button>
+        </Notice>
+        <ErrorAlert error={resume.error} />
+      </div>
+    );
+  }
+  return (
+    <div className="stack" style={{ marginTop: "var(--space-4)" }}>
+      <p className="muted">Se renueva el {until}.</p>
+      {!confirming ? (
+        <button type="button" className="btn btn--ghost" onClick={() => setConfirming(true)}>
+          Cancelar mi plan
+        </button>
+      ) : (
+        <div className="card card--flat stack" role="group" aria-label="Confirmar la cancelación">
+          <p>
+            Seguís con {me!.plan.name} hasta el <strong>{until}</strong> (ya está pagado). Después pasás al plan Gratis. Lo podés deshacer hasta esa fecha.
+          </p>
+          <div className="row">
+            <button type="button" className="btn btn--danger" onClick={() => void cancel.run()} disabled={cancel.pending}>
+              Sí, cancelar
+            </button>
+            <button type="button" className="btn btn--secondary" onClick={() => setConfirming(false)}>
+              No, seguir
+            </button>
+          </div>
+          <ErrorAlert error={cancel.error} />
+        </div>
+      )}
+    </div>
   );
 }
 

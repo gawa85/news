@@ -170,6 +170,7 @@ export const schemas = {
       subject: { type: "text", get: (s: Subscription) => subjectKey(s.subject) },
       status: { type: "text", get: (s: Subscription) => s.status },
       createdAt: { type: "text", get: (s: Subscription) => s.createdAt },
+      currentPeriodEnd: { type: "text", get: (s: Subscription) => s.currentPeriodEnd },
     },
   } satisfies CollectionSchema<Subscription>,
   usage: {

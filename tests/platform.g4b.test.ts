@@ -10,7 +10,7 @@ import { TOPICS } from "../src/config/topics";
 import { SEED_EVALUATION_SET } from "../src/config/evaluationSet";
 import { FEEDBACK_ASK } from "../src/application/messaging/ResponseComposer";
 import { seedPlatform } from "../src/composition/platform";
-import { testPlatform, userWithPlan, wa, withRoles, type Handler } from "./helpers/platform";
+import { drainJobs, testPlatform, userWithPlan, wa, withRoles, type Handler } from "./helpers/platform";
 
 const OUTLETS_CSV = `id;nombre;url;tipo;pais;provincia;localidad;rss;alias
 nortehoy;Norte Hoy;https://nortehoy.example;digital;AR;Salta;Salta;https://nortehoy.example/rss;Ediciones Boreales|NH
@@ -155,7 +155,7 @@ describe("Noticias reales desde los feeds", () => {
     const { t, admin } = await withCatalog();
     await t.p.catalog.import.execute({ actorId: admin.id, sourceId: "medios" });
     await t.p.jobs.scheduler.tick();
-    await t.p.jobs.worker().runOnce();
+    await drainJobs(t);
     assert.equal((await t.store.repos.articles.find({ topic: "tarifas de gas" })).filter((a) => a.outletId === "nortehoy").length, 1);
   });
 });

@@ -16,6 +16,19 @@ export interface ISubscriptionRepository {
   save(subscription: Subscription): Promise<void>;
   /** Todas (para métricas del negocio). Con muchos clientes conviene una vista materializada. */
   findAll(): Promise<Subscription[]>;
+  /** Vigentes cuyo período ya terminó (para vencerlas). */
+  findDue(now: Date, limit: number): Promise<Subscription[]>;
+}
+
+/**
+ * Cobros recurrentes del proveedor (débito automático de Mercado Pago, Stripe…). Aparte de
+ * IPaymentGateway porque no todos los proveedores los tienen (ISP).
+ */
+export interface IRecurringCharges {
+  /** Que no se cobre más (la persona canceló). */
+  stop(subscription: Subscription): Promise<void>;
+  /** Que se vuelva a cobrar (deshizo la cancelación antes de que venza). */
+  resume(subscription: Subscription): Promise<void>;
 }
 
 export interface IUsageRepository {
