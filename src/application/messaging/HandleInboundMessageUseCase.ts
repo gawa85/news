@@ -32,11 +32,14 @@ import type { ScreenshotService } from "../inclusion/Screenshots";
 import type { EvidenceService } from "../evidence/Evidence";
 import type { DigestService } from "../digest/Digests";
 import type { IAbusePolicy } from "../abuse/AbuseGuard";
+import type { ResponseLocalizer } from "../language/Translation";
+import type { ILanguageDetector } from "../../domain/ports";
+import { BASE_LANGUAGE, MIN_DETECTION_CONFIDENCE, SUPPORTED_LANGUAGES } from "../../config/languages";
 
-const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe"];
-const OPT_IN_WORDS = ["alta", "start"];
-const YES_WORDS = ["si", "sí", "sí!", "si!", "me sirvio", "me sirvió"];
-const NO_WORDS = ["no", "no me sirvio", "no me sirvió", "no!"];
+const OPT_OUT_WORDS = ["baja", "stop", "cancelar avisos", "unsubscribe", "sair", "parar avisos"];
+const OPT_IN_WORDS = ["alta", "start", "voltar"];
+const YES_WORDS = ["si", "sí", "sí!", "si!", "me sirvio", "me sirvió", "sim", "yes"];
+const NO_WORDS = ["no", "no me sirvio", "no me sirvió", "no!", "não", "nao"];
 
 /** Quien recibe la respuesta a "¿Te sirvió?" (lo implementa FeedbackService). */
 export interface IFeedbackSink {
@@ -62,6 +65,10 @@ export interface InboundExtras {
   evidence?: EvidenceService;
   digests?: DigestService;
   abuse?: IAbusePolicy;
+  /** Respuestas en el idioma de la persona. */
+  localizer?: ResponseLocalizer;
+  /** Para elegir el idioma de quien escribe por primera vez. */
+  languageDetector?: ILanguageDetector;
 }
 
 const QUIZ_SMOKE = ["humo", "es humo", "tiene humo"];
@@ -98,9 +105,9 @@ export class HandleInboundMessageUseCase {
 
   async execute(msg: InboundMessage): Promise<{ user: User; response: ResponseContent; delivery: DeliveryResult }> {
     await this.windows.touch(msg.channel, msg.from, msg.receivedAt);
-    const user =
-      (await this.users.findByChannel(msg.channel, msg.from)) ??
-      (await this.register.execute({ name: msg.displayName ?? "Usuario", channel: { type: msg.channel, address: msg.from, verified: true } }));
+    const existing = await this.users.findByChannel(msg.channel, msg.from);
+    const user = existing ?? (await this.register.execute({ name: msg.displayName ?? "Usuario", channel: { type: msg.channel, address: msg.from, verified: true } }));
+    if (!existing) await this.guessLanguage(user, msg.text);
 
     const handle = async () => {
       let response = await this.respond(user, msg);
@@ -229,6 +236,8 @@ export class HandleInboundMessageUseCase {
       out = this.composer.format(out, prefs.responseFormat);
       if (prefs.responseFormat === "easy_read" && this.extras.plainLanguage && out.kind === "result") out = await this.extras.plainLanguage.rewrite(out);
     }
+    // Idioma de la persona: se traduce la respuesta ya armada (antes del audio, que la lee).
+    if (prefs && prefs.language !== BASE_LANGUAGE && this.extras.localizer) out = await this.extras.localizer.localize(out, prefs.language);
     if (prefs?.audioReplies && this.extras.audio && out.kind !== "error") {
       const { plan } = await this.access.planOf(user);
       const flagOn = this.extras.flags ? await this.extras.flags.isEnabled("audio_replies", { userId: user.id, organizationId: user.organizationId, planId: plan.id, country: user.country }) : true;
@@ -339,6 +348,14 @@ export class HandleInboundMessageUseCase {
         const list = await this.need(this.extras.support, "El soporte").listMine(user.id);
         return { kind: "info", title: "Tus tickets", summary: list.length ? undefined : "No tenés tickets. Escribí /soporte y tu consulta.", sections: list.slice(0, 5).map((t) => ({ heading: `${t.id} · ${t.status}`, lines: [t.subject] })), links: [] };
       }
+      case "set_language": {
+        const names = SUPPORTED_LANGUAGES.map((l) => `${l.code} (${l.name})`).join(", ");
+        const lang = SUPPORTED_LANGUAGES.find((l) => l.code === cmd.language || l.name.toLowerCase() === cmd.language);
+        if (!lang) return this.composer.info("¿En qué idioma te respondo?", `Escribí /idioma y uno de estos: ${names}.`);
+        if (lang.code !== BASE_LANGUAGE && !this.extras.localizer) return this.composer.info("Por ahora respondo sólo en castellano.");
+        await this.prefs().update({ actorId: user.id, values: { language: lang.code } });
+        return this.composer.info(`Listo: te respondo en ${lang.name}.`);
+      }
       case "digest_now":
         return this.need(this.extras.digests, "El resumen").preview(user);
       case "digest_set": {
@@ -362,6 +379,14 @@ export class HandleInboundMessageUseCase {
         return this.composer.preferences(p, names);
       }
     }
+  }
+
+  /** Quien escribe por primera vez en otro idioma recibe las respuestas en ese idioma (lo puede cambiar con /idioma). */
+  private async guessLanguage(user: User, text: string): Promise<void> {
+    if (!this.extras.languageDetector || !this.extras.localizer || !this.extras.preferences || !text.trim()) return;
+    const d = await this.extras.languageDetector.detect(text);
+    if (d.language === BASE_LANGUAGE || d.confidence < MIN_DETECTION_CONFIDENCE || !SUPPORTED_LANGUAGES.some((l) => l.code === d.language)) return;
+    await this.extras.preferences.update({ actorId: user.id, values: { language: d.language } });
   }
 
   private need<T>(x: T | undefined, what: string): T {

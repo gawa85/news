@@ -53,7 +53,8 @@ import { LLMInjectionDetector, RuleBasedInjectionDetector, UnicodeTextSanitizer 
 import { GuardedClaimExtractor, GuardedSmokeDetector, PromptSafetyGuard } from "../application/safety/PromptSafety";
 import type { InjectionThresholds } from "../domain/rules/promptInjection";
 import type { InjectionAssessment } from "../domain/model";
-import type { IPromptInjectionDetector } from "../domain/ports";
+import type { ILanguageDetector, IPromptInjectionDetector, ITranslator } from "../domain/ports";
+import { TranslatingClaimExtractor, TranslatingSmokeDetector } from "../application/language/Translation";
 import { HttpArticleFetcher, InMemoryArticleFetcher } from "../infrastructure/news/ArticleFetchers";
 import { CompositeNewsSearchProvider } from "../infrastructure/news/CompositeNewsSearchProvider";
 import { InMemoryNewsProvider } from "../infrastructure/news/InMemoryNewsProvider";
@@ -92,6 +93,8 @@ export interface AppConfig {
     llm?: (client: ILLMClient) => ILLMClient;
     smokeDetector?: (detector: ISmokeDetector) => ISmokeDetector;
   };
+  /** Traducción: mensajes y notas en otros idiomas se traducen al castellano antes de analizarlos. */
+  translation?: { translator: ITranslator; detector: ILanguageDetector };
   /** Guardián de instrucciones escondidas: umbrales, aviso de detecciones y detector extra con IA. */
   promptSafety?: {
     thresholds?: InjectionThresholds;
@@ -132,6 +135,13 @@ export function buildApp(config: AppConfig) {
     smokeDetector = new GuardedSmokeDetector(rules, rules, guard);
     extractor = new SentenceClaimExtractor();
     classifier = new RuleBasedDisagreementClassifier();
+  }
+  // Otros idiomas: se traduce antes (y por fuera del guardián: así las reglas en castellano
+  // también ven los intentos de manipulación escritos en portugués o inglés).
+  if (config.translation) {
+    const { translator, detector } = config.translation;
+    smokeDetector = new TranslatingSmokeDetector(smokeDetector, detector, translator);
+    extractor = new TranslatingClaimExtractor(extractor, detector, translator);
   }
   if (config.decorate?.smokeDetector) smokeDetector = config.decorate.smokeDetector(smokeDetector);
   const clusterer = new SimilarityClaimClusterer(similarity, ids);

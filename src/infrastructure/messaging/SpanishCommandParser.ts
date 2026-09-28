@@ -77,6 +77,8 @@ export class SpanishCommandParser implements ICommandParser {
         return rest ? { type: "support", text: rest } : { type: "support_list" };
       case "tickets":
         return { type: "support_list" };
+      case "idioma":
+        return { type: "set_language", language: rest.toLowerCase().split(/\s+/)[0] ?? "" };
       case "resumen": {
         if (/^(diari[oa]|todos los d[ií]as|daily)$/i.test(rest)) return { type: "digest_set", frequency: "daily" };
         if (/^(semanal|una vez por semana|weekly)$/i.test(rest)) return { type: "digest_set", frequency: "weekly" };

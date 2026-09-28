@@ -110,6 +110,9 @@ import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
 import { DatabaseEvidenceBlobStore } from "../infrastructure/evidence/EvidenceStores";
 import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMediaFetcher, IOcr, IRateLimiter, ISpeechToText } from "../domain/ports";
 import type { RateRule } from "../domain/model";
+import type { ILanguageDetector, ITranslator } from "../domain/ports";
+import { MultilingualCommandParser, ResponseLocalizer } from "../application/language/Translation";
+import { CachedTranslator, MeteredTranslator, StopwordLanguageDetector } from "../infrastructure/language/LanguageAdapters";
 import { AbuseGuard, RestrictionAdmin } from "../application/abuse/AbuseGuard";
 import { ThrottledInbound } from "../application/abuse/ThrottledInbound";
 import { StoreRateLimiter } from "../infrastructure/abuse/RateLimiters";
@@ -185,6 +188,10 @@ export interface PlatformConfig {
    * sin sello de tiempo ni copia pública (se activan pasando sus adaptadores).
    */
   evidence?: Partial<EvidenceProviders>;
+  /** Traducción automática (sin esto: sólo castellano y no se comparan fuentes en otros idiomas). */
+  translator?: ITranslator;
+  /** Detector de idioma (por defecto, por palabras frecuentes). */
+  languageDetector?: ILanguageDetector;
   /** Partes extra del resumen (se agregan al final de las de siempre). */
   digestSources?: IDigestSource[];
   /**
@@ -220,6 +227,15 @@ export function buildPlatform(cfg: PlatformConfig) {
   const costs = new CostTracker(repos.costs, PRICE_TABLE, requestContext, clock, metrics);
   const cache = new MemoryTtlCache(clock);
 
+  // ---- Idiomas: el traductor se envuelve con caché (afuera) y costo (adentro: sólo lo que se tradujo) ----
+  const languageDetector = cfg.languageDetector ?? new StopwordLanguageDetector();
+  const translator = cfg.translator
+    ? new CachedTranslator(
+        new MeteredTranslator(cfg.translator, (provider, chars) => costs.units("translation", provider, { characters: chars }, (chars / 1_000_000) * PRICE_TABLE.translationPerMillionCharsUsd)),
+        cache,
+      )
+    : undefined;
+
   const core = buildApp({
     ...cfg.core,
     clock,
@@ -235,6 +251,7 @@ export function buildPlatform(cfg: PlatformConfig) {
         cfg.core.promptSafety?.onDetected?.(a, where);
       },
     },
+    translation: translator ? { translator, detector: languageDetector } : undefined,
   });
   const { ids, logger } = core;
   const forums = { discourse: [], wordpress: [], sites: [], ...cfg.forums };
@@ -498,9 +515,14 @@ export function buildPlatform(cfg: PlatformConfig) {
 
   // ---- Chat entrante (los webhooks usan `abuse.inbound`: este mismo caso de uso con el freno delante) ----
   const inbound = new HandleInboundMessageUseCase(
-    repos.users, register, new SpanishCommandParser(), gateway, access, saveRules, repos.ruleSets, repos.outlets,
+    repos.users, register, new MultilingualCommandParser(new SpanishCommandParser()), gateway, access, saveRules, repos.ruleSets, repos.outlets,
     composer, notifications, repos.conversationWindows, repos.optOuts, requestContext,
-    { feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence, digests, abuse: abuseGuard },
+    {
+      feedback, preferences, taxonomy, params, learning, support, referrals, branding, audio, plainLanguage, flags, legal, voice, screenshots, evidence, digests,
+      abuse: abuseGuard,
+      localizer: translator ? new ResponseLocalizer(translator) : undefined,
+      languageDetector,
+    },
   );
 
   return {

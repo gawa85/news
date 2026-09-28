@@ -22,10 +22,11 @@ import type {
   ITopicResolver,
   IUserRepository,
 } from "../../domain/ports";
+import { SUPPORTED_LANGUAGES } from "../../config/languages";
 
 const FORMATS = ["short", "detailed", "easy_read"] as const;
 const DIGESTS = ["off", "daily", "weekly"] as const;
-const LANGUAGES = ["es"]; // se amplía con la internacionalización (grupo 3)
+const LANGUAGES = SUPPORTED_LANGUAGES.map((l) => l.code);
 
 /**
  * PREFERENCIAS de cada persona y valores por defecto de la organización.

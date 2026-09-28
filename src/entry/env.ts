@@ -15,6 +15,10 @@ import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastruct
 import { HCaptcha, TurnstileCaptcha } from "../infrastructure/abuse/AbuseAdapters";
 import { DISPOSABLE_EMAIL_DOMAINS } from "../config/abuse";
 import { readFileSync } from "node:fs";
+import type { ITranslator } from "../domain/ports";
+import { DeepLTranslator, GoogleTranslator, LLMTranslator } from "../infrastructure/language/LanguageAdapters";
+import { SpotlightingLLMClient } from "../infrastructure/llm/SpotlightingLLMClient";
+import { AnthropicLLMClient } from "../infrastructure/llm/AnthropicLLMClient";
 import { OpenAiCompatibleSpeechToText, TelegramFileFetcher, WhatsAppMediaFetcher } from "../infrastructure/inclusion/SpeechAdapters";
 import { profileFor, validateEnvironment } from "../composition/environment";
 import { FileSystemBackupSink, S3BackupSink } from "../infrastructure/ops/BackupSinks";
@@ -87,6 +91,21 @@ function abuseFromEnv() {
   };
 }
 
+/**
+ * Traducción: TRANSLATOR=deepl (DEEPL_API_KEY) | google (GOOGLE_TRANSLATE_API_KEY) | claude (ANTHROPIC_API_KEY).
+ * Sin elegir, el que tenga clave. Con Claude, el costo se estima por caracteres como los demás.
+ */
+function translatorFromEnv(http: IHttpClient): ITranslator | undefined {
+  const pick = env("TRANSLATOR") || (env("DEEPL_API_KEY") ? "deepl" : env("GOOGLE_TRANSLATE_API_KEY") ? "google" : "");
+  if (pick === "deepl" && env("DEEPL_API_KEY")) return new DeepLTranslator(http, env("DEEPL_API_KEY")!);
+  if (pick === "google" && env("GOOGLE_TRANSLATE_API_KEY")) return new GoogleTranslator(http, env("GOOGLE_TRANSLATE_API_KEY")!);
+  if (pick === "claude" && env("ANTHROPIC_API_KEY")) {
+    // El contenido a traducir es de terceros: viaja marcado como datos (spotlighting).
+    return new LLMTranslator(new SpotlightingLLMClient(new AnthropicLLMClient({ apiKey: env("ANTHROPIC_API_KEY")!, model: env("TRANSLATOR_MODEL") || "claude-haiku-4-5" })));
+  }
+  return undefined;
+}
+
 /** Capturas: OCR_PROVIDER=claude (usa ANTHROPIC_API_KEY) | google (GOOGLE_VISION_API_KEY). Sin elegir, el que tenga clave. */
 function ocrFromEnv(http: IHttpClient): IOcr | undefined {
   const provider = env("OCR_PROVIDER") || (env("GOOGLE_VISION_API_KEY") ? "google" : env("ANTHROPIC_API_KEY") ? "claude" : "");
@@ -157,6 +176,7 @@ export async function platformFromEnv() {
     ocr: ocrFromEnv(http),
     evidence: evidenceFromEnv(http),
     abuse: abuseFromEnv(),
+    translator: translatorFromEnv(http),
     supportDesk: env("ZENDESK_SUBDOMAIN")
       ? new ZendeskSupportDesk(http, { subdomain: env("ZENDESK_SUBDOMAIN")!, email: env("ZENDESK_EMAIL") ?? "", apiToken: env("ZENDESK_API_TOKEN") ?? "" })
       : undefined,

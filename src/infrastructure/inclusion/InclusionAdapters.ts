@@ -90,7 +90,8 @@ export class GoogleCloudTextToSpeech implements ITextToSpeech {
   ) {}
 
   async synthesize(text: string, language: string): Promise<{ data: Buffer; mime: string; seconds?: number }> {
-    const languageCode = language === "es" ? "es-US" : language;
+    // Google pide la variante regional (hay voces en español latino, portugués de Brasil, inglés de EE. UU.).
+    const languageCode = ({ es: "es-US", pt: "pt-BR", en: "en-US" } as Record<string, string>)[language] ?? language;
     const res = await this.http.send("POST", `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.cfg.apiKey)}`, {
       input: { text },
       voice: { languageCode, ...(this.cfg.voices?.[language] ? { name: this.cfg.voices[language] } : {}) },

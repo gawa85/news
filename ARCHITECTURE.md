@@ -528,6 +528,18 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
   - Se envía con `notifyUser`: respeta el horario de silencio (lo posterga), el orden de canales, la marca blanca, la ventana de WhatsApp (afuera, con la plantilla `resumen_sin_humo`, que **hay que aprobar en Meta**) y el límite por destinatario.
   - `DigestAudience` encuentra a quién le toca por índices: personas que lo pidieron y miembros de organizaciones que lo tienen por defecto. Si la organización lo bloquea, ninguno puede apagarlo.
   - El **diario** es de los planes pagos (`daily_digest`); en el plan gratis se manda el semanal. Función en prueba `digest` para el apagado de emergencia. Una parte que falla no tira abajo el resumen.
+- **Idiomas y traducción**: el producto está escrito en castellano y los demás idiomas (portugués e inglés, en `config/languages.ts`) se sirven **traduciendo**. Todo son decoradores de puertos que ya existían (OCP):
+
+  | Puerto | Adaptadores |
+  |---|---|
+  | `ILanguageDetector` | `StopwordLanguageDetector` (por palabras frecuentes, sin red ni costo, `domain/rules/language.ts`) |
+  | `ITranslator` | `DeepLTranslator`, `GoogleTranslator`, `LLMTranslator` (Claude, con spotlighting), `FakeTranslator`. Decoradores: `CachedTranslator` (no se traduce dos veces lo mismo) y `MeteredTranslator` (costo `translation` por caracteres, sólo de lo que se tradujo) |
+
+  - `TranslatingSmokeDetector`: un mensaje en otro idioma se traduce antes de buscar humo, porque el diccionario y las instrucciones del modelo están en castellano. Va por fuera del guardián de instrucciones escondidas, así los intentos escritos en otro idioma también se detectan.
+  - `TranslatingClaimExtractor`: las notas en otros idiomas se traducen antes de extraer afirmaciones, así **se pueden comparar con las fuentes locales**. Sin traducir, la comparación por similitud nunca las agruparía.
+  - `ResponseLocalizer`: la respuesta ya armada se traduce al idioma de la persona en **una sola llamada**, protegiendo links, comandos, menciones y palabras clave (SÍ/NO/BAJA). Si falla, sale en castellano. El audio se genera después, así que también sale en ese idioma.
+  - `MultilingualCommandParser` (decorador del intérprete): acepta `/ajuda`, `/help`, `/resumo semanal`, `/save <link> watch`… y los pasa al intérprete en castellano. `/idioma pt | en | es` cambia el idioma, y quien escribe por primera vez en otro idioma lo recibe elegido si la detección es confiable.
+  - Límites: el aviso legal y los pies de cumplimiento siguen en castellano, porque traducirlos a máquina no es aceptable para un texto legal. Si hace falta, se cargan versiones revisadas.
 - **Abuso y captcha** (`AbuseGuard`): uso automatizado, spam y cuentas en masa. Protege el costo (audios, imágenes y sellos se pagan), la calidad de los números de WhatsApp y a terceros (nadie puede usarnos para mandar mails a una casilla ajena).
 
   | Puerto | Adaptadores |
@@ -568,6 +580,8 @@ Los ids de las afirmaciones son **estables** (derivados de la nota y del texto):
 | Otro proveedor de mail (SES, Resend) | Otra clase `IEmailTransport` |
 | Otro transcriptor de audio (Google, Deepgram) | Otra clase `ISpeechToText` |
 | Otro lector de capturas (Azure, Tesseract local) | Otra clase `IOcr` |
+| Otro idioma (francés, italiano) | Agregarlo a `config/languages.ts` (y sus alias de comandos); el traductor hace el resto |
+| Otro traductor (Azure, un modelo propio) | Otra clase `ITranslator` |
 | Otro captcha (reCAPTCHA) u otra señal de abuso (reputación de IP) | Clase `ICaptchaVerifier` / `IAbuseSignalProvider` (`abuse.signals`) |
 | Límites en Redis en vez de la base | Otra clase `IRateLimiter` (`abuse.limiter`) |
 | Una parte nueva en el resumen (p. ej. "tu uso de la semana") | Clase `IDigestSource` en la lista de `buildPlatform` o en `digestSources` |
