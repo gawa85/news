@@ -130,3 +130,20 @@ export function ScoreBar({ score, label }: { score: number | null; label: string
     </div>
   );
 }
+
+/** Texto con sus links clickeables (se abren aparte, sin pasar datos de la sala). */
+export function Linked({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(https?:\/\/[^\s)]+)/g).map((part, i) =>
+        i % 2 === 1 ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer">
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}

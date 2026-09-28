@@ -4,7 +4,7 @@ import { useApi } from "../../api/ApiContext";
 import type { RoomMessage, TeamRoomDetails } from "../../api/types";
 import { formatDate, formatDateTime } from "../../domain/labels";
 import { useSession } from "../../session/SessionContext";
-import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
+import { ErrorAlert, Field, Linked, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 
 const LEAD = "Salas de trabajo de tu equipo: para chequear un tema entre todos, en vivo.";
@@ -267,19 +267,3 @@ function ArchiveRoom({ d, onArchived }: { d: TeamRoomDetails; onArchived: () => 
   );
 }
 
-/** Texto con sus links clickeables (se abren aparte, sin pasar datos de la sala). */
-function Linked({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(https?:\/\/[^\s)]+)/g).map((part, i) =>
-        i % 2 === 1 ? (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer">
-            {part}
-          </a>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}

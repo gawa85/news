@@ -54,6 +54,19 @@ describe("Acceso", () => {
     expect(api.calls.find((c) => c.method === "requestMagicLink")?.args[0]).toBe("ana@correo.example");
   });
 
+  test("el captcha no se carga de entrada: aparece sólo cuando el servidor lo pide", async () => {
+    const api = new FakeApi();
+    api.demandCaptcha = true;
+    renderApp(api, "/entrar");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Tu mail"), "ana@correo.example");
+    expect(screen.queryByText("Verificación")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Mandame el enlace" }));
+    expect(await screen.findByText(/Confirmá que sos una persona y tocá de nuevo el botón/)).toBeInTheDocument();
+    expect(screen.getByText("Verificación")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mandame el enlace" })).toBeDisabled();
+  });
+
   test("contraseña incorrecta: el error se explica; correcta: entra y va a analizar", async () => {
     const api = new FakeApi();
     renderApp(api, "/entrar");

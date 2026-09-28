@@ -17,11 +17,16 @@ export class FakeApi implements SinHumoApi {
     this.calls.push({ method, args });
   }
 
+  /** Simula "mucha actividad desde tu red": el servidor pide captcha. */
+  demandCaptcha = false;
   async authOptions() {
-    return { providers: ["google"], captcha: null };
+    return { providers: ["google"], captcha: this.demandCaptcha ? { provider: "turnstile", siteKey: "k" } : null };
   }
   async requestMagicLink(email: string, captchaToken?: string) {
     this.log("requestMagicLink", email, captchaToken);
+    if (this.demandCaptcha && !captchaToken) {
+      throw new ApiError(403, "Resolvé la verificación para seguir.", "captcha_required", undefined, undefined, { provider: "turnstile", siteKey: "k" });
+    }
   }
   async loginWithPassword(email: string, password: string) {
     this.log("loginWithPassword", email, password);

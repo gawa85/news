@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import { ApiError } from "../../api/ApiError";
@@ -41,9 +41,12 @@ export function LoginPage() {
     return true;
   });
   const failure = sendLink.error ?? login.error;
-  // Con captcha configurado se muestra siempre (las altas lo piden; Turnstile casi nunca molesta).
-  // Si igual el servidor lo pide (mucha actividad), llega en el error.
-  const captcha = options.data?.captcha ?? (failure instanceof ApiError ? failure.captcha : undefined);
+  // El captcha aparece SÓLO cuando el servidor lo pide (mucha actividad desde la red): así la
+  // mayoría no carga el script del proveedor. Una vez pedido, queda hasta que se complete.
+  const [captcha, setCaptcha] = useState<{ provider: string; siteKey: string }>();
+  useEffect(() => {
+    if (failure instanceof ApiError && failure.captcha) setCaptcha(failure.captcha);
+  }, [failure]);
 
   if (me) return <Navigate to={next} replace />;
 
@@ -86,7 +89,13 @@ export function LoginPage() {
               </Field>
             )}
             {captcha && <Captcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={onToken} />}
-            <ErrorAlert error={failure instanceof ApiError && failure.needsCaptcha && !captchaToken ? undefined : failure} />
+            {failure instanceof ApiError && failure.needsCaptcha ? (
+              <Notice title="Falta un paso">
+                <p>Hay mucha actividad desde tu red. Confirmá que sos una persona y tocá de nuevo el botón.</p>
+              </Notice>
+            ) : (
+              <ErrorAlert error={failure} />
+            )}
             <div className="row">
               <button className="btn" type="submit" disabled={sendLink.pending || login.pending || !email.trim() || (!!captcha && !captchaToken)}>
                 {mode === "link" ? (sendLink.pending ? "Enviando…" : "Mandame el enlace") : login.pending ? "Entrando…" : "Entrar"}

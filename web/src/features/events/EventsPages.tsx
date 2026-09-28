@@ -4,7 +4,7 @@ import { useApi } from "../../api/ApiContext";
 import type { PublicEvent, RoomMessage } from "../../api/types";
 import { formatDateTime } from "../../domain/labels";
 import { useSession } from "../../session/SessionContext";
-import { ErrorAlert, Field, Page, Spinner } from "../../ui/components";
+import { ErrorAlert, Field, Linked, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 
 const STATUS: Record<PublicEvent["status"], [string, string]> = {
@@ -94,7 +94,9 @@ export function EventPage() {
             {checks.map((m) => (
               <li key={m.id} className="finding finding--fact">
                 <span className="muted">{formatDateTime(m.at)}</span>
-                <p style={{ margin: "var(--space-1) 0 0" }}>{m.text}</p>
+                <p style={{ margin: "var(--space-1) 0 0", overflowWrap: "anywhere" }}>
+                  <Linked text={m.text} />
+                </p>
               </li>
             ))}
           </ol>
@@ -113,7 +115,9 @@ export function EventPage() {
             <li key={m.id}>
               <strong>{m.alias ?? "Participante"}</strong> <span className="muted">· {formatDateTime(m.at)}</span>
               {m.flags.includes("sin_fuente") && <span className="badge badge--smoke" style={{ marginInlineStart: "var(--space-2)" }}>Cifra sin fuente</span>}
-              <p style={{ margin: "var(--space-1) 0 0", whiteSpace: "pre-wrap" }}>{m.text}</p>
+              <p style={{ margin: "var(--space-1) 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                <Linked text={m.text} />
+              </p>
             </li>
           ))}
         </ol>

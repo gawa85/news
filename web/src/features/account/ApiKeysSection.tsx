@@ -17,7 +17,9 @@ const DEFAULT_SCOPES = ["content:analyze", "smoke:analyze"];
 export function ApiKeysSection() {
   const api = useApi();
   const { can } = useSession();
-  const data = useAsync(() => api.apiKeys(), [api]);
+  const allowed = can("api_access");
+  // Sin API en el plan no se pide nada al servidor.
+  const data = useAsync(() => (allowed ? api.apiKeys() : Promise.resolve(undefined)), [api, allowed]);
   const [created, setCreated] = useState<string>();
 
   if (!can("api_access")) {
