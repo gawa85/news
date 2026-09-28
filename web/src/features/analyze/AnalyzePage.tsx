@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import { useSession } from "../../session/SessionContext";
-import { ErrorAlert, Field, Page } from "../../ui/components";
+import { ErrorAlert, Field, Notice, Page } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 import { AnalysisResult } from "./AnalysisResult";
 
@@ -34,12 +35,19 @@ export function AnalyzePage() {
 
   return (
     <Page title="Analizar" lead="Pegá un mensaje, una cadena, una nota o un link (también de X, TikTok, YouTube o Telegram). Te mostramos qué es dato y qué es humo.">
+      {left === 0 && (
+        <Notice title="Ya usaste los análisis de hoy">
+          <p>
+            Mañana tenés de nuevo. Si necesitás más, <Link to="/planes">mirá los planes</Link>. Mientras tanto, podés ver tu <Link to="/historial">historial</Link>.
+          </p>
+        </Notice>
+      )}
       <form className="card stack" onSubmit={submit} noValidate>
         <Field label="Texto o link" hint={left !== undefined ? `Te quedan ${left} análisis hoy.` : undefined} error={error}>
           {(p) => <textarea {...p} className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Pegá acá lo que te llegó…" />}
         </Field>
         <div className="row">
-          <button className="btn" type="submit" disabled={analyze.pending}>
+          <button className="btn" type="submit" disabled={analyze.pending || left === 0}>
             {analyze.pending ? "Analizando…" : "Analizar"}
           </button>
           {!text && (

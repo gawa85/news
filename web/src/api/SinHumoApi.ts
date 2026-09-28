@@ -12,6 +12,12 @@ import type {
   PublicPlan,
   Quote,
   Topic,
+  Ticket,
+  TicketCategory,
+  EvidenceSnapshot,
+  EvidenceVerification,
+  PublicEvent,
+  RoomEvent,
 } from "./types";
 
 /**
@@ -54,4 +60,24 @@ export interface SinHumoApi {
   deleteAccount(confirmation: string): Promise<void>;
   /** Link para bajar todos mis datos (Ley 25.326). */
   myDataUrl(): string;
+
+  // Soporte
+  tickets(): Promise<Ticket[]>;
+  openTicket(input: { text: string; subject?: string; category?: TicketCategory }): Promise<Ticket>;
+  replyTicket(id: string, text: string): Promise<Ticket>;
+  rateTicket(id: string, score: number): Promise<void>;
+
+  // Archivo de evidencias
+  evidence(): Promise<EvidenceSnapshot[]>;
+  evidenceHistory(url: string): Promise<EvidenceSnapshot[]>;
+  capture(url: string, monitor: boolean): Promise<EvidenceSnapshot>;
+  verifyEvidence(id: string): Promise<EvidenceVerification>;
+  evidenceFileUrl(id: string, kind: "raw" | "text"): string;
+
+  // Eventos en vivo (se leen sin cuenta)
+  events(): Promise<PublicEvent[]>;
+  event(code: string): Promise<PublicEvent>;
+  /** Mensajes en vivo; devuelve cómo desconectarse. */
+  watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void): () => void;
+  postToRoom(roomId: string, text: string): Promise<void>;
 }

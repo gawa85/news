@@ -14,6 +14,12 @@ import type {
   PublicPlan,
   Quote,
   Topic,
+  Ticket,
+  TicketCategory,
+  EvidenceSnapshot,
+  EvidenceVerification,
+  PublicEvent,
+  RoomEvent,
 } from "./types";
 
 type Fetch = typeof fetch;
@@ -160,5 +166,61 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   myDataUrl() {
     return `${this.base}/v1/me/data`;
+  }
+
+  tickets() {
+    return this.request<Ticket[]>("GET", "/v1/support/tickets");
+  }
+
+  openTicket(input: { text: string; subject?: string; category?: TicketCategory }) {
+    return this.request<Ticket>("POST", "/v1/support/tickets", input);
+  }
+
+  replyTicket(id: string, text: string) {
+    return this.request<Ticket>("POST", `/v1/support/tickets/${encodeURIComponent(id)}/messages`, { text });
+  }
+
+  async rateTicket(id: string, score: number) {
+    await this.request("POST", `/v1/support/tickets/${encodeURIComponent(id)}/rate`, { score });
+  }
+
+  evidence() {
+    return this.request<EvidenceSnapshot[]>("GET", "/v1/evidence?limit=100");
+  }
+
+  evidenceHistory(url: string) {
+    return this.request<EvidenceSnapshot[]>("GET", `/v1/evidence?url=${encodeURIComponent(url)}`);
+  }
+
+  capture(url: string, monitor: boolean) {
+    return this.request<EvidenceSnapshot>("POST", "/v1/evidence", { url, monitor });
+  }
+
+  verifyEvidence(id: string) {
+    return this.request<EvidenceVerification>("GET", `/v1/evidence/${encodeURIComponent(id)}/verify`);
+  }
+
+  evidenceFileUrl(id: string, kind: "raw" | "text") {
+    return `${this.base}/v1/evidence/${encodeURIComponent(id)}/content?kind=${kind}`;
+  }
+
+  events() {
+    return this.request<PublicEvent[]>("GET", "/public/events");
+  }
+
+  event(code: string) {
+    return this.request<PublicEvent>("GET", `/public/events/${encodeURIComponent(code)}`);
+  }
+
+  /** Server-Sent Events: el navegador reconecta solo si se corta. */
+  watchEvent(code: string, onEvent: (e: RoomEvent) => void, onError?: () => void) {
+    const source = new EventSource(`${this.base}/public/events/${encodeURIComponent(code)}/stream`);
+    source.onmessage = (m) => onEvent(JSON.parse(m.data as string) as RoomEvent);
+    if (onError) source.onerror = onError;
+    return () => source.close();
+  }
+
+  async postToRoom(roomId: string, text: string) {
+    await this.request("POST", `/v1/rooms/${encodeURIComponent(roomId)}/messages`, { text });
   }
 }

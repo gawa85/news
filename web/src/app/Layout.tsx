@@ -33,10 +33,12 @@ export function Layout() {
                 <NavLink to="/comparar">Comparar fuentes</NavLink>
                 <NavLink to="/credibilidad">Credibilidad</NavLink>
                 <NavLink to="/historial">Historial</NavLink>
+                <NavLink to="/eventos">Eventos</NavLink>
                 <NavLink to="/cuenta">Mi cuenta</NavLink>
               </>
             ) : (
               <>
+                <NavLink to="/eventos">Eventos en vivo</NavLink>
                 <NavLink to="/planes">Planes</NavLink>
                 <NavLink to="/entrar">Entrar</NavLink>
               </>
@@ -51,9 +53,12 @@ export function Layout() {
       <footer className="site-footer">
         <div className="site-footer__inner">
           <span>Sin Humo · Hechos, no humo.</span>
-          <span>
-            También por WhatsApp, Telegram y mail. <Link to="/planes">Planes</Link>
-          </span>
+          <nav aria-label="Secundaria" className="row">
+            <span>También por WhatsApp, Telegram y mail.</span>
+            {me && <Link to="/archivo">Archivo de notas</Link>}
+            {me && <Link to="/ayuda">Ayuda</Link>}
+            <Link to="/planes">Planes</Link>
+          </nav>
         </div>
       </footer>
     </>

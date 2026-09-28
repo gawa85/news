@@ -123,6 +123,50 @@ describe("Analizar", () => {
   });
 });
 
+describe("Ayuda, archivo y eventos", () => {
+  test("abrir una consulta y verla en la lista", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/ayuda");
+    const user = userEvent.setup();
+    await user.selectOptions(await screen.findByLabelText("¿Sobre qué es?"), "billing");
+    await user.type(screen.getByLabelText("Contanos qué pasó"), "Me cobraron dos veces el plan.");
+    await user.click(screen.getByRole("button", { name: "Enviar" }));
+    expect(await screen.findByText(/Abrimos la consulta T-ABC123/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "openTicket")?.args[0]).toEqual({ text: "Me cobraron dos veces el plan.", category: "billing" });
+    expect(await screen.findByText("Me cobraron dos veces el plan.", { selector: "summary strong" })).toBeInTheDocument();
+  });
+
+  test("el archivo es del plan Profesional; con el plan, guarda y verifica", async () => {
+    renderApp(new FakeApi(sampleMe()), "/archivo");
+    expect(await screen.findByText("El archivo viene con el plan Profesional.")).toBeInTheDocument();
+
+    const api = new FakeApi(sampleMe({ plan: { ...sampleMe().plan, features: ["evidence_archive"] } }));
+    renderApp(api, "/archivo");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Link de la nota"), "https://diario.example/nota");
+    await user.click(screen.getByRole("button", { name: "Guardar copia" }));
+    expect(await screen.findByText(/Guardamos la copia/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "capture")?.args).toEqual(["https://diario.example/nota", true]);
+    await user.click(await screen.findByRole("button", { name: "Verificar que no se alteró" }));
+    expect(await screen.findByText("Todo coincide: la copia no se alteró.")).toBeInTheDocument();
+  });
+
+  test("un evento se sigue sin cuenta: chequeos fijados y mensajes en vivo anunciados", async () => {
+    const api = new FakeApi();
+    renderApp(api, "/eventos/ABC234");
+    expect(await screen.findByRole("heading", { level: 1, name: "Debate presidencial" })).toBeInTheDocument();
+    expect(screen.getByText("FALSO: la inflación fue 3,7%.")).toBeInTheDocument();
+    await waitFor(() => expect(api.emit).toBeDefined());
+    api.emit!({ type: "message", message: { id: "m1", alias: "Participante 4F2A", text: "¿Alguien tiene el dato de desempleo?", links: [], flags: [], at: "2026-09-28T21:15:00Z", deleted: false } });
+    api.emit!({ type: "presence", count: 42 });
+    const chat = await screen.findByRole("region", { name: "Conversación" });
+    expect(await within(chat).findByText("¿Alguien tiene el dato de desempleo?")).toBeInTheDocument();
+    expect(within(chat).getByText("Participante 4F2A")).toBeInTheDocument();
+    expect(screen.getByText(/42 personas mirando/)).toBeInTheDocument();
+    expect(within(chat).getByRole("link", { name: "Entrá" })).toBeInTheDocument();
+  });
+});
+
 describe("Cuenta", () => {
   test("guardar preferencias y seguir un tema", async () => {
     const api = new FakeApi(sampleMe());

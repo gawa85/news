@@ -204,6 +204,75 @@ export interface CredibilityReport {
   rebuttals: { id: string; statement: string; status: string }[];
 }
 
+export type TicketCategory = "account" | "billing" | "bug" | "content_dispute" | "data_request" | "other";
+
+export interface Ticket {
+  id: string;
+  subject: string;
+  category: TicketCategory;
+  priority: "low" | "normal" | "high" | "urgent";
+  status: "open" | "pending" | "solved" | "closed";
+  messages: { id: string; role: "requester" | "agent" | "system"; text: string; at: string }[];
+  firstResponseDueAt: string;
+  satisfaction?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EvidenceSnapshot {
+  id: string;
+  url: string;
+  finalUrl: string;
+  capturedAt: string;
+  reason: "manual" | "recheck";
+  status: "captured" | "gone" | "failed";
+  httpStatus?: number;
+  error?: string;
+  title?: string;
+  rawSha256?: string;
+  change?: { added: string[]; removed: string[] };
+  timestamp?: { provider: string; at: string };
+  externalCopies: { provider: string; url: string; at: string }[];
+  monitorUntil?: string;
+  lastCheckedAt?: string;
+}
+
+export interface EvidenceVerification {
+  snapshotId: string;
+  ok: boolean;
+  checks: { name: string; ok: boolean; detail?: string }[];
+}
+
+export interface RoomMessage {
+  id: string;
+  alias?: string;
+  text: string;
+  links: string[];
+  flags: ("sin_fuente" | "verificacion")[];
+  at: string;
+  deleted: boolean;
+}
+
+export interface PublicEvent {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  host: string;
+  startsAt: string;
+  endsAt: string;
+  status: "scheduled" | "live" | "closed";
+  watching: number;
+  pinned: RoomMessage[];
+}
+
+export type RoomEvent =
+  | { type: "history"; messages: RoomMessage[] }
+  | { type: "message"; message: RoomMessage }
+  | { type: "deleted"; messageId: string }
+  | { type: "presence"; count?: number; userIds?: string[] }
+  | { type: "closed" };
+
 export interface AuthOptions {
   providers: string[];
   captcha: { provider: string; siteKey: string } | null;

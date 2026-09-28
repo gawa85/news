@@ -16,6 +16,17 @@ export function AccountPage() {
   if (!me) return null;
   return (
     <Page title="Mi cuenta">
+      <nav aria-label="Más de tu cuenta" className="row">
+        <Link className="btn btn--secondary btn--small" to="/historial">
+          Historial
+        </Link>
+        <Link className="btn btn--secondary btn--small" to="/archivo">
+          Archivo de notas
+        </Link>
+        <Link className="btn btn--secondary btn--small" to="/ayuda">
+          Ayuda
+        </Link>
+      </nav>
       <div className="grid-2">
         <section className="card" aria-labelledby="datos">
           <h2 id="datos">Tus datos</h2>

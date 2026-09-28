@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { Analysis, Me, Preferences } from "../api/types";
+import type { Analysis, EvidenceSnapshot, EvidenceVerification, Me, Preferences, PublicEvent, RoomEvent, Ticket } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -103,6 +103,71 @@ export class FakeApi implements SinHumoApi {
   }
   myDataUrl() {
     return "/v1/me/data";
+  }
+
+  ticketList: Ticket[] = [];
+  async tickets() {
+    return this.ticketList;
+  }
+  async openTicket(input: { text: string; category?: string }) {
+    this.log("openTicket", input);
+    const t: Ticket = {
+      id: "T-ABC123", subject: input.text.slice(0, 40), category: "other", priority: "normal", status: "open",
+      messages: [{ id: "m1", role: "requester", text: input.text, at: "2026-09-28T12:00:00Z" }],
+      firstResponseDueAt: "2026-09-30T12:00:00Z", createdAt: "2026-09-28T12:00:00Z", updatedAt: "2026-09-28T12:00:00Z",
+    };
+    this.ticketList = [t, ...this.ticketList];
+    return t;
+  }
+  async replyTicket(id: string, text: string) {
+    this.log("replyTicket", id, text);
+    return this.ticketList[0]!;
+  }
+  async rateTicket(id: string, score: number) {
+    this.log("rateTicket", id, score);
+  }
+
+  snapshots: EvidenceSnapshot[] = [];
+  async evidence() {
+    return this.snapshots;
+  }
+  async evidenceHistory() {
+    return this.snapshots;
+  }
+  async capture(url: string, monitor: boolean) {
+    this.log("capture", url, monitor);
+    const s: EvidenceSnapshot = { id: "ev1", url, finalUrl: url, capturedAt: "2026-09-28T12:00:00Z", reason: "manual", status: "captured", title: "Suben las tarifas", rawSha256: "a".repeat(64), externalCopies: [] };
+    this.snapshots = [s, ...this.snapshots];
+    return s;
+  }
+  async verifyEvidence(id: string): Promise<EvidenceVerification> {
+    return { snapshotId: id, ok: true, checks: [{ name: "Huella del registro", ok: true }] };
+  }
+  evidenceFileUrl(id: string, kind: string) {
+    return `/v1/evidence/${id}/content?kind=${kind}`;
+  }
+
+  liveEvent: PublicEvent = {
+    id: "room1", code: "ABC234", title: "Debate presidencial", host: "Diario Norte", startsAt: "2026-09-28T21:00:00Z", endsAt: "2026-09-28T23:00:00Z",
+    status: "live", watching: 3, pinned: [{ id: "p1", alias: "Equipo del evento", text: "FALSO: la inflación fue 3,7%.", links: [], flags: ["verificacion"], at: "2026-09-28T21:10:00Z", deleted: false }],
+  };
+  /** Para simular mensajes en vivo desde la prueba. */
+  emit?: (e: RoomEvent) => void;
+  async events() {
+    return [this.liveEvent];
+  }
+  async event() {
+    return this.liveEvent;
+  }
+  watchEvent(_code: string, onEvent: (e: RoomEvent) => void) {
+    this.emit = onEvent;
+    onEvent({ type: "history", messages: [] });
+    return () => {
+      this.emit = undefined;
+    };
+  }
+  async postToRoom(roomId: string, text: string) {
+    this.log("postToRoom", roomId, text);
   }
 }
 

@@ -8,6 +8,9 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { ComparePage } from "../features/compare/ComparePage";
 import { CredibilityPage } from "../features/credibility/CredibilityPage";
 import { HomePage } from "../features/home/HomePage";
+import { EvidencePage } from "../features/evidence/EvidencePage";
+import { EventPage, EventsPage } from "../features/events/EventsPages";
+import { SupportPage } from "../features/support/SupportPage";
 import { NotFoundPage } from "../features/home/NotFoundPage";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
@@ -27,6 +30,10 @@ export const routes: RouteObject[] = [
       { path: "/comparar", element: guard(<ComparePage />) },
       { path: "/credibilidad", element: guard(<CredibilityPage />) },
       { path: "/cuenta", element: guard(<AccountPage />) },
+      { path: "/archivo", element: guard(<EvidencePage />) },
+      { path: "/ayuda", element: guard(<SupportPage />) },
+      { path: "/eventos", element: <EventsPage /> },
+      { path: "/eventos/:code", element: <EventPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
