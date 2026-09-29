@@ -32,6 +32,7 @@
  *  Verificación:  GET /v1/verification/tasks
  *    POST /v1/verification/tasks/:id/(take|suggest|evidence|resolve|discard)
  *    POST /v1/verification/documents
+ *  Fe de erratas:  POST /v1/corrections { target: { type, id }, outletId?, description }   (corrections:publish)
  *  Participación:
  *    GET  /public/narratives?days=          humo en circulación
  *    GET  /public/perspectives?type=&id=    otras miradas (agrupadas por tipo)
@@ -81,6 +82,8 @@
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups   POST /v1/ops/backups/verify { key }   (ops:backup, una operación por vez)   GET /health (con el ambiente)
  *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
+ *    POST /v1/catalog/outlets { id?, name, url, kind, region, aliases }   GET /v1/catalog/outlets/:id (con feeds y propiedad)
+ *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate)   (outlets:write)
  *  Personas (users:manage_all):  GET /v1/admin/roles   GET /v1/admin/users?q=|filter=staff|suspended   GET /v1/admin/users/:id
  *    POST /v1/admin/users/:id/(roles/add|roles/remove) { roleId }   (suspend|reactivate) { reason }   (outlets/add|outlets/remove) { outletId }
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
@@ -111,6 +114,7 @@ import type { SaveRuleSetUseCase } from "../../application/users/UserSettingsUse
 import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { OutletProfileService } from "../../application/catalog/OutletProfile";
 import type { PlatformUsersService } from "../../application/users/PlatformUsers";
+import type { OutletEditor } from "../../application/catalog/OutletEditor";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -222,7 +226,7 @@ export interface HttpApiDeps {
   costReport: CostReportUseCase;
   participation: { narratives: NarrativeTracker; campaigns: CampaignService; perspectives: PerspectiveService; rooms: RoomService; events: EventRoomService };
   /** `csvSource`: arma una fuente con un CSV subido desde la web (medios, propiedad o pauta). */
-  catalog: { import: ImportCatalogUseCase; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
+  catalog: { import: ImportCatalogUseCase; editor: OutletEditor; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
   config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
   commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry };
@@ -663,6 +667,18 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       return json(res, 200, r);
     }
+    // ---- Medios del catálogo (outlets:write) ----
+    const om = path.match(/^\/v1\/catalog\/outlets(?:\/([^/]+)(?:\/feeds(?:\/([^/]+)\/(activate|deactivate))?)?)?$/);
+    if (om) {
+      const ed = deps.catalog.editor;
+      const id = om[1] ? decodeURIComponent(om[1]) : undefined;
+      if (req.method === "POST" && !id) {
+        return json(res, 200, await ed.save(who.userId, { ...pick(b, ["id", "name", "url", "kind", "aliases"]), region: (typeof b.region === "object" && b.region ? pick(b.region as Record<string, unknown>, ["country", "province", "locality"]) : {}) } as never));
+      }
+      if (id && req.method === "GET" && !path.endsWith("/feeds")) return json(res, 200, await ed.get(who.userId, id));
+      if (id && req.method === "POST" && path.endsWith("/feeds")) return json(res, 201, await ed.addFeed(who.userId, id, str(b.url, "url")));
+      if (id && req.method === "POST" && om[2]) return json(res, 200, await ed.setFeedActive(who.userId, id, decodeURIComponent(om[2]), om[3] === "activate"));
+    }
     // ---- Personas de la plataforma (users:manage_all) ----
     if (path.startsWith("/v1/admin/")) {
       const pu = deps.users.platform;
@@ -990,6 +1006,13 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, await deps.costReport.execute({ actorId: who.userId, from: date(url.searchParams.get("from"), "from"), to: date(url.searchParams.get("to"), "to") }));
       case "GET /v1/verification/tasks":
         return json(res, 200, await deps.verification.queue(who.userId));
+      case "POST /v1/corrections": {
+        const target = (typeof b.target === "object" && b.target ? b.target : {}) as Record<string, unknown>;
+        return json(res, 201, await deps.rebuttals.publishCorrection({
+          actorId: who.userId, target: { type: target.type as string, id: target.id as string }, description: b.description as string,
+          outletId: b.outletId === undefined || b.outletId === "" ? undefined : (b.outletId as string),
+        }));
+      }
       case "POST /v1/verification/documents":
         return json(res, 201, await deps.verification.uploadDocument(who.userId, { ...pick(b, ["title", "issuer", "url", "text", "topics"]), publishedAt: date(b.publishedAt, "publishedAt") } as never));
       // ---- Datos reales y calidad ----

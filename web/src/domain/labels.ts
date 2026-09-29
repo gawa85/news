@@ -87,3 +87,6 @@ export const WEBHOOK_EVENT_LABELS: Record<string, string> = {
   "campaign.launched": "Se lanzó una campaña",
   "perspective.published": "Se publicó otra mirada",
 };
+
+/** Tipos de medio (los mismos que el servidor). */
+export const OUTLET_KIND_LABELS: Record<string, string> = { newspaper: "Diario", digital: "Medio digital", tv: "Televisión", radio: "Radio", official: "Organismo oficial", wire_agency: "Agencia de noticias" };

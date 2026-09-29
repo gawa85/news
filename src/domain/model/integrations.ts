@@ -67,6 +67,8 @@ export const DOMAIN_EVENTS = [
   "verification.task_created",
   "campaign.reviewed",
   "catalog.imported",
+  "outlet.saved",
+  "outlet.feed_changed",
   "model.promoted",
   "invoice.issued",
   "personal_data.exported",

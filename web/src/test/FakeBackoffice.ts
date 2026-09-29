@@ -28,6 +28,11 @@ import type {
   AdminUser,
   RoleInfo,
   UserListFilter,
+  AdminOutlet,
+  OutletDraft,
+  OutletFeed,
+  OutletRecord,
+  NewCorrection,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -363,5 +368,41 @@ export class FakeBackoffice implements BackofficeApi {
       const outlets = u.representsOutletIds.filter((o) => o !== outletId);
       return { ...u, representsOutletIds: outlets, roleIds: outlets.length ? u.roleIds : u.roleIds.filter((r) => r !== "outlet_rep") };
     });
+  }
+
+  records: Record<string, OutletRecord> = {};
+  private record(id: string): OutletRecord {
+    return (this.records[id] ??= {
+      outlet: { id, name: id === "ddv" ? "Diario del Valle" : id, url: `https://${id}.example`, kind: "newspaper", region: { country: "AR", province: "Río Negro" }, aliases: ["DDV"] },
+      feeds: [{ id: `feed:${id}`, outletId: id, url: `https://${id}.example/rss`, active: true, lastFetchedAt: "2026-09-28T09:00:00Z", lastError: "HTTP 503" }],
+      ownership: [{ ownerId: "grupo-norte", ownerName: "Grupo Norte", since: "2015-01-01T00:00:00Z", source: "Registro de medios" }],
+    });
+  }
+  async outletRecord(id: string) {
+    return this.record(id);
+  }
+  async saveOutlet(draft: OutletDraft) {
+    this.log("saveOutlet", draft);
+    const id = draft.id ?? draft.name.toLowerCase().replace(/\W+/g, "-");
+    const outlet: AdminOutlet = { ...draft, id };
+    this.records[id] = { ...(this.records[id] ?? { feeds: [], ownership: [] }), outlet };
+    return outlet;
+  }
+  async addOutletFeed(outletId: string, url: string) {
+    this.log("addOutletFeed", outletId, url);
+    const feed: OutletFeed = { id: `feed:${outletId}:2`, outletId, url, active: true };
+    this.record(outletId).feeds.push(feed);
+    return feed;
+  }
+  async setOutletFeedActive(outletId: string, feedId: string, active: boolean) {
+    this.log("setOutletFeedActive", outletId, feedId, active);
+    const r = this.record(outletId);
+    r.feeds = r.feeds.map((f) => (f.id === feedId ? { ...f, active } : f));
+    return r.feeds.find((f) => f.id === feedId)!;
+  }
+
+  async publishCorrection(input: NewCorrection) {
+    this.log("publishCorrection", input);
+    return { id: "c9" };
   }
 }

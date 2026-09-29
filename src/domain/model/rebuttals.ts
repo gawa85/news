@@ -24,6 +24,10 @@ export interface Rebuttal {
 }
 
 /** FE DE ERRATAS: correcciones públicas de la propia plataforma. */
+/** Qué puede corregir una fe de erratas: un veredicto, una evaluación de credibilidad, una respuesta publicada, un análisis, la metodología u otra cosa. */
+export const CORRECTION_TARGETS = ["verdict", "credibility", "reply", "analysis", "methodology", "other"] as const;
+export type CorrectionTarget = (typeof CORRECTION_TARGETS)[number];
+
 export interface Correction {
   id: string;
   target: { type: string; id: string };

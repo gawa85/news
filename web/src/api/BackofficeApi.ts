@@ -39,6 +39,11 @@ import type {
   AdminUser,
   RoleInfo,
   UserListFilter,
+  AdminOutlet,
+  OutletDraft,
+  OutletFeed,
+  OutletRecord,
+  NewCorrection,
 } from "./backofficeTypes";
 
 /**
@@ -136,4 +141,13 @@ export interface BackofficeApi {
   reactivateUser(userId: string, reason: string): Promise<AdminUser>;
   addRepresentedOutlet(userId: string, outletId: string): Promise<AdminUser>;
   removeRepresentedOutlet(userId: string, outletId: string): Promise<AdminUser>;
+
+  // Medios del catálogo (outlets:write): datos y feeds de uno en particular
+  outletRecord(id: string): Promise<OutletRecord>;
+  saveOutlet(draft: OutletDraft): Promise<AdminOutlet>;
+  addOutletFeed(outletId: string, url: string): Promise<OutletFeed>;
+  setOutletFeedActive(outletId: string, feedId: string, active: boolean): Promise<OutletFeed>;
+
+  // Fe de erratas (corrections:publish): corregir públicamente un error propio
+  publishCorrection(input: NewCorrection): Promise<{ id: string }>;
 }

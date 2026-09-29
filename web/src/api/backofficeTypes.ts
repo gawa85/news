@@ -410,3 +410,44 @@ export interface AdminUser {
 }
 
 export type UserListFilter = "staff" | "suspended";
+
+// ---- Medios del catálogo (outlets:write) ----
+export type OutletKind = "newspaper" | "digital" | "tv" | "radio" | "wire_agency" | "official";
+
+export interface OutletDraft {
+  id?: string;
+  name: string;
+  url: string;
+  kind: OutletKind;
+  region: { country: string; province?: string; locality?: string };
+  aliases: string[];
+}
+
+export interface AdminOutlet extends Omit<OutletDraft, "id" | "aliases"> {
+  id: string;
+  aliases?: string[];
+}
+
+export interface OutletFeed {
+  id: string;
+  outletId: string;
+  url: string;
+  active: boolean;
+  lastFetchedAt?: string;
+  lastError?: string;
+}
+
+export interface OutletRecord {
+  outlet: AdminOutlet;
+  feeds: OutletFeed[];
+  ownership: { ownerId: string; ownerName: string; since: string; until?: string; source: string }[];
+}
+
+// ---- Fe de erratas (corrections:publish) ----
+export type CorrectionTarget = "verdict" | "credibility" | "reply" | "analysis" | "methodology" | "other";
+
+export interface NewCorrection {
+  target: { type: CorrectionTarget; id: string };
+  outletId?: string;
+  description: string;
+}

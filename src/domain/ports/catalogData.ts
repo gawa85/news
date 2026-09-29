@@ -20,6 +20,7 @@ export interface ICatalogRepository {
   findAdvertising(outletId: string, period: Period): Promise<AdvertisingSpend[]>;
   saveAdvertising(a: AdvertisingSpend): Promise<void>;
   findActiveFeeds(): Promise<FeedSource[]>;
+  findFeeds(outletId: string): Promise<FeedSource[]>;
   saveFeed(f: FeedSource): Promise<void>;
 }
 

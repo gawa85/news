@@ -1051,3 +1051,71 @@ describe("Backoffice: personas", () => {
     expect(await screen.findByText("Ninguno.")).toBeInTheDocument();
   });
 });
+
+describe("Backoffice: fe de erratas", () => {
+  test("publicar: pide referencia y descripción; manda sólo lo de la corrección", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["corrections:publish"] })), "/admin/erratas", bo);
+    const user = userEvent.setup();
+    expect(await screen.findByText("Corregimos el veredicto sobre la baja del gas.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Publicar la corrección" }));
+    expect(screen.getByText("Falta la referencia.")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "publishCorrection")).toBe(false);
+
+    await user.selectOptions(screen.getByLabelText("Qué se corrige"), "methodology");
+    await user.type(screen.getByLabelText("Qué parte (p. ej. ponderación de fuentes)"), "ponderación de fuentes");
+    await user.selectOptions(screen.getByLabelText("Medio (si corresponde)"), "ddv");
+    await user.type(screen.getByLabelText("Qué estaba mal y cómo queda", { exact: false }), "Las fuentes oficiales contaban doble en la precisión.");
+    await user.click(screen.getByRole("button", { name: "Publicar la corrección" }));
+    expect(await screen.findByRole("link", { name: "fe de erratas" })).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "publishCorrection")?.args[0]).toEqual({
+      target: { type: "methodology", id: "ponderación de fuentes" }, outletId: "ddv", description: "Las fuentes oficiales contaban doble en la precisión.",
+    });
+  });
+});
+
+describe("Backoffice: medios", () => {
+  const editor = () => new FakeApi(sampleMe({ permissions: ["outlets:write"] }));
+
+  test("editar un medio: se manda completo con su id; feeds se desactivan y se agregan; la propiedad se ve", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(editor(), "/admin/medios", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre, id o sitio del medio"), "valle");
+    await user.click(await screen.findByRole("button", { name: "Editar Diario del Valle" }));
+    expect(await screen.findByText(/Grupo Norte: desde/)).toBeInTheDocument();
+    expect(screen.getByText(/Último error: HTTP 503/)).toBeInTheDocument();
+
+    const name = screen.getByLabelText("Nombre");
+    await user.clear(name);
+    await user.type(name, "Diario del Valle Rionegrino");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await screen.findByText("Cambios guardados.")).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "saveOutlet")?.args[0]).toEqual({
+      id: "ddv", name: "Diario del Valle Rionegrino", url: "https://ddv.example", kind: "newspaper", region: { country: "AR", province: "Río Negro", locality: undefined }, aliases: ["DDV"],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Desactivar el feed https://ddv.example/rss" }));
+    expect(await screen.findByRole("button", { name: "Activar el feed https://ddv.example/rss" })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Dirección de un feed nuevo (RSS o Atom)"), "https://ddv.example/politica.xml");
+    await user.click(screen.getByRole("button", { name: "Agregar feed" }));
+    expect(await screen.findByText("https://ddv.example/politica.xml", { exact: false })).toBeInTheDocument();
+  });
+
+  test("nuevo medio: sin sitio válido no se crea", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(editor(), "/admin/medios", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Nuevo medio" }));
+    await user.type(screen.getByLabelText("Nombre"), "Radio Sur");
+    await user.click(screen.getByRole("button", { name: "Crear medio" }));
+    expect(screen.getByText("Poné la dirección completa (https://…).")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "saveOutlet")).toBe(false);
+    const site = screen.getByLabelText("Sitio");
+    await user.clear(site);
+    await user.type(site, "https://radiosur.example");
+    await user.selectOptions(screen.getByLabelText("Tipo"), "radio");
+    await user.click(screen.getByRole("button", { name: "Crear medio" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "saveOutlet")?.args[0]).toMatchObject({ id: undefined, name: "Radio Sur", kind: "radio", url: "https://radiosur.example" }));
+  });
+});

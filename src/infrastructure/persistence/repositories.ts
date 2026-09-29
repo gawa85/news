@@ -508,6 +508,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findAdvertising: (outletId, p) => advertising.find({ where: { outletId, from: { lte: p.to }, to: { gte: p.from } } }),
       saveAdvertising: (a) => advertising.upsert(a),
       findActiveFeeds: () => feeds.find({ where: { active: true } }),
+      findFeeds: (outletId) => feeds.find({ where: { outletId } }),
       saveFeed: (f) => feeds.upsert(f),
     },
     quality: {

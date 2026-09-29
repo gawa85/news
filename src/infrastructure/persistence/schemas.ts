@@ -505,7 +505,7 @@ export const schemas = {
   feeds: {
     name: "feed_sources",
     idOf: (f: FeedSource) => f.id,
-    indexes: { active: { type: "number", get: (f: FeedSource) => f.active } },
+    indexes: { active: { type: "number", get: (f: FeedSource) => f.active }, outletId: { type: "text", get: (f: FeedSource) => f.outletId } },
   } satisfies CollectionSchema<FeedSource>,
   examples: { name: "labeled_examples", idOf: (e: LabeledExample) => e.id, indexes: {} } satisfies CollectionSchema<LabeledExample>,
   modelVersions: { name: "model_versions", idOf: (v: ModelVersion) => v.id, indexes: {} } satisfies CollectionSchema<ModelVersion>,

@@ -37,6 +37,8 @@ import { TaxonomyPage } from "../features/admin/TaxonomyPage";
 import { PeoplePage } from "../features/admin/PeoplePage";
 import { QualityPage } from "../features/admin/QualityPage";
 import { CatalogPage, DocumentsPage } from "../features/admin/DataPages";
+import { OutletsAdminPage } from "../features/admin/OutletsAdminPage";
+import { CorrectionsAdminPage } from "../features/admin/CorrectionsAdminPage";
 import { AuditPage, BackupsPage, CostsPage } from "../features/admin/OpsPages";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
@@ -88,6 +90,8 @@ export const routes: RouteObject[] = [
           { path: "temas", element: <TaxonomyPage /> },
           { path: "calidad", element: <QualityPage /> },
           { path: "documentos", element: <DocumentsPage /> },
+          { path: "medios", element: <OutletsAdminPage /> },
+          { path: "erratas", element: <CorrectionsAdminPage /> },
           { path: "catalogo", element: <CatalogPage /> },
           { path: "auditoria", element: <AuditPage /> },
           { path: "costos", element: <CostsPage /> },

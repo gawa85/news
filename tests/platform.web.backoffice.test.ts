@@ -94,6 +94,27 @@ describe("Web: backoffice", () => {
     assert.deepEqual(((await ok.json()) as { expected: unknown }).expected, { isSmoke: true, types: ["marketing"] });
   });
 
+  test("fe de erratas: publicar una corrección propia; validada y pública sin quién la publicó", async () => {
+    const reader = await login("lector.erratas@correo.example");
+    const body = { target: { type: "methodology", id: "ponderación de fuentes" }, description: "Corregimos el peso de las fuentes oficiales: contaba doble en la precisión." };
+    assert.equal((await reader("/v1/corrections", post(body))).status, 403);
+
+    const checker = await login("verif.erratas@correo.example", ["fact_checker"]);
+    assert.equal((await checker("/v1/corrections", post({ ...body, target: { type: "cualquiera", id: "x" } }))).status, 400);
+    assert.equal((await checker("/v1/corrections", post({ ...body, description: "corto" }))).status, 400);
+    assert.equal((await checker("/v1/corrections", post({ ...body, outletId: "no-existe" }))).status, 404);
+    const [outlet] = await t.store.repos.outlets.findAll();
+    const r = await checker("/v1/corrections", post({ ...body, outletId: outlet!.id, publishedBy: "otra", id: "elegido" }));
+    assert.equal(r.status, 201);
+    const c = (await r.json()) as { id: string; publishedBy: string };
+    assert.notEqual(c.id, "elegido");
+    assert.equal(c.publishedBy, checker.userId);
+    const pub = (await (await fetch(`${base}/public/corrections`)).json()) as Record<string, unknown>[];
+    const mine = pub.find((x) => x.id === c.id)!;
+    assert.equal(mine.publishedBy, undefined);
+    assert.deepEqual(mine.target, { type: "methodology", id: "ponderación de fuentes" });
+  });
+
   test("costos: el período tiene tope y orden", async () => {
     const admin = await login("admin.costos@correo.example", ["platform_admin"]);
     assert.equal((await admin("/v1/costs?from=2026-01-01&to=2026-03-01")).status, 200);
@@ -119,6 +140,39 @@ describe("Web: backoffice", () => {
     const both = await Promise.allSettled([t.p.backups!.createManual(admin.userId), t.p.backups!.createManual(admin.userId)]);
     assert.equal(both.filter((x) => x.status === "fulfilled").length, 1);
     assert.ok(both.some((x) => x.status === "rejected" && x.reason instanceof ConflictError), "la segunda espera a la primera");
+  });
+
+  test("medios: crear y editar uno suelto (el id no cambia) y sus feeds; sin permiso, nada", async () => {
+    const reader = await login("lector.medios@correo.example");
+    assert.equal((await reader("/v1/catalog/outlets", post({ name: "X", url: "https://x.example", kind: "digital", region: { country: "AR" } }))).status, 403);
+
+    const admin = await login("admin.medios.sueltos@correo.example", ["platform_admin"]);
+    const bad = [
+      { name: "", url: "https://a.example", kind: "digital", region: { country: "AR" } },
+      { name: "Diario Sur", url: "javascript:alert(1)", kind: "digital", region: { country: "AR" } },
+      { name: "Diario Sur", url: "https://sur.example", kind: "blog", region: { country: "AR" } },
+      { name: "Diario Sur", url: "https://sur.example", kind: "digital", region: { country: "ZZ" } },
+    ];
+    for (const d of bad) assert.equal((await admin("/v1/catalog/outlets", post(d))).status, 400, JSON.stringify(d));
+
+    const created = await admin("/v1/catalog/outlets", post({ name: "Diario Sur", url: "https://sur.example", kind: "newspaper", region: { country: "ar", province: "Chubut", extra: "x" }, aliases: ["El Sur", "Diario Sur"] }));
+    assert.equal(created.status, 200);
+    const outlet = (await created.json()) as { id: string; region: Record<string, unknown>; aliases: string[] };
+    assert.equal(outlet.id, "diario-sur");
+    assert.deepEqual(outlet.region, { country: "AR", province: "Chubut" });
+    assert.deepEqual(outlet.aliases, ["El Sur"]);
+    assert.equal((await admin("/v1/catalog/outlets", post({ name: "Diario Sur", url: "https://sur.example", kind: "newspaper", region: { country: "AR" } }))).status, 409, "ya existe");
+
+    const edited = (await (await admin("/v1/catalog/outlets", post({ id: "diario-sur", name: "Diario del Sur", url: "https://sur.example", kind: "digital", region: { country: "AR" } }))).json()) as { id: string; name: string };
+    assert.deepEqual([edited.id, edited.name], ["diario-sur", "Diario del Sur"]);
+
+    assert.equal((await admin("/v1/catalog/outlets/diario-sur/feeds", post({ url: "file:///etc/passwd" }))).status, 400);
+    const feed = (await (await admin("/v1/catalog/outlets/diario-sur/feeds", post({ url: "https://sur.example/rss" }))).json()) as { id: string };
+    assert.equal((await admin(`/v1/catalog/outlets/diario-sur/feeds/${encodeURIComponent(feed.id)}/deactivate`, post({}))).status, 200);
+    const rec = (await (await admin("/v1/catalog/outlets/diario-sur")).json()) as { outlet: { name: string }; feeds: { active: boolean }[] };
+    assert.equal(rec.outlet.name, "Diario del Sur");
+    assert.deepEqual(rec.feeds.map((f) => f.active), [false]);
+    assert.ok(!(await t.store.repos.catalog.findActiveFeeds()).some((f) => f.id === feed.id), "desactivado, no se descarga");
   });
 
   test("catálogo: fuentes configuradas y CSV subido desde la web", async () => {

@@ -1,5 +1,5 @@
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
-import type { Correction, Rebuttal, RebuttalStatus, RebuttalTarget, User } from "../../domain/model";
+import { CORRECTION_TARGETS, type Correction, type CorrectionTarget, type Rebuttal, type RebuttalStatus, type RebuttalTarget, type User } from "../../domain/model";
 import type {
   IAuthorizationService,
   IClock,
@@ -122,12 +122,18 @@ export class RebuttalService {
     if (!perms.has("corrections:publish") && !(input.rebuttalId && perms.has("rebuttal:resolve"))) {
       throw new AccessDeniedError("No tenés permiso para publicar correcciones.", "no_permission");
     }
-    if (input.description.trim().length < 20) throw new ValidationError("Describí la corrección (al menos 20 caracteres).");
+    const description = typeof input.description === "string" ? input.description.trim() : "";
+    if (description.length < 20) throw new ValidationError("Describí la corrección (al menos 20 caracteres).");
+    if (description.length > 2_000) throw new ValidationError("La corrección es demasiado larga (máximo 2000 caracteres).");
+    const type = typeof input.target?.type === "string" ? input.target.type : "";
+    const targetId = typeof input.target?.id === "string" ? input.target.id.trim().slice(0, 200) : "";
+    if (!CORRECTION_TARGETS.includes(type as CorrectionTarget) || !targetId) throw new ValidationError("Indicá qué se corrige (tipo y referencia).");
+    if (input.outletId !== undefined && (typeof input.outletId !== "string" || !(await this.outlets.findById(input.outletId)))) throw new NotFoundError("No existe ese medio.");
     const c: Correction = {
       id: this.ids.next("correction"),
-      target: input.target,
+      target: { type, id: targetId },
       outletId: input.outletId,
-      description: input.description.trim(),
+      description,
       publishedBy: actor.id,
       publishedAt: this.clock.now(),
       rebuttalId: input.rebuttalId,

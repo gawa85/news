@@ -88,6 +88,7 @@ import { PerspectiveService } from "../application/participation/Perspectives";
 import { RoomService } from "../application/participation/Rooms";
 import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "../infrastructure/participation/Participation";
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
+import { OutletEditor } from "../application/catalog/OutletEditor";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
 import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
@@ -478,7 +479,8 @@ export function buildPlatform(cfg: PlatformConfig) {
   // ---- Datos reales: catálogo importable y noticias desde los feeds ----
   const importCatalog = new ImportCatalogUseCase(cfg.catalogSources ?? [], repos.catalog, repos.outlets, repos.users, authz, domainEvents, countries);
   const ingestFeeds = new IngestFeedsUseCase(
-    repos.catalog, repos.outlets, cfg.feedReader ?? new HttpFeedReader(cfg.http), topicIndex,
+    // Las direcciones de los feeds las carga el equipo (o un CSV): sólo destinos públicos, como las fuentes propias.
+    repos.catalog, repos.outlets, cfg.feedReader ?? new HttpFeedReader(cfg.userDestinations?.http ?? cfg.http), topicIndex,
     repos.articles, core.extractor, repos.claims, clock, logger,
   );
 
@@ -699,7 +701,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     metrics,
     requestContext,
     participation: { narratives, campaigns, perspectives, rooms, events: eventRooms },
-    catalog: { import: importCatalog, ingestFeeds, csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
+    catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
     commerce: { service: commerce, referrals, branding, countries },

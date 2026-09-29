@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import type { ObservatoryReport, PublicRebuttal } from "../../api/types";
-import { CHANNEL_NAMES, formatDate, formatNumber, SMOKE_LABELS } from "../../domain/labels";
+import { CHANNEL_NAMES, formatDate, formatNumber, SMOKE_LABELS, OUTLET_KIND_LABELS } from "../../domain/labels";
 import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Page, Spinner } from "../../ui/components";
 import { useAsync } from "../../ui/useAsync";
 import { useOutlets } from "../shared/catalog";
 
-const KIND: Record<string, string> = { newspaper: "Diario", digital: "Medio digital", tv: "Televisión", radio: "Radio", official: "Organismo oficial", wire_agency: "Agencia de noticias" };
+const KIND: Record<string, string> = OUTLET_KIND_LABELS;
 const REBUTTAL_STATUS: Record<PublicRebuttal["status"], string> = { submitted: "En revisión", accepted: "Aceptada", partially_accepted: "Aceptada en parte", rejected: "Rechazada" };
 const money = (amount: number, currency: string) => new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 const thisMonth = () => new Date().toISOString().slice(0, 7);

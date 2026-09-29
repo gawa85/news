@@ -39,6 +39,11 @@ import type {
   AdminUser,
   RoleInfo,
   UserListFilter,
+  AdminOutlet,
+  OutletDraft,
+  OutletFeed,
+  OutletRecord,
+  NewCorrection,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -247,5 +252,22 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   removeRepresentedOutlet(userId: string, outletId: string) {
     return this.userAction(userId, "outlets/remove", { outletId });
+  }
+
+  outletRecord(id: string) {
+    return this.request<OutletRecord>("GET", `/v1/catalog/outlets/${enc(id)}`);
+  }
+  saveOutlet(draft: OutletDraft) {
+    return this.request<AdminOutlet>("POST", "/v1/catalog/outlets", draft);
+  }
+  addOutletFeed(outletId: string, url: string) {
+    return this.request<OutletFeed>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds`, { url });
+  }
+  setOutletFeedActive(outletId: string, feedId: string, active: boolean) {
+    return this.request<OutletFeed>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds/${enc(feedId)}/${active ? "activate" : "deactivate"}`);
+  }
+
+  publishCorrection(input: NewCorrection) {
+    return this.request<{ id: string }>("POST", "/v1/corrections", input);
   }
 }
