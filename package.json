@@ -6,9 +6,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "demo": "npm run build && node dist/src/demo.js",
-    "test": "npm run build && node --no-warnings --test --test-force-exit --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
-    "test:sqlite": "npm run build && TEST_STORE=sqlite node --no-warnings --test --test-force-exit --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
-    "test:postgres": "npm run build && node dist/tests/helpers/reset-postgres.js && TEST_STORE=postgres node --no-warnings --test --test-force-exit --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
+    "test": "npm run build && node --no-warnings --test --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
+    "test:sqlite": "npm run build && TEST_STORE=sqlite node --no-warnings --test --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
+    "test:postgres": "npm run build && node dist/tests/helpers/reset-postgres.js && TEST_STORE=postgres node --no-warnings --test --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./tests/helpers/files-reporter.mjs --test-reporter-destination=dist/test-files.json \"dist/tests/*.test.js\" && node tests/helpers/check-files.mjs",
     "demo:platform": "npm run build && node --no-warnings dist/src/demo-platform.js",
     "start": "node dist/src/entry/server.js",
     "mcp": "node dist/src/entry/mcp-stdio.js",

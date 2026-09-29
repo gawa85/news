@@ -8,12 +8,27 @@ import { RecordingSender } from "../../src/infrastructure/messaging/ChannelAdapt
 import { createMemoryStore, createPostgresStore, createSqliteStore } from "../../src/infrastructure/persistence/stores";
 import { PostgresClient } from "../../src/infrastructure/persistence/sql/PostgresClient";
 import { randomUUID } from "node:crypto";
+import { after } from "node:test";
 
 /**
  * Motor de base para los tests de plataforma: TEST_STORE=memory (defecto) | sqlite | postgres.
  * En PostgreSQL cada plataforma de prueba usa un esquema nuevo (aislamiento total).
  */
 async function createTestStore(): Promise<IDataStore> {
+  const store = await openTestStore();
+  opened.push(store);
+  return store;
+}
+
+/**
+ * Las bases que abren las pruebas se cierran al terminar cada archivo: una conexión abierta deja
+ * vivo el proceso. (Antes se forzaba la salida con --test-force-exit, y eso a veces cortaba el
+ * informe de las últimas pruebas de un archivo: pasaban sin que nadie se enterara.)
+ */
+const opened: IDataStore[] = [];
+after(() => Promise.all(opened.splice(0).map((s) => s.close().catch(() => undefined)))); // (algunas pruebas ya la cerraron)
+
+async function openTestStore(): Promise<IDataStore> {
   const engine = process.env.TEST_STORE ?? "memory";
   if (engine === "sqlite") return createSqliteStore(":memory:");
   if (engine === "postgres") {
