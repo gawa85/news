@@ -48,6 +48,7 @@ import type {
   PlanCatalog,
   PlanPatch,
   NewLegalVersion,
+  NewPlan,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -280,6 +281,12 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   updatePlan(id: string, patch: PlanPatch) {
     return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}`, patch);
+  }
+  createPlan(input: NewPlan) {
+    return this.request<AdminPlan>("POST", "/v1/admin/plans", input);
+  }
+  setPlanForSale(id: string, forSale: boolean) {
+    return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}/for-sale`, { forSale });
   }
   resetPlan(id: string) {
     return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}/reset`);

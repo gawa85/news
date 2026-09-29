@@ -1,5 +1,5 @@
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
-import { withinLimit, type BillingInterval, type BillingSubject, type Organization, type PriceQuote, type Subscription } from "../../domain/model";
+import { onSale, withinLimit, type BillingInterval, type BillingSubject, type Organization, type PriceQuote, type Subscription } from "../../domain/model";
 import type {
   IAuthorizationService,
   IClock,
@@ -41,6 +41,7 @@ export class ChangePlanUseCase {
     if (!actor) throw new NotFoundError("Usuario inexistente.");
     const plan = await this.plans.findById(input.planId);
     if (!plan) throw new NotFoundError(`No existe el plan ${input.planId}.`);
+    if (!onSale(plan)) throw new ValidationError(`El plan ${plan.name} ya no se ofrece. Elegí otro.`);
 
     const subject = billingSubjectOf(actor);
     if (subject.type === "organization") {

@@ -1124,6 +1124,29 @@ describe("Documentos legales", () => {
   });
 });
 
+describe("Backoffice: planes nuevos", () => {
+  test("crear uno copiando otro y sacar el viejo de la venta", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["plans:manage"] })), "/admin/planes", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Crear un plan" }));
+    await user.click(screen.getByRole("button", { name: "Crear el plan" }));
+    expect(screen.getByText("Falta el nombre.")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "createPlan")).toBe(false);
+
+    await user.type(screen.getByLabelText("Nombre del plan nuevo"), "Personal Plus");
+    await user.type(screen.getByLabelText("Precio mensual del plan nuevo"), "6990");
+    await user.click(screen.getByRole("button", { name: "Crear el plan" }));
+    expect(await screen.findByRole("form", { name: /^Personal Plus/ })).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "createPlan")?.args[0]).toEqual({ basedOn: "personal", name: "Personal Plus", description: "", monthlyAmount: 6990, yearlyAmount: null, tier: 1 });
+
+    await user.click(screen.getByRole("button", { name: "Sacar Personal de la venta" }));
+    const old = await screen.findByRole("form", { name: /^Personal No se vende/ });
+    expect(old).toHaveTextContent("Quien ya lo tiene lo conserva");
+    expect(within(old).getByRole("button", { name: "Volver a ofrecer Personal" })).toBeInTheDocument();
+  });
+});
+
 describe("Backoffice: fe de erratas", () => {
   test("publicar: pide referencia y descripción; manda sólo lo de la corrección", async () => {
     const bo = new FakeBackoffice();

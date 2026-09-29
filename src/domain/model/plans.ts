@@ -68,7 +68,15 @@ export interface Plan {
   tier: number;
   /** Editado desde el backoffice: el arranque ya no lo pisa con la versión del código. */
   customized?: { at: Date; by: string };
+  /**
+   * `false`: ya no se vende (no se ofrece ni se puede elegir). Quien lo tiene lo conserva.
+   * Sin el campo, se vende.
+   */
+  forSale?: boolean;
 }
+
+/** ¿Se ofrece este plan a quien lo quiera contratar? */
+export const onSale = (p: Plan): boolean => p.forSale !== false;
 
 /** `replaced`: la reemplazó otra (upgrade/downgrade). No cuenta como vigente. */
 export type SubscriptionStatus = "pending_payment" | "trialing" | "active" | "past_due" | "canceled" | "replaced";

@@ -48,6 +48,7 @@ import type {
   PlanCatalog,
   PlanPatch,
   NewLegalVersion,
+  NewPlan,
 } from "./backofficeTypes";
 
 /**
@@ -159,6 +160,8 @@ export interface BackofficeApi {
   planCatalog(): Promise<PlanCatalog>;
   updatePlan(id: string, patch: PlanPatch): Promise<AdminPlan>;
   resetPlan(id: string): Promise<AdminPlan>;
+  createPlan(input: NewPlan): Promise<AdminPlan>;
+  setPlanForSale(id: string, forSale: boolean): Promise<AdminPlan>;
 
   // Documentos legales (legal:publish): cada publicación es una versión nueva
   publishLegal(docId: "terms" | "privacy", input: NewLegalVersion): Promise<{ version: string }>;

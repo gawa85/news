@@ -475,7 +475,19 @@ export interface AdminPlan {
   limits: AdminPlanLimits;
   tier: number;
   customized?: { at: string; by: string };
+  /** `false`: ya no se vende (quien lo tiene lo conserva). */
+  forSale?: boolean;
   liveSubscriptions: number;
+}
+
+/** Un plan nuevo parte de uno existente (funciones y límites se ajustan después). */
+export interface NewPlan {
+  basedOn: string;
+  name: string;
+  description: string;
+  monthlyAmount: number;
+  yearlyAmount: number | null;
+  tier: number;
 }
 
 export interface PlanCatalog {

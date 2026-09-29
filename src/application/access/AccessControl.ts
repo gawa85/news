@@ -1,6 +1,7 @@
 import { evaluateDeclarative, factsFrom } from "../../domain/rules/declarativeRules";
 import { AccessDeniedError, NotFoundError } from "../../domain/errors";
 import {
+  onSale,
   formatPrice,
   withinLimit,
   type AccessContext,
@@ -49,7 +50,7 @@ export class UpgradeAdvisor {
 
   async suggest(ctx: AccessContext, decision: RuleDecision): Promise<string | undefined> {
     if (decision.allowed) return undefined;
-    const candidates = (await this.plans.findAll()).filter((p) => p.tier > ctx.plan.tier && p.audience === ctx.plan.audience);
+    const candidates = (await this.plans.findAll()).filter((p) => p.tier > ctx.plan.tier && p.audience === ctx.plan.audience && onSale(p));
     const fix = candidates.find((p) => this.solves(p, ctx, decision));
     return fix ? `Disponible en el plan ${fix.name} (${formatPrice(fix.price)}).` : undefined;
   }

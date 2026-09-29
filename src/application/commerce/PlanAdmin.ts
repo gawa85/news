@@ -1,5 +1,5 @@
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
-import { FEATURES, type Feature, type Plan, type PlanLimits, type Price, type User } from "../../domain/model";
+import { FEATURES, onSale, slugify, type Feature, type Plan, type PlanLimits, type Price, type User } from "../../domain/model";
 import type { IAuthorizationService, IClock, IDomainEvents, IPlanRepository, IPlanWriter, ISubscriptionRepository, IUserRepository } from "../../domain/ports";
 import { planReductions } from "../../domain/rules/pricing";
 
@@ -19,6 +19,17 @@ export interface PlanPatch {
   limits: PlanLimits;
 }
 
+/** Un plan nuevo: se parte de uno existente (canales, funciones y límites) y se cambia lo que haga falta. */
+export interface NewPlan {
+  basedOn: string;
+  name: string;
+  description: string;
+  monthlyAmount: number;
+  yearlyAmount?: number | null;
+  /** Orden para sugerir mejoras (menor = más barato). */
+  tier: number;
+}
+
 const LIMIT_KEYS: (keyof PlanLimits)[] = ["analysesPerDay", "comparisonsPerMonth", "maxSourcesPerComparison", "maxIncludeUrls", "maxSavedRuleSets", "maxAlerts", "maxSourceConnections", "seats"];
 
 /**
@@ -31,6 +42,9 @@ const LIMIT_KEYS: (keyof PlanLimits)[] = ["analysesPerDay", "comparisonsPerMonth
  *  - Un plan gratis sigue gratis y uno pago sigue pago (lo usan el vencimiento y las altas).
  *  - Un plan editado queda "personalizado": el arranque ya no lo pisa con la versión del código.
  *    Se puede volver a esa versión (con las mismas reglas).
+ *  - Un plan nuevo es pago y parte de uno existente; su id sale del nombre y no cambia.
+ *  - Un plan se puede sacar de la venta: no se ofrece ni se puede elegir, pero quien lo tiene lo
+ *    conserva (y se renueva igual). El plan gratis siempre se ofrece (es adonde vuelve quien deja de pagar).
  */
 export class PlanAdmin {
   constructor(
@@ -43,7 +57,41 @@ export class PlanAdmin {
     /** Los planes como vienen en el código (para restablecer). */
     private readonly defaults: Plan[],
     private readonly featureLabels: Record<Feature, string>,
+    private readonly freePlanId: string,
   ) {}
+
+  async create(actorId: string, input: NewPlan): Promise<AdminPlan> {
+    const actor = await this.manager(actorId);
+    const base = await this.plan(typeof input.basedOn === "string" ? input.basedOn : "");
+    const name = text(input.name, 60);
+    if (!name) throw new ValidationError("Falta el nombre del plan.");
+    const id = slugify(name);
+    if (!id) throw new ValidationError("El nombre necesita letras o números.");
+    if (await this.plans.findById(id)) throw new ConflictError(`Ya existe un plan con el id "${id}".`);
+    if (!Number.isInteger(input.tier) || input.tier < 0 || input.tier > 100) throw new ValidationError("El orden tiene que ser un entero de 0 a 100.");
+    const currency = base.price?.currency ?? (await this.plans.findAll()).find((p) => p.price)?.price?.currency ?? "ARS";
+    const plan: Plan = {
+      id, name, description: text(input.description, 300), audience: base.audience, tier: input.tier,
+      price: { amount: amount(input.monthlyAmount, "El precio"), currency, interval: "month" },
+      yearlyPrice: input.yearlyAmount === null || input.yearlyAmount === undefined ? undefined : { amount: amount(input.yearlyAmount, "El precio anual"), currency, interval: "year" },
+      features: [...base.features], channels: [...base.channels], limits: { ...base.limits },
+      customized: { at: this.clock.now(), by: actor.id },
+    };
+    await this.plans.save(plan);
+    await this.events.emit("plan.changed", { userId: actor.id }, { created: true, basedOn: base.id, price: plan.price!.amount }, { type: "plan", id });
+    return { ...plan, liveSubscriptions: 0 };
+  }
+
+  async setForSale(actorId: string, planId: string, forSale: boolean): Promise<AdminPlan> {
+    const actor = await this.manager(actorId);
+    const before = await this.plan(planId);
+    if (!forSale && planId === this.freePlanId) throw new ConflictError("El plan gratis siempre se ofrece: es adonde vuelve quien deja de pagar.");
+    if (onSale(before) === forSale) return { ...before, liveSubscriptions: await this.subscriptions.countLive(planId) };
+    const after: Plan = { ...before, forSale: forSale ? undefined : false, customized: { at: this.clock.now(), by: actor.id } };
+    await this.plans.save(after);
+    await this.events.emit("plan.changed", { userId: actor.id }, { forSale }, { type: "plan", id: planId });
+    return { ...after, liveSubscriptions: await this.subscriptions.countLive(planId) };
+  }
 
   /** Los planes (con cuántas suscripciones vigentes tiene cada uno) y todas las funciones que se pueden vender. */
   async list(actorId: string): Promise<{ plans: AdminPlan[]; features: { id: Feature; label: string }[] }> {
@@ -81,7 +129,9 @@ export class PlanAdmin {
     const before = await this.plan(planId);
     const original = this.defaults.find((p) => p.id === planId);
     if (!original) throw new NotFoundError("Ese plan no viene en el código: no hay versión a la que volver.");
-    return this.apply(actor, before, { ...original, customized: undefined });
+    // Sigue fuera de venta si lo estaba (y entonces sigue "personalizado": el arranque no lo vuelve a poner en venta).
+    const retired = !onSale(before);
+    return this.apply(actor, before, { ...original, forSale: retired ? false : undefined, customized: retired ? { at: this.clock.now(), by: actor.id } : undefined });
   }
 
   private async apply(actor: User, before: Plan, after: Plan): Promise<AdminPlan> {

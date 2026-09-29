@@ -37,6 +37,7 @@ import type {
   PlanCatalog,
   PlanPatch,
   NewLegalVersion,
+  NewPlan,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -437,6 +438,22 @@ export class FakeBackoffice implements BackofficeApi {
     };
     this.planData = { ...this.planData, plans: this.planData.plans.map((x) => (x.id === id ? next : x)) };
     return next;
+  }
+  async createPlan(input: NewPlan) {
+    this.log("createPlan", input);
+    const base = this.planData.plans.find((p) => p.id === input.basedOn)!;
+    const plan: AdminPlan = {
+      ...base, id: input.name.toLowerCase().replace(/\W+/g, "-"), name: input.name, description: input.description, tier: input.tier, liveSubscriptions: 0,
+      price: { amount: input.monthlyAmount, currency: "ARS", interval: "month" }, yearlyPrice: undefined, customized: { at: "2026-09-29T10:00:00Z", by: "u1" },
+    };
+    this.planData = { ...this.planData, plans: [...this.planData.plans, plan] };
+    return plan;
+  }
+  async setPlanForSale(id: string, forSale: boolean) {
+    this.log("setPlanForSale", id, forSale);
+    const p = { ...this.planData.plans.find((x) => x.id === id)!, forSale: forSale ? undefined : false };
+    this.planData = { ...this.planData, plans: this.planData.plans.map((x) => (x.id === id ? p : x)) };
+    return p;
   }
   async resetPlan(id: string) {
     this.log("resetPlan", id);

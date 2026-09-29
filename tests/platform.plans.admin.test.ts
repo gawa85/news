@@ -80,4 +80,39 @@ describe("Web: planes", () => {
     const r = (await (await admin("/v1/admin/plans/gratis", post(patchOf(free, { monthlyAmount: 999 })))).json()) as P;
     assert.equal(r.price, null);
   });
+
+  test("reemplazar un plan: uno nuevo (copiado, con menos funciones) y el viejo fuera de venta; quien lo tiene lo conserva", async () => {
+    const admin = await web.login("admin.planes4@correo.example", ["platform_admin"]);
+    const subscriber = await userWithPlan(t, "profesional");
+    const base = { basedOn: "profesional", name: "Profesional 2027", description: "Sin webhooks", monthlyAmount: 17_990, yearlyAmount: null, tier: 2 };
+    for (const bad of [{ ...base, basedOn: "no-existe" }, { ...base, tier: 1.5 }, { ...base, monthlyAmount: 0 }, { ...base, name: "  " }]) {
+      assert.ok([400, 404].includes((await admin("/v1/admin/plans", post(bad))).status), JSON.stringify(bad));
+    }
+    const created = await admin("/v1/admin/plans", post({ ...base, id: "elegido", features: ["todo"] }));
+    assert.equal(created.status, 201);
+    const plan = (await created.json()) as P & { audience: string };
+    assert.equal(plan.id, "profesional-2027");
+    const pro = (await t.store.repos.plans.findById("profesional"))!;
+    assert.deepEqual(plan.features, pro.features, "parte de las funciones del plan base");
+    assert.equal(plan.yearlyPrice, undefined);
+    assert.equal((await admin("/v1/admin/plans", post(base))).status, 409, "mismo nombre: ya existe");
+
+    // Sin suscripciones, al plan nuevo se le puede quitar lo que sea.
+    const trimmed = await admin(`/v1/admin/plans/${plan.id}`, post(patchOf(plan, { features: plan.features.filter((f) => f !== "webhooks") })));
+    assert.equal(trimmed.status, 200);
+
+    assert.equal((await admin("/v1/admin/plans/gratis/for-sale", post({ forSale: false }))).status, 409, "el gratis siempre se ofrece");
+    assert.equal((await admin("/v1/admin/plans/profesional/for-sale", post({ forSale: false }))).status, 200);
+    const offered = ((await (await fetch(`${web.base}/public/plans`)).json()) as { id: string }[]).map((p) => p.id);
+    assert.ok(!offered.includes("profesional") && offered.includes("profesional-2027"));
+
+    const buyer = await web.login("compradora.planes@correo.example");
+    assert.equal((await buyer("/v1/checkout", post({ planId: "profesional" }))).status, 400, "no se puede elegir");
+    assert.equal((await t.store.repos.subscriptions.findCurrent({ type: "user", id: subscriber.id }))!.planId, "profesional", "quien lo tiene lo conserva");
+
+    await seedPlatform(t.store);
+    assert.equal((await t.store.repos.plans.findById("profesional"))!.forSale, false, "el arranque no lo vuelve a poner en venta");
+    assert.equal((await admin("/v1/admin/plans/profesional/for-sale", post({ forSale: true }))).status, 200);
+    assert.ok(((await (await fetch(`${web.base}/public/plans`)).json()) as { id: string }[]).some((p) => p.id === "profesional"));
+  });
 });

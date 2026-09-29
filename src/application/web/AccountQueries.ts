@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../domain/errors";
-import type { ContentAnalysis, Feature, Plan, SocialPost } from "../../domain/model";
+import { onSale, type ContentAnalysis, type Feature, type Plan, type SocialPost } from "../../domain/model";
 import type { IAuthorizationService, IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
 import type { AccessControl } from "../access/AccessControl";
 import type { LegalService } from "../legal/Legal";
@@ -125,7 +125,7 @@ export class AccountQueries {
   /** Planes para personas (la página de precios; los de organizaciones se venden aparte). */
   async publicPlans(): Promise<PublicPlan[]> {
     return (await this.plans.findAll())
-      .filter((p) => p.audience === "individual")
+      .filter((p) => p.audience === "individual" && onSale(p))
       .sort((a, b) => a.tier - b.tier)
       .map((p) => ({
         id: p.id, name: p.name, description: p.description, tier: p.tier, price: p.price, yearlyPrice: p.yearlyPrice,
