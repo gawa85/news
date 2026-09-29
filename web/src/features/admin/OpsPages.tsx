@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useBackoffice } from "../../api/BackofficeContext";
 import type { AuditEntry, BackupManifest, CostReport } from "../../api/backofficeTypes";
-import { formatDateTime, formatNumber } from "../../domain/labels";
+import { AUDIT_ACTIONS, formatDateTime, formatNumber } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 import { isoDay } from "../shared/catalog";
@@ -42,8 +42,19 @@ export function AuditPage() {
         <div className="grid-2">
           <Field label="Desde">{(p) => <input {...p} className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />}</Field>
           <Field label="Hasta">{(p) => <input {...p} className="input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />}</Field>
-          <Field label="Acción (opcional)" hint="Por ejemplo: taxonomy.changed">
-            {(p) => <input {...p} className="input" value={action} onChange={(e) => setAction(e.target.value)} />}
+          <Field label="Qué pasó">
+            {(p) => (
+              <select {...p} className="input" value={action} onChange={(e) => setAction(e.target.value)}>
+                <option value="">(todo)</option>
+                {Object.entries(AUDIT_ACTIONS)
+                  .sort((a, b) => a[1].localeCompare(b[1], "es"))
+                  .map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {label}
+                    </option>
+                  ))}
+              </select>
+            )}
           </Field>
         </div>
         <div className="row">
@@ -73,8 +84,8 @@ export function AuditPage() {
               {entries.map((e) => (
                 <tr key={e.id}>
                   <td>{formatDateTime(e.at)}</td>
-                  <td className="mono">{e.action}</td>
-                  <td className="mono">{e.actorId}</td>
+                  <td>{AUDIT_ACTIONS[e.action] ?? <span className="mono">{e.action}</span>}</td>
+                  <td className="mono">{e.actorId.startsWith("sistema") ? "El sistema" : e.actorId}</td>
                   <td>{e.target ? `${e.target.type} ${e.target.id}` : "—"}</td>
                   <td>
                     <Detail data={e.data} />

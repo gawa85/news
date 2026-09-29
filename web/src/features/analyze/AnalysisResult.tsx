@@ -38,7 +38,13 @@ export function AnalysisResult({ analysis }: { analysis: Analysis }) {
         </div>
         <div className="card">
           <h3>Lo que queda sin humo</h3>
-          {a.cleanVersion ? <p>{a.cleanVersion}</p> : <p className="muted">No quedan datos concretos: es todo humo o no trae hechos verificables.</p>}
+          {a.cleanVersion ? (
+            <p>{a.cleanVersion}</p>
+          ) : a.findings.length === 0 ? (
+            <p className="muted">No encontramos humo: el texto se puede leer tal como está.</p>
+          ) : (
+            <p className="muted">Sacando el humo, no queda ningún dato que se pueda comprobar (una cifra, una fecha, quién lo dijo).</p>
+          )}
         </div>
       </div>
 

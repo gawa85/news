@@ -18,6 +18,8 @@ body {
   font-size: 1rem;
   line-height: 1.55;
   text-rendering: optimizeLegibility;
+  /* Una dirección o palabra larga se corta antes que obligar a moverse de costado (zoom al 400 %). */
+  overflow-wrap: break-word;
 }
 
 h1,
@@ -517,6 +519,12 @@ legend {
 }
 .mono {
   font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+/* Direcciones y enlaces largos (feeds, sitios): se cortan donde haga falta. */
+a,
+.url {
+  overflow-wrap: anywhere;
 }
 .spinner {
   width: 1.1rem;
@@ -752,4 +760,37 @@ legend {
   padding: var(--space-2) var(--space-3);
   border-inline-start: 4px solid var(--border);
   color: var(--text-muted, inherit);
+}
+
+/*
+ * ALTO CONTRASTE (Windows y otros): el sistema reemplaza los colores por los suyos. Lo que se
+ * distinguía sólo por un fondo de color necesita un borde, un subrayado o conservar su relleno.
+ */
+@media (forced-colors: active) {
+  .tabs button {
+    border-bottom-color: Canvas;
+  }
+  .tabs button[aria-selected="true"] {
+    border-bottom-color: Highlight;
+    text-decoration: underline;
+  }
+  .nav a[aria-current="page"],
+  .admin__nav a[aria-current="page"] {
+    outline: 2px solid Highlight;
+    text-decoration: underline;
+  }
+  .badge,
+  .card,
+  .alert {
+    border: 1px solid CanvasText;
+  }
+  .meter__fill,
+  progress {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+  .btn:disabled {
+    border-color: GrayText;
+    color: GrayText;
+  }
 }

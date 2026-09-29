@@ -1147,6 +1147,26 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Sesión: un problema de conexión no es 'no hay sesión'", () => {
+  test("si el servidor está ocupado, se explica y se puede reintentar; no manda a Entrar", async () => {
+    const api = new FakeApi(sampleMe());
+    let fail = true;
+    const realMe = api.me.bind(api);
+    api.me = async () => {
+      if (fail) throw new ApiError(429, "Demasiados pedidos seguidos.", "too_many_attempts");
+      return realMe();
+    };
+    const { router } = renderApp(api, "/analizar");
+    const user = userEvent.setup();
+    expect(await screen.findByText("No pudimos conectarnos con Sin Humo")).toBeInTheDocument();
+    expect(screen.getByText("Demasiados pedidos seguidos.")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/analizar");
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Analizar" })).toBeInTheDocument();
+  });
+});
+
 describe("Backoffice: puesta en marcha", () => {
   test("la lista dice qué falta y dónde; cargar la empresa y completar los legales", async () => {
     const bo = new FakeBackoffice();
