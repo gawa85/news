@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError, messageOf } from "../api/ApiError";
 import { smokeVerdict } from "../domain/labels";
+import { PageHelpSlot } from "./pageHelpSlot";
 
 /**
  * Página: pone el título de la pestaña y, al llegar, lleva el foco al título (así un lector
@@ -9,6 +10,7 @@ import { smokeVerdict } from "../domain/labels";
  */
 export function Page({ title, lead, narrow, children }: { title: string; lead?: ReactNode; narrow?: boolean; children: ReactNode }) {
   const h1 = useRef<HTMLHeadingElement>(null);
+  const help = useContext(PageHelpSlot);
   useEffect(() => {
     document.title = `${title} · Sin Humo`;
     h1.current?.focus();
@@ -19,6 +21,7 @@ export function Page({ title, lead, narrow, children }: { title: string; lead?: 
         {title}
       </h1>
       {lead && <p className="page__lead">{lead}</p>}
+      {help}
       <div className="stack">{children}</div>
     </div>
   );

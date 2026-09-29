@@ -1,0 +1,159 @@
+import type { ReactNode } from "react";
+
+/** Ayuda de una pantalla: para qué sirve, cómo se usa, un ejemplo y las palabras que conviene conocer. */
+export interface PageHelpContent {
+  summary: string;
+  steps?: ReactNode[];
+  example?: ReactNode;
+  /** Ids del glosario. */
+  terms?: string[];
+}
+
+/**
+ * AYUDA DE CADA PANTALLA, por dirección. Lenguaje simple y ejemplos concretos: la puede leer
+ * alguien que entra por primera vez.
+ */
+export const PAGE_HELP: Record<string, PageHelpContent> = {
+  // ---- Para todas las personas ----
+  "/analizar": {
+    summary: "Pegás un texto (un mensaje que te llegó, una cadena, una nota) o el link de una nota o una publicación, y Sin Humo marca qué partes son datos y cuáles son humo.",
+    steps: [
+      "Copiá el mensaje o el link y pegalo en el cuadro.",
+      "Tocá «Analizar».",
+      "Mirá el índice de humo, qué humo encontró (con la frase exacta) y «Lo que queda sin humo»: el mismo texto sólo con los datos.",
+    ],
+    example: "«URGENTE!!! Reenviá a todos: mañana cortan el agua en todo el país» → índice alto: alarma sin fuente y pedido de reenvío.",
+    terms: ["humo", "indice_humo"],
+  },
+  "/historial": { summary: "Todo lo que analizaste, por la web, WhatsApp, Telegram o mail. Tocá uno para ver el resultado completo." },
+  "/comparar": {
+    summary: "Elegís un tema y unas fechas, y ves qué dijeron distintos medios: en qué coinciden, en qué se contradicen y qué deja afuera cada uno.",
+    steps: ["Escribí un tema (te sugerimos los que existen).", "Elegí desde y hasta cuándo.", "Tocá «Comparar»."],
+    example: "Tema «tarifas de gas», último mes: un medio dice que el aumento es de 30 % y otro de 18 %; eso aparece como contradicción.",
+    terms: ["tema", "credibilidad"],
+  },
+  "/origen": {
+    summary: "Pegás el link de una nota y buscamos quién publicó primero lo mismo, y cuántas notas son casi copia de la misma gacetilla.",
+    example: "Diez medios con el mismo texto en la misma hora suelen venir de una gacetilla: vale la pena buscar la fuente original.",
+  },
+  "/credibilidad": {
+    summary: "Cuánto confiar en un medio sobre un tema: si fue preciso, si cita fuentes, si tiene conflictos de interés y cuánta pauta oficial recibe.",
+    steps: ["Elegí un medio.", "Elegí un tema.", "Mirá el puntaje y, sobre todo, por qué: cada dimensión dice de dónde sale."],
+    terms: ["credibilidad", "pauta_oficial", "replica"],
+  },
+  "/revisar": {
+    summary: "Subís una foto o un video y te decimos si ya circuló antes (y cuándo) y qué dicen sus datos internos: fecha, programa con que se editó, marcas de inteligencia artificial.",
+    example: "Una foto «de hoy» que ya había circulado en 2019 es una señal fuerte de que la están usando fuera de contexto.",
+  },
+  "/fuentes": {
+    summary: "Conectás tu buzón de mail o los feeds que seguís, y lo nuevo se analiza solo: te avisamos si hay humo.",
+    steps: ["Elegí qué conectar: un feed o un buzón de mail.", "Pegá la dirección del feed (o los datos del buzón).", "Guardá: se revisa cada tanto."],
+    example: "Feed de un medio: https://www.ejemplo.com.ar/rss",
+    terms: ["feed", "imap"],
+  },
+  "/reglas": {
+    summary: "Qué medios usar cuando comparás noticias: podés excluir los que no querés o limitarte a una lista.",
+    example: "Excluir «*.ejemplo.com» deja afuera todas las notas de ese sitio.",
+  },
+  "/replica": { summary: "Si representás a un medio y creés que lo evaluamos mal, contanos por qué y con qué pruebas. La resuelve otra persona del equipo y la respuesta se publica.", terms: ["replica", "fe_erratas"] },
+  "/alertas": {
+    summary: "Te avisamos por tu canal cuando pasa algo en un tema que seguís: humo nuevo circulando, cobertura nueva o un cambio en la credibilidad de un medio.",
+    steps: ["Elegí el tema.", "Elegí qué tiene que pasar para avisarte.", "Elegí por dónde (WhatsApp, Telegram o mail)."],
+  },
+  "/estadisticas": { summary: "Qué se analizó, cuánto humo había, de qué tipo y por dónde llegó, por día, semana o mes. Se pueden descargar y recibir por mail.", terms: ["humo"] },
+  "/salas": { summary: "Chats en vivo de tu organización para seguir un tema juntos, con chequeos.", terms: ["sala", "organizacion"] },
+  "/organizacion": { summary: "Tu equipo: quiénes están, con qué rol, cuántos lugares quedan en el plan, e invitaciones.", terms: ["organizacion", "rol", "plan"] },
+  "/marca": { summary: "Que las respuestas y los mails salgan con el nombre, logo y color de tu organización, y desde tu dominio.", terms: ["marca_propia", "dominio", "registro_txt"] },
+  "/aulas": { summary: "Grupos del modo aprendizaje: compartís un código con tus estudiantes y ves su progreso por apodo, sin datos de contacto.", terms: ["aula"] },
+  "/respuestas": { summary: "Respuestas públicas en foros y páginas en nombre de la organización. Las que tienen riesgo las revisa otra persona antes de publicarse.", terms: ["respuesta_publica", "cuatro_ojos"] },
+  "/campanas": { summary: "Acciones coordinadas para responder un humo que circula. La revisa otra persona antes de lanzarse y después ves su impacto.", terms: ["campana", "cuatro_ojos"] },
+  "/archivo": { summary: "Guardás una copia de una nota tal como está hoy, con fecha certificada. Si después la editan o la borran, queda la prueba y te avisamos.", terms: ["evidencia"] },
+  "/cuenta": {
+    summary: "Tus datos, tu plan, tus preferencias y las herramientas para programas (claves de API y webhooks), si tu plan las incluye.",
+    terms: ["plan", "suscripcion", "clave_api", "webhook"],
+  },
+
+  // ---- Backoffice ----
+  "/admin/puesta-en-marcha": { summary: "La lista de lo que falta para abrir Sin Humo al público. Cada punto tiene su guía paso a paso.", terms: ["https", "smtp", "cuit", "arca", "copia_seguridad"] },
+  "/admin/personas": {
+    summary: "Buscás una cuenta y le das o quitás roles del equipo, la acreditás como representante de un medio o la suspendés.",
+    steps: ["Buscá por el mail o el teléfono exactos (no hay búsqueda por nombre).", "Tocá «Gestionar».", "Elegí el rol y tocá «Dar el rol». Suspender pide un motivo."],
+    example: "Para sumar una verificadora: que entre una vez con su mail, buscala acá y dale el rol «Verificador».",
+    terms: ["rol", "permiso", "auditoria"],
+  },
+  "/admin/soporte": { summary: "Las consultas de las personas, las urgentes y las que vencen primero arriba. Respondé, o dejá una nota interna para el equipo.", terms: ["sla"] },
+  "/admin/verificacion": {
+    summary: "Datos en los que los medios no coinciden. Tomás una tarea, buscás la fuente oficial (te sugerimos documentos cargados) y decidís cuál es el correcto.",
+    steps: ["Tocá «Tomar» en una tarea.", "Mirá la evidencia sugerida o agregá la tuya con su link.", "Resolvé: qué afirmación es correcta y por qué."],
+    terms: ["verificacion"],
+  },
+  "/admin/replicas": { summary: "Pedidos de los medios para que revisemos lo que dijimos de ellos. Aceptarlos (del todo o en parte) publica una fe de erratas.", terms: ["replica", "fe_erratas"] },
+  "/admin/erratas": { summary: "Para corregir en público un error propio que no vino de una réplica.", terms: ["fe_erratas"] },
+  "/admin/eventos": { summary: "Salas públicas para debates, elecciones o cadenas nacionales: publicás chequeos en el momento y moderás el chat." },
+  "/admin/abuso": {
+    summary: "Quién tiene un freno por abusar del servicio: las automáticas las pone el sistema (por ejemplo, muchos pedidos rechazados seguidos) y las manuales, el equipo.",
+    example: "Si alguien del equipo quedó bloqueado por error, buscá la restricción y tocá «Levantar».",
+    terms: ["restriccion", "captcha"],
+  },
+  "/admin/metricas": { summary: "Cuánto ingresa por mes, cuántos clientes pagan, cuántos se van y cuántos pasan del plan gratis a uno pago, en el período que elijas.", terms: ["suscripcion", "plan"] },
+  "/admin/parametros": {
+    summary: "Números y opciones del negocio que se cambian sin programar. Cada cambio pide un motivo y queda registrado.",
+    example: "«Horas para la primera respuesta» de soporte: de 24 a 12, motivo «Sumamos una persona al equipo».",
+    terms: ["parametro", "auditoria"],
+  },
+  "/admin/reglas": {
+    summary: "Instrucciones del tipo «si pasa tal cosa, hacé tal otra», sin programar. Toda regla se prueba con ejemplos y la aprueba otra persona antes de aplicarse.",
+    steps: [
+      "Tocá «Nueva regla» y armá las condiciones (plan, rol, canal, hora…).",
+      "Elegí el efecto: rechazar con un mensaje, limitar una cantidad o habilitar una función.",
+      "Probala con escenarios («si una persona del plan Gratis escribe a las 3 de la mañana, ¿qué pasa?»).",
+      "Pedile a otra persona que la apruebe.",
+    ],
+    example: "Promoción: si el plan es Gratis y la fecha es del 1 al 7 de diciembre, habilitar «comparar fuentes».",
+    terms: ["regla_negocio", "cuatro_ojos", "borrador"],
+  },
+  "/admin/planes": {
+    summary: "Precios, límites y funciones de cada plan; crear planes nuevos; sacar uno de la venta y mudar a sus suscriptores a otro, con aviso.",
+    example: "Para subir el precio a quienes ya pagan: creá el plan nuevo copiando el viejo y mudalos con 30 días de aviso.",
+    terms: ["plan", "limite", "suscripcion", "mudanza_plan"],
+  },
+  "/admin/legal": { summary: "Publicar una versión nueva de términos o privacidad. Las anteriores quedan, y se sabe quién aceptó cuál.", terms: ["borrador"] },
+  "/admin/cupones": { summary: "Códigos de descuento: de lanzamiento, becas, convenios.", example: "BECA-PRENSA: 50 % durante 3 meses, sólo planes Personal y Profesional.", terms: ["cupon"] },
+  "/admin/funciones": {
+    summary: "Prender o apagar funciones sin tocar el programa, y darlas primero a una parte de las personas. Apagar una la corta enseguida para todos (sirve de freno de emergencia).",
+    example: "Probar las salas en vivo con el 10 % de las personas antes de darlas a todos.",
+    terms: ["funcion_prueba", "despliegue"],
+  },
+  "/admin/temas": {
+    summary: "Los temas con los que se ordenan las notas y las palabras que los identifican. Nada se borra: se desactiva.",
+    example: "Tema «tarifas de luz»: palabras clave «tarifa de luz, EDENOR, EDESUR, ENRE»; sinónimo «electricidad».",
+    terms: ["tema", "palabra_clave"],
+  },
+  "/admin/calidad": {
+    summary: "Si el algoritmo que detecta humo acierta. Se mide con ejemplos que revisó una persona; una versión nueva sólo entra en uso si mide mejor que la actual.",
+    steps: [
+      "Revisá los ejemplos que llegaron por «no me sirvió»: marcá si tienen humo y de qué tipo.",
+      "Tocá «Medir» para ver cómo le va a la versión en uso.",
+      "Si hay una candidata que mide mejor, ponela en uso.",
+    ],
+    terms: ["ejemplo_etiquetado", "precision", "exhaustividad", "f1", "version_algoritmo"],
+  },
+  "/admin/documentos": { summary: "Resoluciones, informes y comunicados oficiales. Lo que cargás aparece como evidencia sugerida al verificar.", terms: ["verificacion"] },
+  "/admin/medios": { summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas).", terms: ["feed"] },
+  "/admin/catalogo": {
+    summary: "Cargar muchos medios, dueños o pauta oficial de una vez, desde una planilla o una fuente de datos abiertos.",
+    steps: ["Armá la planilla en Excel o Google Sheets con las columnas que se indican.", "Descargala como CSV.", "Elegí qué contiene, subila y revisá el informe: qué se cargó y qué no se reconoció."],
+    example: (
+      <>
+        Medios: <code>id,nombre,url,tipo,pais,provincia,rss</code> → <code>diario-sur,Diario Sur,https://diariosur.com.ar,digital,AR,Chubut,https://diariosur.com.ar/rss</code>
+      </>
+    ),
+    terms: ["csv", "feed", "pauta_oficial"],
+  },
+  "/admin/auditoria": { summary: "Quién hizo qué y cuándo. Sirve para responder «¿quién cambió esto?». No se puede modificar.", terms: ["auditoria"] },
+  "/admin/costos": { summary: "Cuánto cuesta atender a cada cliente (inteligencia artificial, mensajes, mails) frente a lo que paga, y qué proveedor cuesta más." },
+  "/admin/copias": {
+    summary: "Las copias de seguridad de toda la base. Hacé una y verificala: una copia sin verificar puede no servir el día que la necesites.",
+    terms: ["copia_seguridad"],
+  },
+};

@@ -836,3 +836,22 @@ details > summary {
   cursor: pointer;
   padding-block: var(--space-2);
 }
+
+/* Glosario */
+.glossary {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.glossary dt {
+  font-weight: 700;
+}
+.glossary dd {
+  margin: var(--space-1) 0 0;
+}
+.glossary dd p {
+  margin: 0 0 var(--space-2);
+}
+.help {
+  margin-bottom: var(--space-4);
+}

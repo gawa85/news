@@ -7,10 +7,22 @@ import { isoDay } from "../shared/catalog";
 
 const MAX_CSV_BYTES = 900_000;
 
-const CSV_KINDS: Record<CsvKind, { label: string; columns: string }> = {
-  outlets: { label: "Medios", columns: "id, nombre, url, tipo, pais, provincia, localidad, rss, alias (separados por |)" },
-  ownership: { label: "Propiedad", columns: "medio (id o nombre), dueno, sectores (separados por |), desde, hasta, fuente" },
-  advertising: { label: "Pauta oficial", columns: "medio (id o nombre), pagador, jurisdiccion, monto, moneda, desde, hasta" },
+const CSV_KINDS: Record<CsvKind, { label: string; columns: string; sample: string }> = {
+  outlets: {
+    label: "Medios",
+    columns: "id, nombre, url, tipo, pais, provincia, localidad, rss, alias (separados por |)",
+    sample: "id,nombre,url,tipo,pais,provincia,localidad,rss,alias\ndiario-sur,Diario Sur,https://diariosur.com.ar,digital,AR,Chubut,Trelew,https://diariosur.com.ar/rss,El Sur|DS\nradio-norte,Radio Norte,https://radionorte.com.ar,radio,AR,Salta,,,\n",
+  },
+  ownership: {
+    label: "Propiedad",
+    columns: "medio (id o nombre), dueno, sectores (separados por |), desde, hasta, fuente",
+    sample: "medio,dueno,sectores,desde,hasta,fuente\ndiario-sur,Grupo Patagonia S.A.,energía|construcción,2015-03-01,,Boletín Oficial 12/03/2015\n",
+  },
+  advertising: {
+    label: "Pauta oficial",
+    columns: "medio (id o nombre), pagador, jurisdiccion (nacional, provincial o municipal), monto, moneda, desde, hasta",
+    sample: "medio,pagador,jurisdiccion,monto,moneda,desde,hasta\nDiario Sur,Gobierno de Chubut,provincial,1500000,ARS,2026-01-01,2026-03-31\n",
+  },
 };
 
 // ---------------- Catálogo de medios ----------------
@@ -78,7 +90,16 @@ function CsvUpload() {
               </select>
             )}
           </Field>
-          <Field label="Archivo CSV" hint={`Columnas: ${CSV_KINDS[kind].columns}.`} error={tooBig ? "El archivo es demasiado grande (máximo 900 kB): dividilo en partes." : undefined}>
+          <Field
+            label="Archivo CSV"
+            hint={
+              <>
+                Columnas: {CSV_KINDS[kind].columns}. Se arma en Excel o Google Sheets y se descarga como CSV.{" "}
+                <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(CSV_KINDS[kind].sample)}`} download={`ejemplo-${kind}.csv`}>
+                  Descargar un ejemplo de {CSV_KINDS[kind].label.toLowerCase()}
+                </a>
+              </>
+            } error={tooBig ? "El archivo es demasiado grande (máximo 900 kB): dividilo en partes." : undefined}>
             {(p) => (
               <input
                 {...p}

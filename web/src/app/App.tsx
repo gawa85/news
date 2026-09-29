@@ -15,6 +15,7 @@ import { NotFoundPage } from "../features/home/NotFoundPage";
 import { LegalPage } from "../features/public/LegalPage";
 import { WelcomePage } from "../features/onboarding/WelcomePage";
 import { SetupPage } from "../features/admin/SetupPage";
+import { GlossaryPage } from "../features/help/GlossaryPage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
@@ -118,6 +119,7 @@ export const routes: RouteObject[] = [
       { path: "/fe-de-erratas", element: <CorrectionsPage /> },
       { path: "/datos", element: <OpenDataPage /> },
       { path: "/legal/:slug", element: <LegalPage /> },
+      { path: "/glosario", element: <GlossaryPage /> },
       { path: "/eventos/:code", element: <EventPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

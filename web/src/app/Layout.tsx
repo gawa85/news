@@ -1,4 +1,7 @@
-import { NavLink, Outlet, Link } from "react-router";
+import { NavLink, Outlet, Link, useLocation } from "react-router";
+import { PageHelp } from "../features/help/PageHelp";
+import { PAGE_HELP } from "../features/help/helpContent";
+import { PageHelpSlot } from "../ui/pageHelpSlot";
 import { useSession } from "../session/SessionContext";
 import { LegalBanner } from "../features/account/LegalBanner";
 import { OnboardingBanner } from "../features/onboarding/OnboardingBanner";
@@ -18,6 +21,8 @@ function Logo() {
 export function Layout() {
   const { me, can } = useSession();
   const backoffice = useHasBackoffice();
+  const where = useLocation();
+  const help = PAGE_HELP[where.pathname.replace(/\/$/, "")];
   return (
     <>
       <a className="skip-link" href="#contenido">
@@ -57,7 +62,9 @@ export function Layout() {
       <main id="contenido">
         {me && <LegalBanner />}
         {me && <OnboardingBanner />}
-        <Outlet />
+        <PageHelpSlot.Provider value={help ? <PageHelp help={help} /> : null}>
+          <Outlet />
+        </PageHelpSlot.Provider>
       </main>
       <footer className="site-footer">
         <div className="site-footer__inner">
@@ -73,6 +80,7 @@ export function Layout() {
             <Link to="/fe-de-erratas">Fe de erratas</Link>
             <Link to="/datos">Datos abiertos</Link>
             <Link to="/planes">Planes</Link>
+            <Link to="/glosario">Glosario</Link>
             <Link to="/legal/terminos">Términos</Link>
             <Link to="/legal/privacidad">Privacidad</Link>
           </nav>

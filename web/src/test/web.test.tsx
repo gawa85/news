@@ -6,6 +6,9 @@ import { HttpSinHumoApi } from "../api/HttpSinHumoApi";
 import { FakeApi, sampleMe, sampleOrg } from "./FakeApi";
 import { renderApp } from "./render";
 import { FakeBackoffice } from "./FakeBackoffice";
+import { ADMIN_SECTIONS } from "../features/admin/sections";
+import { GLOSSARY } from "../features/help/glossary";
+import { PAGE_HELP } from "../features/help/helpContent";
 
 describe("API por HTTP", () => {
   test("traduce los errores del servidor: código, plan sugerido, cuándo reintentar y captcha", async () => {
@@ -948,6 +951,9 @@ describe("Backoffice: temas, calidad, datos y operación", () => {
     expect(await screen.findByText("Se cargaron 1 medios, 1 feeds.")).toBeInTheDocument();
     expect(screen.getByText("No se reconocieron (1)")).toBeInTheDocument();
 
+    const sample = screen.getByRole("link", { name: "Descargar un ejemplo de medios" });
+    expect(sample).toHaveAttribute("download", "ejemplo-outlets.csv");
+    expect(decodeURIComponent(sample.getAttribute("href")!)).toContain("id,nombre,url,tipo,pais,provincia,localidad,rss,alias");
     await user.selectOptions(screen.getByLabelText("Qué contiene"), "ownership");
     const csv = new File(["medio,dueno\nEl Litoral,Grupo Norte"], "propiedad.csv", { type: "text/csv" });
     await user.upload(screen.getByLabelText(/^Archivo CSV/), csv);
@@ -1144,6 +1150,37 @@ describe("Backoffice: planes nuevos", () => {
     const old = await screen.findByRole("form", { name: /^Personal No se vende/ });
     expect(old).toHaveTextContent("Quien ya lo tiene lo conserva");
     expect(within(old).getByRole("button", { name: "Volver a ofrecer Personal" })).toBeInTheDocument();
+  });
+});
+
+describe("Ayuda en cada pantalla y glosario", () => {
+  test("todas las secciones del backoffice tienen ayuda, y cada palabra citada está en el glosario", () => {
+    const missing = ADMIN_SECTIONS.filter((s) => !PAGE_HELP[`/admin/${s.path}`]).map((s) => s.path);
+    expect(missing).toEqual([]);
+    const unknown = Object.entries(PAGE_HELP).flatMap(([path, h]) => (h.terms ?? []).filter((t) => !GLOSSARY[t]).map((t) => `${path}: ${t}`));
+    expect(unknown).toEqual([]);
+  });
+
+  test("'¿Cómo se usa esta pantalla?' aparece cerrada bajo el título y se abre con un ejemplo y las palabras", async () => {
+    renderApp(new FakeApi(sampleMe({ permissions: ["rules:business"] })), "/admin/reglas");
+    const user = userEvent.setup();
+    const summary = await screen.findByText("¿Cómo se usa esta pantalla?");
+    const details = summary.closest("details")!;
+    expect(details.open).toBe(false);
+    await user.click(summary);
+    expect(details.open).toBe(true);
+    expect(details).toHaveTextContent("Ejemplo: Promoción: si el plan es Gratis");
+    expect(within(details).getByText("Aprobación de otra persona")).toBeInTheDocument();
+    expect(within(details).getByRole("link", { name: "Ver todas las palabras en el glosario" })).toHaveAttribute("href", "/glosario");
+  });
+
+  test("el glosario se busca sin importar tildes", async () => {
+    renderApp(new FakeApi(sampleMe()), "/glosario");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Buscar una palabra"), "precision");
+    expect(screen.getByText("Precisión")).toBeInTheDocument();
+    expect(screen.queryByText("Webhook")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/^\d+ de \d+ palabras\.$/);
   });
 });
 
