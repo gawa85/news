@@ -4,6 +4,8 @@ import { useBackoffice } from "../../api/BackofficeContext";
 import type { PlatformProfile, SetupCheck } from "../../api/backofficeTypes";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
+import { GuideView } from "./GuideView";
+import { guideFor } from "./setupGuides";
 
 const GROUPS: Record<SetupCheck["group"], string> = {
   empresa: "Empresa",
@@ -43,6 +45,7 @@ export function SetupPage() {
             </h2>
             <progress max={required.length} value={ready} aria-labelledby="progreso" style={{ width: "100%" }} />
           </section>
+          <ConfigExplainer />
           <ProfileForm profile={d.profile} onSaved={() => void data.reload()} />
           {(Object.keys(GROUPS) as SetupCheck["group"][]).map((g) => {
             const items = d.checks.filter((c) => c.group === g);
@@ -70,16 +73,13 @@ export function SetupPage() {
                             </Link>
                           ))}
                       </p>
-                      {c.action?.env && (
-                        <p className="muted" style={{ margin: "var(--space-1) 0 0" }}>
-                          En el archivo <code>.env</code> del servidor: {c.action.env.map((e, i) => (
-                            <span key={e}>
-                              {i > 0 && ", "}
-                              <code>{e}</code>
-                            </span>
-                          ))}
-                          .
-                        </p>
+                      {guideFor(c.id) && (
+                        <details>
+                          <summary>
+                            Cómo se hace, paso a paso<span className="visually-hidden">: {c.title}</span>
+                          </summary>
+                          <GuideView guide={guideFor(c.id)!} name={c.title} />
+                        </details>
                       )}
                     </li>
                   ))}
@@ -194,5 +194,33 @@ function ProfileForm({ profile, onSaved }: { profile: PlatformProfile | null; on
         </div>
       )}
     </section>
+  );
+}
+
+/** Qué es el archivo de configuración y cómo se aplica un cambio (para quien no maneja servidores). */
+function ConfigExplainer() {
+  return (
+    <details className="card">
+      <summary>
+        <strong>¿Qué es «el archivo de configuración» y cómo se cambia?</strong>
+      </summary>
+      <div className="stack guide">
+        <p>
+          Algunas cosas (el mail, WhatsApp, las copias…) no se configuran desde esta web sino en un archivo de texto del servidor llamado <code>.env</code>. Tiene un
+          renglón por dato, con la forma <code>NOMBRE=valor</code>. Por ejemplo: <code>SMTP_HOST=smtp-relay.brevo.com</code>.
+        </p>
+        <p>Guarda claves y contraseñas: por eso no se muestra ni se edita desde la web.</p>
+        <ol>
+          <li>Si no manejás el servidor vos, mandale la guía del punto que falta a quien lo hace.</li>
+          <li>
+            Está en la carpeta de Sin Humo del servidor, junto a <code>docker-compose.yml</code>. Se abre con cualquier editor de texto.
+          </li>
+          <li>Agregá o cambiá los renglones que dice la guía (hay un ejemplo para copiar) y guardá.</li>
+          <li>
+            Reiniciá Sin Humo para que tome los cambios: <code>docker compose up -d</code>. Después, volvé a esta página: la lista se actualiza sola.
+          </li>
+        </ol>
+      </div>
+    </details>
   );
 }

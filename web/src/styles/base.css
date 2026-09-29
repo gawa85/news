@@ -523,7 +523,8 @@ legend {
 }
 /* Direcciones y enlaces largos (feeds, sitios): se cortan donde haga falta. */
 a,
-.url {
+.url,
+code {
   overflow-wrap: anywhere;
 }
 .spinner {
@@ -793,4 +794,45 @@ a,
     border-color: GrayText;
     color: GrayText;
   }
+}
+
+/* Guías paso a paso: texto cómodo, ejemplos de configuración legibles y copiables. */
+.guide {
+  max-width: 75ch;
+  line-height: 1.6;
+}
+.guide ol,
+.guide ul {
+  padding-inline-start: 1.4rem;
+}
+.guide li + li {
+  margin-top: var(--space-2);
+}
+.code-block {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.env-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.env-list dt {
+  font-weight: 600;
+}
+.env-list dd {
+  margin: 0 0 0 var(--space-3);
+  color: var(--text-muted);
+}
+/* (se mantiene el triángulo que indica que se despliega; el alto hace cómodo tocarlo) */
+details > summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
 }

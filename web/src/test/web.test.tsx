@@ -1175,7 +1175,9 @@ describe("Backoffice: puesta en marcha", () => {
     expect(await screen.findByRole("heading", { name: "1 de 5 listos" })).toBeInTheDocument();
     const canales = screen.getByRole("region", { name: "Canales" });
     expect(canales).toHaveTextContent("Falta Mail");
-    expect(within(canales).getByText("SMTP_HOST")).toBeInTheDocument();
+    await user.click(within(canales).getAllByText("Cómo se hace, paso a paso", { selector: "summary", exact: false })[0]!); // (el primero es el del mail)
+    expect(within(canales).getByText(/SMTP_HOST=smtp-relay.brevo.com/)).toBeInTheDocument();
+    expect(within(canales).getByText("no la contraseña de tu cuenta", { exact: false })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Revisar: Términos y condiciones" })).toHaveAttribute("href", "/admin/legal");
 
     await user.type(screen.getByLabelText("Razón social"), "Humo Cero S.A.");
