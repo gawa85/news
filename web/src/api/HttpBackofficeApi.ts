@@ -21,6 +21,21 @@ import type {
   TicketStatus,
   VerdictStatus,
   VerificationTask,
+  AdminCategory,
+  AuditEntry,
+  BackupManifest,
+  CatalogSources,
+  CategoryDraft,
+  CostReport,
+  CsvKind,
+  EvaluationRun,
+  ExampleLabel,
+  ImportReport,
+  LabeledExample,
+  NewOfficialDocument,
+  OfficialDocument,
+  QualityOverview,
+  TopicDraft,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -142,5 +157,64 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   updateFlag(key: string, patch: FlagPatch) {
     return this.request<FeatureFlag>("PATCH", `/v1/flags/${enc(key)}`, patch);
+  }
+
+  taxonomy() {
+    return this.request<AdminCategory[]>("GET", "/v1/taxonomy");
+  }
+  async saveTopic(draft: TopicDraft) {
+    await this.request("POST", "/v1/taxonomy/topics", draft);
+  }
+  async saveCategory(draft: CategoryDraft) {
+    await this.request("POST", "/v1/taxonomy/categories", draft);
+  }
+
+  quality() {
+    return this.request<QualityOverview>("GET", "/v1/quality");
+  }
+  addExample(text: string, label: ExampleLabel, note?: string) {
+    return this.request<LabeledExample>("POST", "/v1/quality/examples", { text, ...label, note });
+  }
+  reviewExample(id: string, label: ExampleLabel) {
+    return this.request<LabeledExample>("POST", `/v1/quality/examples/${enc(id)}/review`, label);
+  }
+  evaluate() {
+    return this.request<EvaluationRun>("POST", "/v1/quality/evaluate");
+  }
+  async promote(versionId: string) {
+    await this.request("POST", "/v1/quality/promote", { versionId });
+  }
+
+  catalogSources() {
+    return this.request<CatalogSources>("GET", "/v1/catalog/sources");
+  }
+  importCatalog(sourceId: string) {
+    return this.request<ImportReport>("POST", "/v1/catalog/import", { sourceId });
+  }
+  importCsv(kind: CsvKind, text: string) {
+    return this.request<ImportReport>("POST", "/v1/catalog/import-csv", { kind, text });
+  }
+
+  audit(filter: { from?: string; to?: string; action?: string }) {
+    const q = new URLSearchParams(Object.entries(filter).filter((e): e is [string, string] => !!e[1]));
+    return this.request<AuditEntry[]>("GET", `/v1/audit${q.toString() ? `?${q}` : ""}`);
+  }
+
+  costs(from: string, to: string) {
+    return this.request<CostReport>("GET", `/v1/costs?from=${enc(from)}&to=${enc(to)}`);
+  }
+
+  backups() {
+    return this.request<BackupManifest[]>("GET", "/v1/ops/backups");
+  }
+  createBackup() {
+    return this.request<BackupManifest>("POST", "/v1/ops/backups");
+  }
+  verifyBackup(key: string) {
+    return this.request<BackupManifest>("POST", "/v1/ops/backups/verify", { key });
+  }
+
+  uploadDocument(doc: NewOfficialDocument) {
+    return this.request<OfficialDocument>("POST", "/v1/verification/documents", doc);
   }
 }

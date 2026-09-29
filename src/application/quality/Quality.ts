@@ -1,4 +1,5 @@
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
+import { SMOKE_LABELS } from "../../domain/model";
 import type {
   AnalysisFeedback,
   EvaluationMetrics,
@@ -48,10 +49,9 @@ export class QualityService {
 
   async addExample(input: { actorId: string; text: string; isSmoke: boolean; types: SmokeType[]; note?: string }): Promise<LabeledExample> {
     const actor = await this.manager(input.actorId);
-    if (input.text.trim().length < 10) throw new ValidationError("El ejemplo es demasiado corto.");
-    if (!input.isSmoke && input.types.length) throw new ValidationError("Un texto sin humo no puede tener tipos de humo.");
+    if (typeof input.text !== "string" || input.text.trim().length < 10) throw new ValidationError("El ejemplo es demasiado corto.");
     const e: LabeledExample = {
-      id: this.ids.next("example"), text: input.text.trim(), expected: { isSmoke: input.isSmoke, types: [...new Set(input.types)] },
+      id: this.ids.next("example"), text: input.text.trim().slice(0, 5_000), expected: exampleLabel(input.isSmoke, input.types),
       source: "curated", reviewed: true, addedBy: actor.id, addedAt: this.clock.now(), note: input.note,
     };
     await this.repo.saveExample(e);
@@ -63,7 +63,7 @@ export class QualityService {
     await this.manager(input.actorId);
     const e = (await this.repo.findExamples()).find((x) => x.id === input.exampleId);
     if (!e) throw new NotFoundError("No existe ese ejemplo.");
-    const next = { ...e, expected: { isSmoke: input.isSmoke, types: input.types }, reviewed: true };
+    const next = { ...e, expected: exampleLabel(input.isSmoke, input.types), reviewed: true };
     await this.repo.saveExample(next);
     return next;
   }
@@ -216,4 +216,11 @@ export class FeedbackService {
     }
     return out;
   }
+}
+
+/** Etiqueta de un ejemplo: sólo tipos conocidos, sin repetir; un texto sin humo no tiene tipos. */
+function exampleLabel(isSmoke: unknown, types: unknown): LabeledExample["expected"] {
+  if (!Array.isArray(types) || types.some((t) => typeof t !== "string" || !Object.hasOwn(SMOKE_LABELS, t))) throw new ValidationError("Tipo de humo desconocido.");
+  if (!isSmoke && types.length) throw new ValidationError("Un texto sin humo no puede tener tipos de humo.");
+  return { isSmoke: !!isSmoke, types: [...new Set(types as SmokeType[])] };
 }

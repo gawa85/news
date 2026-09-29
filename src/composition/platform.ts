@@ -88,7 +88,7 @@ import { RoomService } from "../application/participation/Rooms";
 import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "../infrastructure/participation/Participation";
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
-import { HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
+import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
 import { PARAMETERS } from "../config/parameters";
 import { seedTaxonomy, TaxonomyService } from "../application/config/Taxonomy";
@@ -697,7 +697,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     metrics,
     requestContext,
     participation: { narratives, campaigns, perspectives, rooms, events: eventRooms },
-    catalog: { import: importCatalog, ingestFeeds },
+    catalog: { import: importCatalog, ingestFeeds, csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
     commerce: { service: commerce, referrals, branding, countries },

@@ -1,4 +1,5 @@
 /** Lo que devuelve la API del backoffice (fechas como texto ISO). Refleja los tipos del servidor. */
+import type { SmokeType } from "./types";
 
 export type TicketStatus = "open" | "pending" | "solved" | "closed";
 
@@ -220,4 +221,170 @@ export interface NewEvent {
   startsAt: string;
   endsAt: string;
   slowModeSeconds?: number;
+}
+
+// ---- Temas (taxonomy:manage) ----
+export interface AdminTopic {
+  id: string;
+  name: string;
+  categoryId: string;
+  keywords: string[];
+  synonyms: string[];
+  sensitive: boolean;
+  countries: string[];
+  active: boolean;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+  parentId?: string;
+  description?: string;
+  order: number;
+  active: boolean;
+  path: string;
+  children: AdminCategory[];
+  topics: AdminTopic[];
+}
+
+/** Al editar se manda el objeto completo (lo que no se manda vuelve a su valor por defecto). */
+export interface TopicDraft {
+  id?: string;
+  name: string;
+  categoryId: string;
+  keywords: string[];
+  synonyms: string[];
+  sensitive: boolean;
+  countries: string[];
+  active: boolean;
+}
+
+export interface CategoryDraft {
+  id?: string;
+  name: string;
+  parentId?: string;
+  description?: string;
+  active: boolean;
+}
+
+// ---- Calidad del algoritmo (quality:manage) ----
+export interface ExampleLabel {
+  isSmoke: boolean;
+  types: SmokeType[];
+}
+
+export interface LabeledExample {
+  id: string;
+  text: string;
+  expected: ExampleLabel;
+  source: "curated" | "feedback";
+  reviewed: boolean;
+  addedAt: string;
+  note?: string;
+}
+
+export interface EvaluationMetrics {
+  examples: number;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  perType: Partial<Record<SmokeType, { precision: number; recall: number; support: number }>>;
+}
+
+export interface ModelVersion {
+  id: string;
+  engine: "rules" | "llm";
+  description: string;
+  status: "candidate" | "active" | "retired";
+  createdAt: string;
+  lastEvaluation?: EvaluationMetrics;
+  promotedAt?: string;
+}
+
+export interface QualityOverview {
+  current: string;
+  versions: ModelVersion[];
+  pendingReview: LabeledExample[];
+  reviewedExamples: number;
+  usefulness: Record<string, { total: number; useful: number; rate: number }>;
+}
+
+export interface EvaluationRun {
+  id: string;
+  modelVersion: string;
+  at: string;
+  metrics: EvaluationMetrics;
+  failures: { exampleId: string; expected: ExampleLabel; got: ExampleLabel & { smokeIndex: number } }[];
+}
+
+// ---- Catálogo (outlets:write) ----
+export type CsvKind = "outlets" | "ownership" | "advertising";
+
+export interface CatalogSources {
+  sources: { id: string; label: string }[];
+  csvUpload: boolean;
+}
+
+export interface ImportReport {
+  sourceId: string;
+  outlets: number;
+  owners: number;
+  ownership: number;
+  advertising: number;
+  feeds: number;
+  unmatched: string[];
+  rejected: string[];
+  warnings: string[];
+}
+
+// ---- Auditoría (audit:read) ----
+export interface AuditEntry {
+  id: string;
+  at: string;
+  action: string;
+  actorId: string;
+  organizationId?: string;
+  target?: { type: string; id: string };
+  data: Record<string, unknown>;
+}
+
+// ---- Costos (plans:manage) ----
+export interface CostReport {
+  period: { from: string; to: string };
+  totalCostUsd: number;
+  totalRevenueUsd: number;
+  byProvider: Record<string, number>;
+  bySubject: { subjectId: string; planId?: string; revenueUsd: number; costUsd: number; marginUsd: number; costShare: number | null; overBudget: boolean }[];
+}
+
+// ---- Copias de seguridad (ops:backup) ----
+export interface BackupManifest {
+  id: string;
+  key: string;
+  kind: "daily" | "manual" | "pre_migration" | "staging_copy";
+  createdAt: string;
+  engine: string;
+  environment: string;
+  collections: Record<string, number>;
+  bytes: number;
+  sha256: string;
+  verifiedAt?: string;
+  verification?: { ok: boolean; detail: string };
+}
+
+// ---- Documentos oficiales (verdicts:write) ----
+export interface NewOfficialDocument {
+  title: string;
+  issuer: string;
+  url: string;
+  publishedAt: string;
+  text: string;
+  topics: string[];
+}
+
+export interface OfficialDocument extends NewOfficialDocument {
+  id: string;
 }

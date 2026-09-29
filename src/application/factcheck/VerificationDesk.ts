@@ -166,8 +166,17 @@ export class VerificationDesk {
   /** Cargar un documento oficial (resolución, informe) para que la búsqueda lo encuentre. */
   async uploadDocument(actorId: string, doc: Omit<OfficialDocument, "id" | "uploadedBy">): Promise<OfficialDocument> {
     const actor = await this.checker(actorId);
-    if (!/^https?:\/\/\S+$/.test(doc.url)) throw new ValidationError("El documento necesita la URL oficial de donde se obtuvo.");
-    const saved: OfficialDocument = { ...doc, id: this.ids.next("doc"), uploadedBy: actor.id };
+    const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+    const url = text(doc.url, 2_000);
+    if (!/^https?:\/\/\S+$/.test(url)) throw new ValidationError("El documento necesita la URL oficial de donde se obtuvo.");
+    const title = text(doc.title, 300);
+    const issuer = text(doc.issuer, 200);
+    const body = text(doc.text, 500_000);
+    if (!title || !issuer || !body) throw new ValidationError("Faltan el título, quién lo emitió o el texto del documento.");
+    if (!(doc.publishedAt instanceof Date) || Number.isNaN(doc.publishedAt.getTime())) throw new ValidationError("Falta la fecha de publicación.");
+    const topics = Array.isArray(doc.topics) ? [...new Set(doc.topics.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 20) : [];
+    // Campo por campo: el id y quién lo subió los pone el sistema, nunca el pedido.
+    const saved: OfficialDocument = { id: this.ids.next("doc"), title, issuer, url, publishedAt: doc.publishedAt, text: body, topics, uploadedBy: actor.id };
     await this.documents.save(saved);
     return saved;
   }

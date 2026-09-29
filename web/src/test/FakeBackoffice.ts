@@ -14,6 +14,17 @@ import type {
   RuleScenario,
   TicketStatus,
   VerificationTask,
+  AdminCategory,
+  AuditEntry,
+  BackupManifest,
+  CatalogSources,
+  CategoryDraft,
+  CsvKind,
+  ExampleLabel,
+  ImportReport,
+  NewOfficialDocument,
+  QualityOverview,
+  TopicDraft,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -189,5 +200,113 @@ export class FakeBackoffice implements BackofficeApi {
     this.log("updateFlag", key, patch);
     this.flagList = this.flagList.map((f) => (f.key === key ? { ...f, ...patch, updatedBy: "u1", updatedAt: "2026-09-28T10:00:00Z" } : f));
     return this.flagList.find((f) => f.key === key)!;
+  }
+
+  tree: AdminCategory[] = [
+    {
+      id: "economia", name: "Economía", order: 1, active: true, path: "Economía", children: [],
+      topics: [
+        { id: "gas", name: "tarifas de gas", categoryId: "economia", keywords: ["gas", "tarifa"], synonyms: ["gas natural"], sensitive: false, countries: [], active: true, updatedAt: "2026-09-01T10:00:00Z", updatedBy: "sistema" },
+        { id: "yerba", name: "yerba mate", categoryId: "economia", keywords: ["yerba"], synonyms: [], sensitive: false, countries: ["AR"], active: false, updatedAt: "2026-09-01T10:00:00Z", updatedBy: "u1" },
+      ],
+    },
+  ];
+  async taxonomy() {
+    return this.tree;
+  }
+  async saveTopic(draft: TopicDraft) {
+    this.log("saveTopic", draft);
+  }
+  async saveCategory(draft: CategoryDraft) {
+    this.log("saveCategory", draft);
+  }
+
+  qualityData: QualityOverview = {
+    current: "reglas-v2",
+    versions: [
+      { id: "reglas-v2", engine: "rules", description: "Reglas con listas de 2026", status: "active", createdAt: "2026-08-01T10:00:00Z", lastEvaluation: { examples: 40, accuracy: 0.9, precision: 0.88, recall: 0.92, f1: 0.9, perType: { alarmism: { precision: 0.8, recall: 0.75, support: 8 } } } },
+      { id: "llm-v1", engine: "llm", description: "Modelo de lenguaje", status: "candidate", createdAt: "2026-09-01T10:00:00Z", lastEvaluation: { examples: 40, accuracy: 0.93, precision: 0.91, recall: 0.95, f1: 0.93, perType: {} } },
+    ],
+    pendingReview: [{ id: "ex1", text: "Increíble oferta que cambia tu vida para siempre", expected: { isSmoke: true, types: ["marketing"] }, source: "feedback", reviewed: false, addedAt: "2026-09-27T10:00:00Z", note: "no me sirvió" }],
+    reviewedExamples: 40,
+    usefulness: { "reglas-v2": { total: 20, useful: 17, rate: 0.85 } },
+  };
+  async quality() {
+    return this.qualityData;
+  }
+  async addExample(text: string, label: ExampleLabel, note?: string) {
+    this.log("addExample", text, label, note);
+    return { id: "ex2", text, expected: label, source: "curated" as const, reviewed: true, addedAt: "2026-09-28T10:00:00Z", note };
+  }
+  async reviewExample(id: string, label: ExampleLabel) {
+    this.log("reviewExample", id, label);
+    const ex = this.qualityData.pendingReview.find((x) => x.id === id)!;
+    this.qualityData = { ...this.qualityData, pendingReview: this.qualityData.pendingReview.filter((x) => x.id !== id), reviewedExamples: this.qualityData.reviewedExamples + 1 };
+    return { ...ex, expected: label, reviewed: true };
+  }
+  async evaluate() {
+    this.log("evaluate");
+    return { id: "run1", modelVersion: "reglas-v2", at: "2026-09-28T10:00:00Z", metrics: this.qualityData.versions[0]!.lastEvaluation!, failures: [{ exampleId: "ex9", expected: { isSmoke: true, types: ["alarmism" as const] }, got: { isSmoke: false, types: [], smokeIndex: 12 } }] };
+  }
+  async promote(versionId: string) {
+    this.log("promote", versionId);
+  }
+
+  catalog: CatalogSources = { sources: [{ id: "pauta-nacional", label: "Pauta oficial nacional (datos abiertos)" }], csvUpload: true };
+  report: ImportReport = { sourceId: "x", outlets: 1, owners: 0, ownership: 0, advertising: 0, feeds: 1, unmatched: ["Diario Fantasma"], rejected: [], warnings: ["Medio el-litoral: \"Santa Fé\" no es una región de Argentina."] };
+  async catalogSources() {
+    return this.catalog;
+  }
+  async importCatalog(sourceId: string) {
+    this.log("importCatalog", sourceId);
+    return { ...this.report, sourceId };
+  }
+  async importCsv(kind: CsvKind, text: string) {
+    this.log("importCsv", kind, text);
+    return { ...this.report, sourceId: `subida-${kind}` };
+  }
+
+  auditEntries: AuditEntry[] = Array.from({ length: 3 }, (_, i) => ({
+    id: `a${i}`, at: `2026-09-2${8 - i}T10:00:00.000Z`, action: i === 0 ? "taxonomy.changed" : "ops.backup_accessed", actorId: "u1", target: i === 0 ? { type: "topic", id: "gas" } : undefined, data: i === 0 ? { kind: "topic", active: true } : {},
+  }));
+  async audit(filter: { from?: string; to?: string; action?: string }) {
+    this.log("audit", filter);
+    return this.auditEntries.filter((e) => (!filter.to || e.at <= filter.to) && (!filter.action || e.action === filter.action));
+  }
+
+  async costs(from: string, to: string) {
+    this.log("costs", from, to);
+    return {
+      period: { from, to }, totalCostUsd: 12.5, totalRevenueUsd: 40,
+      byProvider: { anthropic: 10, whatsapp: 2.5, "whisper-local": 0 },
+      bySubject: [
+        { subjectId: "u7", planId: "gratis", revenueUsd: 0, costUsd: 6, marginUsd: -6, costShare: null, overBudget: true },
+        { subjectId: "org1", planId: "equipo", revenueUsd: 40, costUsd: 6.5, marginUsd: 33.5, costShare: 0.1625, overBudget: false },
+      ],
+    };
+  }
+
+  backupList: BackupManifest[] = [
+    { id: "b1", key: "backups/2026/09/27/sinhumo-b1.shbk", kind: "daily", createdAt: "2026-09-27T03:00:00Z", engine: "postgres", environment: "production", collections: { users: 120, analyses: 3400 }, bytes: 2_400_000, sha256: "ab".repeat(32), verifiedAt: "2026-09-27T04:00:00Z", verification: { ok: true, detail: "3520 documentos restaurados sin diferencias." } },
+  ];
+  async backups() {
+    return this.backupList;
+  }
+  async createBackup() {
+    this.log("createBackup");
+    const m: BackupManifest = { ...this.backupList[0]!, id: "b2", key: "backups/2026/09/28/sinhumo-b2.shbk", kind: "manual", createdAt: "2026-09-28T10:00:00Z", verifiedAt: undefined, verification: undefined };
+    this.backupList = [m, ...this.backupList];
+    return m;
+  }
+  async verifyBackup(key: string) {
+    this.log("verifyBackup", key);
+    const m = { ...this.backupList.find((b) => b.key === key)!, verifiedAt: "2026-09-28T11:00:00Z", verification: { ok: true, detail: "3520 documentos restaurados sin diferencias." } };
+    this.backupList = this.backupList.map((b) => (b.key === key ? m : b));
+    return m;
+  }
+
+  async uploadDocument(doc: NewOfficialDocument) {
+    this.log("uploadDocument", doc);
+    return { ...doc, id: "doc1" };
   }
 }

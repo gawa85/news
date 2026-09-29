@@ -26,7 +26,7 @@ import type {
  */
 export class ImportCatalogUseCase {
   constructor(
-    private readonly sources: IOutletCatalogSource[],
+    private readonly configured: IOutletCatalogSource[],
     private readonly catalog: ICatalogRepository,
     private readonly outlets: IOutletReader & IOutletWriter,
     private readonly users: IUserRepository,
@@ -35,10 +35,15 @@ export class ImportCatalogUseCase {
     private readonly countries?: ICountryRegistry,
   ) {}
 
+  /** Fuentes configuradas en el servidor (datos abiertos, registros públicos…). */
+  async sources(actorId: string): Promise<{ id: string; label: string }[]> {
+    await this.editor(actorId);
+    return this.configured.map((s) => ({ id: s.id, label: s.label }));
+  }
+
   async execute(input: { actorId: string; sourceId: string; extraSources?: IOutletCatalogSource[] }): Promise<ImportReport> {
-    const actor = await this.users.findById(input.actorId);
-    if (!actor || !(await this.authz.permissionsOf(actor)).has("outlets:write")) throw new AccessDeniedError("No tenés permiso para cargar el catálogo.", "no_permission");
-    const source = [...this.sources, ...(input.extraSources ?? [])].find((s) => s.id === input.sourceId);
+    const actor = await this.editor(input.actorId);
+    const source = [...this.configured, ...(input.extraSources ?? [])].find((s) => s.id === input.sourceId);
     if (!source) throw new NotFoundError(`No existe la fuente ${input.sourceId}.`);
 
     const batch = await source.load({ outlets: await this.outlets.findAll() });
@@ -76,6 +81,12 @@ export class ImportCatalogUseCase {
     }
     await this.events.emit("catalog.imported", { userId: actor.id }, { source: source.id, ...report, unmatched: report.unmatched.length, rejected: rejected.length });
     return report;
+  }
+
+  private async editor(actorId: string) {
+    const actor = await this.users.findById(actorId);
+    if (!actor || !(await this.authz.permissionsOf(actor)).has("outlets:write")) throw new AccessDeniedError("No tenés permiso para cargar el catálogo.", "no_permission");
+    return actor;
   }
 }
 

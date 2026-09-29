@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AccessDeniedError } from "../../domain/errors";
+import { AccessDeniedError, ValidationError } from "../../domain/errors";
 import type { CostEvent, CostKind, CostReport, PriceTable, SubjectCost } from "../../domain/model";
 import type {
   IAuthorizationService,
@@ -75,6 +75,10 @@ export class CostReportUseCase {
     const actor = await this.users.findById(input.actorId);
     const perms = actor ? await this.authz.permissionsOf(actor) : new Set();
     if (!perms.has("plans:manage") && !perms.has("users:manage_all")) throw new AccessDeniedError("Sólo la administración ve los costos.", "no_permission");
+    const span = input.to.getTime() - input.from.getTime();
+    // Un rango sin tope recorre toda la historia de costos en un solo pedido.
+    if (span <= 0) throw new ValidationError("La fecha de inicio tiene que ser anterior a la de fin.");
+    if (span > MAX_RANGE_DAYS * 86_400_000) throw new ValidationError(`El período no puede superar ${MAX_RANGE_DAYS} días.`);
 
     const events = await this.costs.findBetween(input.from, input.to);
     const months = Math.max(1, (input.to.getTime() - input.from.getTime()) / (30.44 * 86_400_000));
@@ -107,3 +111,4 @@ export class CostReportUseCase {
 }
 
 const round = (n: number) => Math.round(n * 10_000) / 10_000;
+const MAX_RANGE_DAYS = 366;

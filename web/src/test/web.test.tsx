@@ -867,3 +867,129 @@ describe("Referidos, marca propia y cupones", () => {
     expect(await screen.findByText("Inactivo")).toBeInTheDocument();
   });
 });
+
+describe("Backoffice: temas, calidad, datos y operación", () => {
+  const staff = (...permissions: string[]) => new FakeApi(sampleMe({ permissions }));
+
+  test("temas: editar manda el tema completo; lo desactivado se ve sólo si se pide", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("taxonomy:manage"), "/admin/temas", bo);
+    const user = userEvent.setup();
+    expect(await screen.findByText("tarifas de gas", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.queryByText("yerba mate", { selector: "strong" })).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Mostrar también los desactivados"));
+    expect(screen.getByText("yerba mate", { selector: "strong" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Editar tarifas de gas" }));
+    const syn = screen.getByLabelText(/^Sinónimos \(tarifas de gas\)/);
+    await user.clear(syn);
+    await user.type(syn, "gas natural, garrafa");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() =>
+      expect(bo.calls.find((c) => c.method === "saveTopic")?.args[0]).toEqual({
+        id: "gas", name: "tarifas de gas", categoryId: "economia", keywords: ["gas", "tarifa"], synonyms: ["gas natural", "garrafa"], countries: [], sensitive: false, active: true,
+      }),
+    );
+
+    await user.type(screen.getByLabelText("Nombre"), "Subsidios");
+    expect(screen.getByRole("button", { name: "Crear tema" })).toBeDisabled();
+    await user.type(screen.getByLabelText(/^Palabras clave/), "subsidio, subsidios");
+    await user.click(screen.getByRole("button", { name: "Crear tema" }));
+    expect(await screen.findByText("Tema creado.")).toBeInTheDocument();
+  });
+
+  test("calidad: revisar un ejemplo, medir y poner en uso una candidata", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("quality:manage"), "/admin/calidad", bo);
+    const user = userEvent.setup();
+    const versions = await screen.findByRole("table", { name: "Versiones del algoritmo y sus mediciones" });
+    expect(within(versions).getByText("85 % de 20")).toBeInTheDocument();
+
+    await user.click(within(screen.getByRole("group", { name: /^¿Tiene humo\? \(«Increíble oferta/ })).getByRole("checkbox", { name: "Promesa vaga" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar etiqueta de ex1" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "reviewExample")?.args).toEqual(["ex1", { isSmoke: true, types: ["marketing", "vague_promise"] }]));
+    expect(await screen.findByText("No hay ejemplos pendientes.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Medir con los ejemplos revisados" }));
+    expect(await screen.findByText("1 ejemplo(s) donde se equivocó")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Por tipo de humo" })).toHaveTextContent("Alarmismo");
+
+    await user.click(screen.getByRole("button", { name: "Poner en uso llm-v1" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "promote")?.args).toEqual(["llm-v1"]));
+  });
+
+  test("documentos oficiales: sin URL oficial no se carga; con todo, se manda sólo lo del documento", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("verdicts:write"), "/admin/documentos", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Título"), "Resolución 45/2026");
+    await user.type(screen.getByLabelText(/^Quién lo emitió/), "ENARGAS");
+    await user.type(screen.getByLabelText(/^URL oficial/), "boletin");
+    await user.type(screen.getByLabelText(/^Texto del documento/), "Aumento del 30% en la tarifa de gas.");
+    await user.click(screen.getByRole("button", { name: "Cargar documento" }));
+    expect(screen.getByText("Poné la URL completa (https://…).")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "uploadDocument")).toBe(false);
+
+    await user.clear(screen.getByLabelText(/^URL oficial/));
+    await user.type(screen.getByLabelText(/^URL oficial/), "https://boletin.example/45");
+    await user.type(screen.getByLabelText(/^Temas/), "tarifas de gas");
+    await user.click(screen.getByRole("button", { name: "Cargar documento" }));
+    expect(await screen.findByText("Documento cargado: «Resolución 45/2026».")).toBeInTheDocument();
+    const doc = bo.calls.find((c) => c.method === "uploadDocument")!.args[0] as Record<string, unknown>;
+    expect(Object.keys(doc).sort()).toEqual(["issuer", "publishedAt", "text", "title", "topics", "url"]);
+    expect(doc.topics).toEqual(["tarifas de gas"]);
+  });
+
+  test("catálogo: importar una fuente configurada y subir un CSV; el informe muestra lo que no se reconoció", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("outlets:write"), "/admin/catalogo", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Importar Pauta oficial nacional (datos abiertos)" }));
+    expect(await screen.findByText("Se cargaron 1 medios, 1 feeds.")).toBeInTheDocument();
+    expect(screen.getByText("No se reconocieron (1)")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Qué contiene"), "ownership");
+    const csv = new File(["medio,dueno\nEl Litoral,Grupo Norte"], "propiedad.csv", { type: "text/csv" });
+    await user.upload(screen.getByLabelText(/^Archivo CSV/), csv);
+    await user.click(screen.getByRole("button", { name: "Importar CSV" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "importCsv")?.args).toEqual(["ownership", "medio,dueno\nEl Litoral,Grupo Norte"]));
+  });
+
+  test("auditoría: de a 200; ver más antiguas pide hasta antes de la última mostrada", async () => {
+    const bo = new FakeBackoffice();
+    bo.auditEntries = Array.from({ length: 250 }, (_, i) => ({ id: `a${i}`, at: new Date(Date.UTC(2026, 8, 28, 12) - i * 60_000).toISOString(), action: "ops.backup_accessed", actorId: "u1", data: {} }));
+    bo.audit = async (filter) => {
+      bo.calls.push({ method: "audit", args: [filter] });
+      return bo.auditEntries.filter((e) => !filter.to || e.at <= filter.to).slice(0, 200);
+    };
+    renderApp(staff("audit:read"), "/admin/auditoria", bo);
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Registros de auditoría" });
+    expect(within(table).getAllByRole("row")).toHaveLength(201);
+    await user.click(screen.getByRole("button", { name: "Ver más antiguas" }));
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(251));
+    const last = bo.calls.filter((c) => c.method === "audit").at(-1)!.args[0] as { to: string };
+    expect(last.to).toBe(new Date(Date.parse(bo.auditEntries[199]!.at) - 1).toISOString());
+    expect(screen.queryByRole("button", { name: "Ver más antiguas" })).not.toBeInTheDocument();
+  });
+
+  test("costos: el cliente que cuesta más de lo que paga se marca", async () => {
+    renderApp(staff("plans:manage"), "/admin/costos", new FakeBackoffice());
+    const clients = await screen.findByRole("table", { name: "Por cliente (los que más cuestan primero)" });
+    expect(within(clients).getAllByRole("row")[1]).toHaveTextContent("Fuera de presupuesto");
+    expect(screen.getByRole("table", { name: "Por proveedor" })).toHaveTextContent("anthropic");
+  });
+
+  test("copias de seguridad: hacer una y verificarla", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("ops:backup"), "/admin/copias", bo);
+    const user = userEvent.setup();
+    await screen.findByRole("table", { name: "Copias guardadas" });
+    await user.click(screen.getByRole("button", { name: "Hacer una copia" }));
+    expect(await screen.findByText("Copia hecha (2,4 MB). Conviene verificarla.")).toBeInTheDocument();
+    expect(screen.getByText("Sin verificar")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /^Verificar la copia del/ })[0]!);
+    await waitFor(() => expect(screen.queryByText("Sin verificar")).not.toBeInTheDocument());
+    expect(bo.calls.find((c) => c.method === "verifyBackup")?.args).toEqual(["backups/2026/09/28/sinhumo-b2.shbk"]);
+  });
+});

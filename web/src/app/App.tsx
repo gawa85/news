@@ -33,6 +33,10 @@ import { MetricsPage } from "../features/admin/MetricsPage";
 import { ParametersPage } from "../features/admin/ParametersPage";
 import { RulesPage } from "../features/admin/RulesPage";
 import { FlagsPage } from "../features/admin/FlagsPage";
+import { TaxonomyPage } from "../features/admin/TaxonomyPage";
+import { QualityPage } from "../features/admin/QualityPage";
+import { CatalogPage, DocumentsPage } from "../features/admin/DataPages";
+import { AuditPage, BackupsPage, CostsPage } from "../features/admin/OpsPages";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
 
@@ -79,6 +83,13 @@ export const routes: RouteObject[] = [
           { path: "reglas", element: <RulesPage /> },
           { path: "cupones", element: <CouponsPage /> },
           { path: "funciones", element: <FlagsPage /> },
+          { path: "temas", element: <TaxonomyPage /> },
+          { path: "calidad", element: <QualityPage /> },
+          { path: "documentos", element: <DocumentsPage /> },
+          { path: "catalogo", element: <CatalogPage /> },
+          { path: "auditoria", element: <AuditPage /> },
+          { path: "costos", element: <CostsPage /> },
+          { path: "copias", element: <BackupsPage /> },
         ],
       },
       { path: "/salas/:id", element: guard(<TeamRoomPage />) },

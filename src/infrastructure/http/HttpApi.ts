@@ -28,7 +28,7 @@
  *
  *  Mis datos (Ley 25.326):  GET /v1/me/data   POST /v1/me/delete { confirmation }
  *  Facturación:  POST /v1/billing/profile   GET /v1/invoices
- *  Costos (administración):  GET /v1/costs?from=&to=
+ *  Costos (administración):  GET /v1/costs?from=&to=   (hasta 366 días)
  *  Verificación:  GET /v1/verification/tasks
  *    POST /v1/verification/tasks/:id/(take|suggest|evidence|resolve|discard)
  *    POST /v1/verification/documents
@@ -47,7 +47,7 @@
  *    GET /public/datasets    GET /public/datasets/:id.(csv|json)?from=&to=   (datos abiertos, CC BY 4.0)
  *  Configuración del negocio:
  *    GET /public/topics                     árbol de categorías y temas
- *    POST /v1/taxonomy/categories  POST /v1/taxonomy/topics   (taxonomy:manage)
+ *    GET /v1/taxonomy (con lo desactivado)   POST /v1/taxonomy/categories  POST /v1/taxonomy/topics   (taxonomy:manage)
  *    GET/PATCH /v1/me/preferences   POST /v1/me/preferences/(follow|unfollow) { topic }
  *    PUT /v1/organization/preferences { values, locked }
  *    GET/POST /v1/business-rules   POST /v1/business-rules/:id/(test|approve|archive)   GET /v1/business-rules/:id/history
@@ -79,7 +79,8 @@
  *  Origen:  POST /v1/origin { url, topic? }   ("¿quién lo dijo primero?")
  *  Credibilidad en el tiempo:  POST /v1/credibility/timeline { outletId, topic, from, to, windows }
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
- *  Operación:  GET/POST /v1/ops/backups (ops:backup)   GET /health (con el ambiente)
+ *  Operación:  GET/POST /v1/ops/backups   POST /v1/ops/backups/verify { key }   (ops:backup, una operación por vez)   GET /health (con el ambiente)
+ *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
  *  Métricas (Prometheus, con token):  GET /metrics
  *
@@ -128,7 +129,7 @@ import type { SetBillingProfileUseCase } from "../../application/billing/Invoici
 import type { CostReportUseCase } from "../../application/costs/Costs";
 import type { VerificationDesk } from "../../application/factcheck/VerificationDesk";
 import type { PersonalDataService } from "../../application/privacy/PersonalData";
-import type { IClock, IInvoiceRepository } from "../../domain/ports";
+import type { IClock, IInvoiceRepository, IOutletCatalogSource } from "../../domain/ports";
 import { billingSubjectOf } from "../../application/access/AccessControl";
 import type { CampaignService } from "../../application/participation/Campaigns";
 import type { NarrativeTracker } from "../../application/participation/Narratives";
@@ -215,7 +216,8 @@ export interface HttpApiDeps {
   invoices: IInvoiceRepository;
   costReport: CostReportUseCase;
   participation: { narratives: NarrativeTracker; campaigns: CampaignService; perspectives: PerspectiveService; rooms: RoomService; events: EventRoomService };
-  catalog: { import: ImportCatalogUseCase };
+  /** `csvSource`: arma una fuente con un CSV subido desde la web (medios, propiedad o pauta). */
+  catalog: { import: ImportCatalogUseCase; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
   config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
   commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry };
@@ -390,7 +392,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       return json(res, 200, await deps.stats.service.observatory(month));
     }
     if (req.method === "GET" && path === "/public/datasets") return json(res, 200, deps.stats.openData.list());
-    if (req.method === "GET" && path === "/public/topics") return json(res, 200, await deps.config.taxonomy.tree());
+    if (req.method === "GET" && path === "/public/topics") return json(res, 200, await deps.config.taxonomy.publicTree());
     if (req.method === "GET" && path === "/public/legal") return json(res, 200, deps.legal.current());
     if (req.method === "GET" && path === "/public/countries") {
       return json(res, 200, deps.commerce.countries.all().map(({ planPrices: _p, ...c }) => ({ ...c, regions: c.regions.map((r) => r.name) })));
@@ -816,9 +818,11 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       // ---- Configuración: temas, preferencias, reglas y parámetros ----
       case "POST /v1/taxonomy/categories":
-        return json(res, 200, await deps.config.taxonomy.saveCategory({ ...(b as object), actorId: who.userId } as never));
+        return json(res, 200, await deps.config.taxonomy.saveCategory({ ...pick(b, ["id", "name", "parentId", "description", "order", "active"]), actorId: who.userId } as never));
       case "POST /v1/taxonomy/topics":
-        return json(res, 200, await deps.config.taxonomy.saveTopic({ ...(b as object), actorId: who.userId } as never));
+        return json(res, 200, await deps.config.taxonomy.saveTopic({ ...pick(b, ["id", "name", "categoryId", "keywords", "synonyms", "sensitive", "countries", "active"]), actorId: who.userId } as never));
+      case "GET /v1/taxonomy":
+        return json(res, 200, await deps.config.taxonomy.adminTree(who.userId));
       case "GET /v1/me/preferences":
         return json(res, 200, await deps.config.preferences.effective(await deps.access.userOrThrow(who.userId)));
       case "PATCH /v1/me/preferences":
@@ -846,8 +850,11 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       case "POST /v1/ops/backups": {
         if (!deps.backups) throw new HttpError(404, "Copias de seguridad sin configurar.");
-        await deps.backups.requireOperator(who.userId);
-        return json(res, 201, await deps.backups.create("manual"));
+        return json(res, 201, await deps.backups.createManual(who.userId));
+      }
+      case "POST /v1/ops/backups/verify": {
+        if (!deps.backups) throw new HttpError(404, "Copias de seguridad sin configurar.");
+        return json(res, 200, await deps.backups.verifyListed(who.userId, str(b.key, "key")));
       }
       // ---- Legal ----
       case "GET /v1/legal/pending":
@@ -947,10 +954,18 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "GET /v1/verification/tasks":
         return json(res, 200, await deps.verification.queue(who.userId));
       case "POST /v1/verification/documents":
-        return json(res, 201, await deps.verification.uploadDocument(who.userId, { ...(b as object), publishedAt: date(b.publishedAt, "publishedAt") } as never));
+        return json(res, 201, await deps.verification.uploadDocument(who.userId, { ...pick(b, ["title", "issuer", "url", "text", "topics"]), publishedAt: date(b.publishedAt, "publishedAt") } as never));
       // ---- Datos reales y calidad ----
       case "POST /v1/catalog/import":
         return json(res, 200, await deps.catalog.import.execute({ actorId: who.userId, sourceId: str(b.sourceId, "sourceId") }));
+      case "GET /v1/catalog/sources":
+        return json(res, 200, { sources: await deps.catalog.import.sources(who.userId), csvUpload: !!deps.catalog.csvSource });
+      case "POST /v1/catalog/import-csv": {
+        const kind = str(b.kind, "kind");
+        if (kind !== "outlets" && kind !== "ownership" && kind !== "advertising") throw new ValidationError("Tipo de CSV inválido.");
+        const source = need(deps.catalog.csvSource)(kind, `CSV subido: ${kind}`, str(b.text, "text"));
+        return json(res, 200, await deps.catalog.import.execute({ actorId: who.userId, sourceId: source.id, extraSources: [source] }));
+      }
       case "GET /v1/quality": {
         const since = new Date(now().getTime() - 30 * 86_400_000);
         return json(res, 200, { current: deps.quality.currentVersion(), ...(await deps.quality.service.overview(who.userId)), usefulness: await deps.quality.feedback.usefulnessByVersion(since) });

@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { AccessDeniedError, NotFoundError, ValidationError } from "../../domain/errors";
+import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
 import type { BackupManifest, IAuthorizationService, IBackupSink, IClock, IDataStore, IDomainEvents, ILogger, IUserRepository } from "../../domain/ports";
 import { Scrubber } from "./Scrubber";
 
@@ -182,6 +182,31 @@ export class BackupService {
     const [latest] = await this.list();
     return latest ? this.verify(latest.key) : undefined;
   }
+
+  /** Copia pedida a mano desde la administración. */
+  async createManual(actorId: string): Promise<BackupManifest> {
+    await this.requireOperator(actorId);
+    return this.exclusive("creando una copia", () => this.create("manual"));
+  }
+
+  /** Prueba de restauración pedida a mano: sólo de una copia que figure en la lista. */
+  async verifyListed(actorId: string, key: string): Promise<BackupManifest> {
+    await this.requireOperator(actorId);
+    if (!(await this.list()).some((m) => m.key === key)) throw new NotFoundError("No existe esa copia.");
+    return this.exclusive("verificando una copia", () => this.verify(key));
+  }
+
+  /** Copiar o restaurar lee toda la base: dos a la vez desde la web la saturan. */
+  private async exclusive<T>(what: string, run: () => Promise<T>): Promise<T> {
+    if (this.busy) throw new ConflictError(`Ya hay una operación en curso (${this.busy}). Esperá a que termine.`);
+    this.busy = what;
+    try {
+      return await run();
+    } finally {
+      this.busy = undefined;
+    }
+  }
+  private busy?: string;
 
   /** Para la API de administración (permiso `ops:backup`). */
   async requireOperator(actorId: string): Promise<void> {
