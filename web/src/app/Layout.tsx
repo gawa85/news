@@ -1,6 +1,7 @@
 import { NavLink, Outlet, Link } from "react-router";
 import { useSession } from "../session/SessionContext";
 import { LegalBanner } from "../features/account/LegalBanner";
+import { OnboardingBanner } from "../features/onboarding/OnboardingBanner";
 import { useHasBackoffice } from "../features/admin/AdminLayout";
 
 function Logo() {
@@ -55,6 +56,7 @@ export function Layout() {
       </header>
       <main id="contenido">
         {me && <LegalBanner />}
+        {me && <OnboardingBanner />}
         <Outlet />
       </main>
       <footer className="site-footer">

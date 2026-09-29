@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, t
 import type { ChannelType, Permission, User } from "../../domain/model";
 import type {
   IAuthorizationService,
+  IChannelLinkCodes,
   IClock,
   IRoleRepository,
   ISecretRecordRepository,
@@ -100,3 +101,48 @@ export class EncryptedSecretVault implements ISecretVault {
 }
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/**
+ * Códigos de VINCULACIÓN de chats: 8 caracteres sin letras confusas (~6·10¹¹ combinaciones),
+ * un solo uso, 15 minutos, uno vigente por persona; se guarda sólo la huella. Quien manda 5
+ * códigos equivocados queda frenado una hora (no se puede probar al azar).
+ */
+export class HashedChannelLinkCodes implements IChannelLinkCodes {
+  private static readonly ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+  constructor(
+    private readonly repo: IVerificationCodeRepository,
+    private readonly clock: IClock,
+    private readonly ttlMinutes = 15,
+    private readonly maxFailures = 5,
+  ) {}
+
+  async create(userId: string): Promise<{ code: string; expiresAt: Date }> {
+    const a = HashedChannelLinkCodes.ALPHABET;
+    const code = Array.from({ length: 8 }, () => a[randomInt(0, a.length)]).join("");
+    const expiresAt = new Date(this.clock.now().getTime() + this.ttlMinutes * 60_000);
+    // El anterior de esta persona deja de valer.
+    const mine = await this.repo.get(`link-user:${userId}`);
+    if (mine) await this.repo.delete(`link:${mine.codeHash}`);
+    await this.repo.save({ key: `link:${sha(code)}`, codeHash: sha(code), expiresAt, attempts: 0, userId });
+    await this.repo.save({ key: `link-user:${userId}`, codeHash: sha(code), expiresAt, attempts: 0 });
+    return { code, expiresAt };
+  }
+
+  async consume(code: string, sender: string): Promise<{ userId: string } | { error: "invalid" | "throttled" }> {
+    const now = this.clock.now();
+    const failKey = `link-fail:${sender.trim().toLowerCase()}`;
+    const fails = await this.repo.get(failKey);
+    if (fails && fails.expiresAt > now && fails.attempts >= this.maxFailures) return { error: "throttled" };
+    const normalized = code.trim().toUpperCase();
+    const rec = await this.repo.get(`link:${sha(normalized)}`);
+    if (!rec?.userId || rec.expiresAt < now) {
+      const active = fails && fails.expiresAt > now ? fails : undefined;
+      await this.repo.save({ key: failKey, codeHash: "", attempts: (active?.attempts ?? 0) + 1, expiresAt: active?.expiresAt ?? new Date(now.getTime() + 3_600_000) });
+      return { error: "invalid" };
+    }
+    await this.repo.delete(rec.key);
+    await this.repo.delete(`link-user:${rec.userId}`);
+    return { userId: rec.userId };
+  }
+}

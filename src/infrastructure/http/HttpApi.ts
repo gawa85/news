@@ -32,6 +32,8 @@
  *  Verificación:  GET /v1/verification/tasks
  *    POST /v1/verification/tasks/:id/(take|suggest|evidence|resolve|discard)
  *    POST /v1/verification/documents
+ *  Guía de bienvenida:  GET /v1/me/onboarding   POST /v1/me/onboarding/step { step, how: done|skipped }   POST /v1/me/onboarding/dismiss
+ *  Vincular un chat:  POST /v1/me/channels/link-code → { code, expiresAt, whatsappUrl?, telegramUrl? } (la persona lo manda desde el chat: "VINCULAR <código>")
  *  Fe de erratas:  POST /v1/corrections { target: { type, id }, outletId?, description }   (corrections:publish)
  *  Participación:
  *    GET  /public/narratives?days=          humo en circulación
@@ -118,6 +120,8 @@ import type { SaveRuleSetUseCase } from "../../application/users/UserSettingsUse
 import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { OutletProfileService } from "../../application/catalog/OutletProfile";
 import type { PlatformUsersService } from "../../application/users/PlatformUsers";
+import type { LinkChannelUseCase } from "../../application/users/UserSettingsUseCases";
+import type { OnboardingService } from "../../application/onboarding/Onboarding";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
 import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
 import type { PlanMigrations } from "../../application/commerce/PlanMigrations";
@@ -173,7 +177,7 @@ import { buildMcpServer } from "../integrations/McpServer";
 export interface HttpApiDeps {
   gateway: ProductGateway;
   /** Administración de cuentas de la plataforma y representantes de medios. */
-  users: { platform: PlatformUsersService; assignOutletRepresentative: AssignOutletRepresentativeUseCase };
+  users: { platform: PlatformUsersService; assignOutletRepresentative: AssignOutletRepresentativeUseCase; linkChannel: LinkChannelUseCase };
   access: AccessControl;
   authz: IAuthorizationService;
   apiKeys: ApiKeyService;
@@ -243,6 +247,7 @@ export interface HttpApiDeps {
   changePlan: ChangePlanUseCase;
   legal: LegalService;
   legalPublisher: LegalPublisher;
+  onboarding: OnboardingService;
   backups?: BackupService;
   environment?: string;
   quality: { service: QualityService; feedback: FeedbackService; evaluateCurrent: (actorId: string) => Promise<EvaluationRun>; currentVersion: () => string };
@@ -1048,6 +1053,14 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, await deps.costReport.execute({ actorId: who.userId, from: date(url.searchParams.get("from"), "from"), to: date(url.searchParams.get("to"), "to") }));
       case "GET /v1/verification/tasks":
         return json(res, 200, await deps.verification.queue(who.userId));
+      case "GET /v1/me/onboarding":
+        return json(res, 200, await deps.onboarding.status(who.userId));
+      case "POST /v1/me/onboarding/dismiss":
+        return json(res, 200, await deps.onboarding.dismiss(who.userId));
+      case "POST /v1/me/onboarding/step":
+        return json(res, 200, await deps.onboarding.mark(who.userId, str(b.step, "step"), b.how === "done" ? "done" : "skipped"));
+      case "POST /v1/me/channels/link-code":
+        return json(res, 201, await deps.users.linkChannel.webCode(who.userId));
       case "POST /v1/corrections": {
         const target = (typeof b.target === "object" && b.target ? b.target : {}) as Record<string, unknown>;
         return json(res, 201, await deps.rebuttals.publishCorrection({

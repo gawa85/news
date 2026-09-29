@@ -50,6 +50,17 @@ export interface IAuthorizationService {
 }
 
 /** Códigos para verificar que una dirección (mail, número) es del usuario. */
+/**
+ * Códigos para vincular un chat a una cuenta: los muestra la web y la persona los manda desde
+ * su WhatsApp o Telegram (así se prueba que el número es suyo).
+ */
+export interface IChannelLinkCodes {
+  /** Uno por persona: pedir otro invalida el anterior. */
+  create(userId: string): Promise<{ code: string; expiresAt: Date }>;
+  /** De quién es el código (y lo invalida: un solo uso). Frena a quien prueba muchos. */
+  consume(code: string, sender: string): Promise<{ userId: string } | { error: "invalid" | "throttled" }>;
+}
+
 export interface IVerificationCodeService {
   issue(userId: string, channel: ChannelType, address: string): Promise<string>;
   verify(userId: string, channel: ChannelType, address: string, code: string): Promise<boolean>;

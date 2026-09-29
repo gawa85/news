@@ -67,7 +67,7 @@ import {
   type WordPressSite,
 } from "../infrastructure/replies/Publishers";
 import { AppStoreReviewSource, GooglePlayReviewSource, RuleBasedReviewModerator } from "../infrastructure/reviews/ReviewAdapters";
-import { EncryptedSecretVault, HashedVerificationCodeService, RoleBasedAuthorization } from "../infrastructure/security/Security";
+import { EncryptedSecretVault, HashedChannelLinkCodes, HashedVerificationCodeService, RoleBasedAuthorization } from "../infrastructure/security/Security";
 import { InMemoryEventBus } from "../infrastructure/system/EventsAndHttp";
 import { buildApp, type AppConfig } from "./container";
 import type { HttpApiDeps } from "../infrastructure/http/HttpApi";
@@ -91,6 +91,7 @@ import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog
 import { OutletEditor } from "../application/catalog/OutletEditor";
 import { PlanAdmin } from "../application/commerce/PlanAdmin";
 import { PlanMigrations } from "../application/commerce/PlanMigrations";
+import { OnboardingService } from "../application/onboarding/Onboarding";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
 import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
@@ -246,6 +247,8 @@ export interface PlatformConfig {
    * hacia internet pública (PublicDestinationHttpClient) y si se permiten redes privadas (sólo desarrollo).
    */
   userDestinations?: { http?: IHttpClient; allowPrivate?: boolean };
+  /** Para los botones "vincular WhatsApp/Telegram" de la web (número público del WhatsApp y usuario del bot). */
+  chatLinks?: { whatsappNumber?: string; telegramBot?: string };
   /**
    * Webhooks salientes: cliente HTTP para entregarlos (en producción, sólo destinos públicos:
    * PublicDestinationHttpClient) y si se aceptan destinos localhost (sólo desarrollo).
@@ -585,6 +588,10 @@ export function buildPlatform(cfg: PlatformConfig) {
   // ---- Redes: cadena de lectores (del más rico al más básico) con caché ----
   const social = cfg.social?.sources.length ? new SocialReader(new CachedSocialSource(new FallbackSocialSource(cfg.social.sources), cache), flags) : undefined;
 
+  const linkChannel = new LinkChannelUseCase(repos.users, codes, notifications, cfg.store, clock, {
+    codes: new HashedChannelLinkCodes(repos.verificationCodes, clock), events: domainEvents, ...cfg.chatLinks,
+  });
+
   // ---- Chat entrante (los webhooks usan `abuse.inbound`: este mismo caso de uso con el freno delante) ----
   const inbound = new HandleInboundMessageUseCase(
     repos.users, register, new MultilingualCommandParser(new SpanishCommandParser()), gateway, access, saveRules, repos.ruleSets, repos.outlets,
@@ -597,6 +604,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       social,
       events: eventRooms,
       media: { check: mediaCheck, downloader: mediaDownloader },
+      linkChannel,
     },
   );
 
@@ -637,7 +645,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       confirmPayment: new ConfirmPaymentUseCase(cfg.store, domainEvents, clock),
       assignOutletRepresentative: new AssignOutletRepresentativeUseCase(repos.users, repos.outlets, authz, domainEvents),
       platform: new PlatformUsersService(repos.users, repos.roles, repos.organizations, authz, domainEvents, manageRoles, (userId) => auth.logoutEverywhere(userId), clock),
-      linkChannel: new LinkChannelUseCase(repos.users, codes, notifications, cfg.store, clock),
+      linkChannel,
       saveRules,
       createAlert: new CreateAlertUseCase(repos.alerts, authz, access, ids, clock),
     },
@@ -717,6 +725,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     digests,
     legal,
     legalPublisher,
+    onboarding: new OnboardingService(repos.users, { followedTopics: async (u) => (await preferences.effective(u)).followedTopics }, repos.contentAnalyses, repos.orgInvitations, authz, clock),
     backups,
     environment: cfg.environment?.name ?? "development",
     quality,
@@ -744,7 +753,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect },
     ruleSets: { settings: new RuleSetSettings(p.store.repos.ruleSets, p.authz, p.access), save: p.users.saveRules },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
-    users: { platform: p.users.platform, assignOutletRepresentative: p.users.assignOutletRepresentative },
+    users: { platform: p.users.platform, assignOutletRepresentative: p.users.assignOutletRepresentative, linkChannel: p.users.linkChannel },
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,
@@ -752,7 +761,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     verification: p.verification, personalData: p.privacy.personalData, billingProfile: p.billing.setProfile,
     invoices: p.store.repos.invoices, costReport: p.costs.report, participation: p.participation,
     catalog: p.catalog, quality: p.quality, stats: p.stats, config: p.config,
-    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, legalPublisher: p.legalPublisher, backups: p.backups, environment: p.environment,
+    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, legalPublisher: p.legalPublisher, onboarding: p.onboarding, backups: p.backups, environment: p.environment,
     metrics: p.metrics instanceof PrometheusMetrics ? { render: () => (p.metrics as PrometheusMetrics).render(), token: opts.metricsToken ?? "" } : undefined,
   };
 }

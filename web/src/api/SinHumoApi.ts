@@ -59,6 +59,8 @@ import type {
   Branding,
   ReferralSummary,
   LegalDocument,
+  OnboardingStatus,
+  ChannelLinkCode,
 } from "./types";
 
 /**
@@ -111,6 +113,12 @@ export interface SinHumoApi {
   cancelSubscription(): Promise<void>;
   resumeSubscription(): Promise<void>;
   acceptLegal(docId: string, version: string): Promise<void>;
+  // Guía de bienvenida
+  onboarding(): Promise<OnboardingStatus>;
+  markOnboardingStep(step: string, how: "done" | "skipped"): Promise<OnboardingStatus>;
+  dismissOnboarding(): Promise<OnboardingStatus>;
+  /** Vincular WhatsApp o Telegram: la persona manda el código desde el chat. */
+  channelLinkCode(): Promise<ChannelLinkCode>;
   /** Un documento legal completo: el vigente o una versión anterior. */
   legalDocument(docId: string, version?: string): Promise<LegalDocument>;
   legalVersions(docId: string): Promise<LegalDocument[]>;

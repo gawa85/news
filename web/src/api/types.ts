@@ -649,3 +649,20 @@ export interface Branding {
   hidePoweredBy: boolean;
   txt?: { name: string; value: string };
 }
+
+// ---- Guía de bienvenida ----
+export type OnboardingStepId = "topics" | "chat" | "notifications" | "first_analysis" | "team";
+
+export interface OnboardingStatus {
+  steps: { id: OnboardingStepId; done: boolean; skipped: boolean }[];
+  pending: number;
+  dismissed: boolean;
+}
+
+/** Código para vincular un chat: se manda desde WhatsApp o Telegram. */
+export interface ChannelLinkCode {
+  code: string;
+  expiresAt: string;
+  whatsappUrl?: string;
+  telegramUrl?: string;
+}

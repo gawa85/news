@@ -1147,6 +1147,49 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Bienvenida", () => {
+  test("el aviso 'Configurá tu cuenta' lleva a la guía y se puede cerrar para siempre", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/analizar");
+    const user = userEvent.setup();
+    const banner = await screen.findByRole("region", { name: "Configurá tu cuenta" });
+    expect(banner).toHaveTextContent("Llevás 0 de 4 pasos");
+    expect(within(banner).getByRole("link", { name: "Seguir con la bienvenida" })).toHaveAttribute("href", "/bienvenida");
+    await user.click(within(banner).getByRole("button", { name: "No mostrar más" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Configurá tu cuenta" })).not.toBeInTheDocument());
+    expect(api.calls.some((c) => c.method === "dismissOnboarding")).toBe(true);
+  });
+
+  test("la guía: temas, saltear el chat, avisos y primer análisis", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/bienvenida");
+    const user = userEvent.setup();
+    expect(await screen.findByRole("heading", { name: "Temas que te interesan" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Configurá tu cuenta" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("checkbox", { name: "tarifas de gas" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "follow")?.args).toEqual(["tarifas de gas"]));
+    api.onboardingState = { ...api.onboardingState, steps: api.onboardingState.steps.map((s) => (s.id === "topics" ? { ...s, done: true } : s)), pending: 3 };
+    await user.click(screen.getByRole("button", { name: "Seguir" }));
+
+    expect(await screen.findByRole("heading", { name: "WhatsApp o Telegram" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pedir un código para vincular" }));
+    expect(await screen.findByText("VINCULAR ABCD2345")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir WhatsApp" })).toHaveAttribute("href", "https://wa.me/5491150000000?text=VINCULAR%20ABCD2345");
+    await user.click(screen.getByRole("button", { name: "Saltear este paso" }));
+
+    expect(await screen.findByRole("heading", { name: "Cómo y cuándo avisarte" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Resumen de lo que circuló sobre tus temas"), "daily");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "updatePreferences")?.args[0]).toEqual({ digest: "daily", quietHours: { from: "22:00", to: "08:00", utcOffsetMinutes: -180 } }));
+
+    expect(await screen.findByRole("heading", { name: "Probá un análisis" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Analizar" }));
+    expect(await screen.findByText(/señal\(es\) de humo/)).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Pasos de la bienvenida" });
+    expect(nav).toHaveTextContent("Salteado");
+  });
+});
+
 describe("Mi cuenta: cambio de plan avisado", () => {
   test("muestra a qué plan pasa, cuándo, cuánto y que puede darse de baja sin costo", async () => {
     const me = sampleMe({ plan: { ...sampleMe().plan, price: { amount: 4990, currency: "ARS", interval: "month" } } });

@@ -10,12 +10,13 @@ import { TopicSuggestions, useTopicNames } from "../shared/catalog";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { ReferralsSection } from "../commerce/CommercePages";
 import { WebhooksSection } from "./WebhooksSection";
+import { ChannelLinker } from "../onboarding/ChannelLinker";
 
 const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web" };
 
 /** MI CUENTA: plan y uso, preferencias, temas, sesión y mis datos. */
 export function AccountPage() {
-  const { me, has } = useSession();
+  const { me, has, refresh } = useSession();
   if (!me) return null;
   return (
     <Page title="Mi cuenta">
@@ -86,6 +87,10 @@ export function AccountPage() {
               </li>
             ))}
           </ul>
+          <details>
+            <summary>Vincular WhatsApp o Telegram</summary>
+            <ChannelLinker onChecked={() => void refresh()} />
+          </details>
         </section>
         <section className="card" aria-labelledby="plan">
           <h2 id="plan">Tu plan: {me.plan.name}</h2>

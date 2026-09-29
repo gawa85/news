@@ -68,6 +68,8 @@ export interface VerificationCodeRecord {
   codeHash: string;
   expiresAt: Date;
   attempts: number;
+  /** Códigos de vinculación: de quién es. */
+  userId?: string;
 }
 
 export interface IVerificationCodeRepository {

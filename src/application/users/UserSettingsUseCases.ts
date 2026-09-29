@@ -12,6 +12,7 @@ import {
 import type {
   IAlertRuleRepository,
   IAuthorizationService,
+  IChannelLinkCodes,
   IClock,
   IDomainEvents,
   IIdGenerator,
@@ -116,7 +117,51 @@ export class LinkChannelUseCase {
     private readonly notifications: NotificationService,
     private readonly uow: IUnitOfWork,
     private readonly clock: IClock,
+    /** Vincular desde el chat con un código que muestra la web. */
+    private readonly chatLink?: { codes: IChannelLinkCodes; events: IDomainEvents; whatsappNumber?: string; telegramBot?: string },
   ) {}
+
+  /**
+   * La web pide un código y la persona lo manda desde su WhatsApp o Telegram (el botón abre el chat
+   * con el mensaje ya escrito). Así se prueba que el número o la cuenta es suya.
+   */
+  async webCode(userId: string): Promise<{ code: string; expiresAt: Date; whatsappUrl?: string; telegramUrl?: string }> {
+    if (!this.chatLink) throw new NotFoundError("La vinculación desde el chat no está configurada.");
+    const user = await this.users.findById(userId);
+    if (!user || user.status !== "active") throw new NotFoundError("Usuario inexistente.");
+    const { code, expiresAt } = await this.chatLink.codes.create(user.id);
+    const wa = this.chatLink.whatsappNumber?.replace(/\D/g, "");
+    return {
+      code, expiresAt,
+      whatsappUrl: wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`VINCULAR ${code}`)}` : undefined,
+      telegramUrl: this.chatLink.telegramBot ? `https://t.me/${encodeURIComponent(this.chatLink.telegramBot.replace(/^@/, ""))}?start=${code}` : undefined,
+    };
+  }
+
+  /** Llegó "VINCULAR <código>" (o "/start <código>" en Telegram) desde un chat. */
+  async linkFromChat(input: { channel: ChannelType; address: string; code: string }): Promise<{ ok: true; user: User; already: boolean } | { ok: false; reason: "invalid" | "throttled" | "taken" }> {
+    if (!this.chatLink) return { ok: false, reason: "invalid" };
+    const r = await this.chatLink.codes.consume(input.code, `${input.channel}:${input.address}`);
+    if ("error" in r) return { ok: false, reason: r.error };
+    const owner = await this.users.findByChannel(input.channel, input.address);
+    if (owner && owner.id !== r.userId) return { ok: false, reason: "taken" };
+    if (owner) return { ok: true, user: owner, already: true };
+    const user = await this.uow.transaction(async (repos) => {
+      const u = await repos.users.findById(r.userId);
+      if (!u) throw new NotFoundError("Usuario inexistente.");
+      await repos.users.claimChannel(u.id, input.channel, input.address);
+      u.channels = [...u.channels.filter((c) => !(c.channel === input.channel && c.address === input.address)), { channel: input.channel, address: input.address, verified: true, linkedAt: this.clock.now() }];
+      await repos.users.save(u);
+      return u;
+    });
+    await this.chatLink.events.emit("channel.linked", { userId: user.id, organizationId: user.organizationId }, { channel: input.channel }, { type: "user", id: user.id });
+    // Por las dudas: si no fue la persona, se entera por mail.
+    const name = input.channel === "whatsapp" ? "WhatsApp" : input.channel === "telegram" ? "Telegram" : input.channel;
+    await this.notifications
+      .notifyUser(user, { kind: "info", title: `Vinculaste ${name}`, summary: `Tu cuenta de Sin Humo ahora también responde por ${name} (${input.address}). Si no fuiste vos, escribinos desde Ayuda.`, sections: [], links: [] }, ["email"])
+      .catch(() => undefined);
+    return { ok: true, user, already: false };
+  }
 
   async start(input: { userId: string; channel: ChannelType; address: string }): Promise<void> {
     const user = await this.users.findById(input.userId);

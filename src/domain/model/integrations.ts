@@ -59,6 +59,7 @@ export const DOMAIN_EVENTS = [
   "outlet_representative.assigned",
   "outlet_representative.removed",
   "user.suspended",
+  "channel.linked",
   "user.reactivated",
   "auth.login",
   "auth.login_failed",

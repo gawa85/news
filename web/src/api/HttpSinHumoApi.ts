@@ -62,6 +62,8 @@ import type {
   Branding,
   ReferralSummary,
   LegalDocument,
+  OnboardingStatus,
+  ChannelLinkCode,
 } from "./types";
 
 
@@ -250,6 +252,18 @@ export class HttpSinHumoApi implements SinHumoApi {
     await this.request("POST", "/v1/subscription/resume");
   }
 
+  onboarding() {
+    return this.request<OnboardingStatus>("GET", "/v1/me/onboarding");
+  }
+  markOnboardingStep(step: string, how: "done" | "skipped") {
+    return this.request<OnboardingStatus>("POST", "/v1/me/onboarding/step", { step, how });
+  }
+  dismissOnboarding() {
+    return this.request<OnboardingStatus>("POST", "/v1/me/onboarding/dismiss");
+  }
+  channelLinkCode() {
+    return this.request<ChannelLinkCode>("POST", "/v1/me/channels/link-code");
+  }
   legalDocument(docId: string, version?: string) {
     return this.request<LegalDocument>("GET", `/public/legal/${encodeURIComponent(docId)}${version ? `/${encodeURIComponent(version)}` : ""}`);
   }

@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument, OnboardingStatus, OnboardingStepId } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -200,6 +200,33 @@ export class FakeApi implements SinHumoApi {
   async resumeSubscription() {
     this.log("resumeSubscription");
     if (this.session?.subscription) this.session = { ...this.session, subscription: { ...this.session.subscription, cancelAtPeriodEnd: false } };
+  }
+  onboardingState: OnboardingStatus = {
+    steps: (["topics", "chat", "notifications", "first_analysis"] as OnboardingStepId[]).map((id) => ({ id, done: false, skipped: false })),
+    pending: 4,
+    dismissed: false,
+  };
+  private recount() {
+    const pending = this.onboardingState.steps.filter((s) => !s.done && !s.skipped).length;
+    this.onboardingState = { ...this.onboardingState, pending, dismissed: this.onboardingState.dismissed || pending === 0 };
+    return this.onboardingState;
+  }
+  async onboarding() {
+    return this.onboardingState;
+  }
+  async markOnboardingStep(step: string, how: "done" | "skipped") {
+    this.log("markOnboardingStep", step, how);
+    this.onboardingState = { ...this.onboardingState, steps: this.onboardingState.steps.map((s) => (s.id === step ? { ...s, done: how === "done" || s.done, skipped: how === "skipped" } : s)) };
+    return this.recount();
+  }
+  async dismissOnboarding() {
+    this.log("dismissOnboarding");
+    this.onboardingState = { ...this.onboardingState, dismissed: true };
+    return this.onboardingState;
+  }
+  async channelLinkCode() {
+    this.log("channelLinkCode");
+    return { code: "ABCD2345", expiresAt: "2026-09-29T10:15:00Z", whatsappUrl: "https://wa.me/5491150000000?text=VINCULAR%20ABCD2345", telegramUrl: "https://t.me/SinHumoBot?start=ABCD2345" };
   }
   legalDocs: LegalDocument[] = [
     { id: "terms", title: "Términos y condiciones", version: "2026-09-28", url: "/legal/terminos", summary: "Qué es y sus límites.", material: true, draft: false, publishedAt: "2026-09-28T10:00:00Z", body: "# Términos\n\nVersión nueva con **cambios**.\n\n- Uno\n- Dos\n\n<script>alert(1)</script>\n\nVer la [privacidad](/legal/privacidad) y no [esto](javascript:alert(1))." },

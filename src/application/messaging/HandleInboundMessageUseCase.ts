@@ -38,6 +38,7 @@ import type { IAbusePolicy } from "../abuse/AbuseGuard";
 import type { ResponseLocalizer } from "../language/Translation";
 import type { SocialReader } from "../social/SocialReader";
 import type { EventRoomService } from "../participation/EventRooms";
+import type { LinkChannelUseCase } from "../users/UserSettingsUseCases";
 import type { ILanguageDetector } from "../../domain/ports";
 import { BASE_LANGUAGE, MIN_DETECTION_CONFIDENCE, SUPPORTED_LANGUAGES } from "../../config/languages";
 
@@ -80,7 +81,17 @@ export interface InboundExtras {
   events?: EventRoomService;
   /** Fotos y videos: si ya circularon y qué dicen sus datos (el archivo se baja una sola vez). */
   media?: { check: MediaCheckService; downloader: InboundMediaDownloader };
+  /** "VINCULAR <código>": este chat pasa a ser de la cuenta que pidió el código en la web. */
+  linkChannel?: Pick<LinkChannelUseCase, "linkFromChat">;
 }
+
+/** "VINCULAR ABCD2345" o, desde el enlace de Telegram, "/start ABCD2345". */
+const LINK_COMMAND = /^\s*(?:\/start|vincular)\s+([A-Za-z0-9]{8})\s*$/i;
+const LINK_ERRORS = {
+  invalid: "Ese código no sirve o ya venció. Pedí uno nuevo desde la web (Mi cuenta) y mandalo de nuevo.",
+  throttled: "Probaste muchos códigos seguidos. Esperá una hora y pedí uno nuevo desde la web.",
+  taken: "Este chat ya está vinculado a otra cuenta de Sin Humo. Si querés unirlas, escribí /soporte.",
+} as const;
 
 /** Tope para bajar fotos y videos (WhatsApp: videos de hasta 16 MB; Telegram: 20 MB). */
 const MEDIA_MAX_BYTES = 20 * 1024 * 1024;
@@ -119,6 +130,21 @@ export class HandleInboundMessageUseCase {
 
   async execute(msg: InboundMessage): Promise<{ user: User; response: ResponseContent; delivery: DeliveryResult }> {
     await this.windows.touch(msg.channel, msg.from, msg.receivedAt);
+    // Vincular este chat a una cuenta de la web: antes de dar de alta a quien escribe (si no, el número quedaría tomado).
+    const linkCode = this.extras.linkChannel ? msg.text?.match(LINK_COMMAND)?.[1] : undefined;
+    let linkError: string | undefined;
+    if (linkCode) {
+      const r = await this.extras.linkChannel!.linkFromChat({ channel: msg.channel, address: msg.from, code: linkCode });
+      if (r.ok) {
+        const response = this.composer.info(
+          r.already ? "Este chat ya estaba vinculado a tu cuenta." : "Listo: este chat quedó vinculado a tu cuenta de Sin Humo.",
+          "Desde ahora podés usar Sin Humo por acá, con tu plan y tus preferencias. Mandame un mensaje o una nota para analizar.",
+        );
+        const delivery = await this.notifications.sendTo(msg.channel, msg.from, response, "reply", { replyTo: { externalId: msg.externalId } });
+        return { user: r.user, response, delivery };
+      }
+      linkError = LINK_ERRORS[r.reason];
+    }
     const existing = await this.users.findByChannel(msg.channel, msg.from);
     if (existing && existing.status !== "active") {
       // Cuenta suspendida: no se analiza nada (tampoco se cobra); sólo se avisa.
@@ -130,7 +156,7 @@ export class HandleInboundMessageUseCase {
     if (!existing) await this.guessLanguage(user, msg.text);
 
     const handle = async () => {
-      let response = await this.respond(user, msg);
+      let response = linkError ? this.composer.info("No pude vincular este chat.", linkError) : await this.respond(user, msg);
       if (this.extras.legal) response = await this.extras.legal.withNotice(response, user, msg.channel);
       const delivery = await this.notifications.sendTo(msg.channel, msg.from, response, "reply", { replyTo: { externalId: msg.externalId } });
       return { user, response, delivery };

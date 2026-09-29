@@ -13,6 +13,7 @@ import { EventPage, EventsPage } from "../features/events/EventsPages";
 import { SupportPage } from "../features/support/SupportPage";
 import { NotFoundPage } from "../features/home/NotFoundPage";
 import { LegalPage } from "../features/public/LegalPage";
+import { WelcomePage } from "../features/onboarding/WelcomePage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
@@ -105,6 +106,7 @@ export const routes: RouteObject[] = [
       },
       { path: "/salas/:id", element: guard(<TeamRoomPage />) },
       { path: "/cuenta", element: guard(<AccountPage />) },
+      { path: "/bienvenida", element: guard(<WelcomePage />) },
       { path: "/archivo", element: guard(<EvidencePage />) },
       { path: "/ayuda", element: guard(<SupportPage />) },
       { path: "/eventos", element: <EventsPage /> },

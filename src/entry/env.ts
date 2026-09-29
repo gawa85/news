@@ -216,6 +216,7 @@ export async function platformFromEnv() {
     http,
     // Webhooks: el destino lo elige una persona → sólo direcciones públicas y sin seguir redirecciones.
     // En desarrollo se permite localhost para probarlos.
+    chatLinks: { whatsappNumber: env("WHATSAPP_PUBLIC_NUMBER"), telegramBot: env("TELEGRAM_BOT_USERNAME") },
     userDestinations: {
       http: new PublicDestinationHttpClient(new FetchHttpClient(15_000, { followRedirects: false }), { allowPrivate: profile.name === "development", allowHttp: true, maxRedirects: 5 }),
       allowPrivate: profile.name === "development",
