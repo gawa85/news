@@ -51,6 +51,9 @@ import type {
   SourceConnection,
   SourceList,
   UrlRules,
+  UsagePanel,
+  ExportFormat,
+  ReportSchedule,
 } from "./types";
 
 
@@ -371,6 +374,27 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async submitRebuttal(input: { outletId: string; topic: string; statement: string; evidenceUrls: string[] }) {
     await this.request("POST", "/v1/rebuttals", { outletId: input.outletId, target: { type: "credibility", topic: input.topic }, statement: input.statement, evidenceUrls: input.evidenceUrls });
+  }
+
+  usagePanel(scope: "user" | "organization", from: string, to: string) {
+    return this.request<UsagePanel>("GET", `/v1/stats/panel?${new URLSearchParams({ scope, from, to })}`);
+  }
+
+  exportUrl(kind: "usage_panel" | "analysis_history", format: ExportFormat, opts: { scope?: "user" | "organization"; from?: string; to?: string } = {}) {
+    const q = new URLSearchParams({ kind, format, ...(opts.scope ? { scope: opts.scope } : {}), ...(opts.from ? { from: opts.from } : {}), ...(opts.to ? { to: opts.to } : {}) });
+    return `${this.base}/v1/export?${q}`;
+  }
+
+  reportSchedules() {
+    return this.request<ReportSchedule[]>("GET", "/v1/reports/schedules");
+  }
+
+  createReportSchedule(input: { name: string; kind: "usage_panel" | "analysis_history"; scope?: "user" | "organization"; format: ExportFormat; frequency: "weekly" | "monthly"; recipients: string[] }) {
+    return this.request<ReportSchedule>("POST", "/v1/reports/schedules", input);
+  }
+
+  async deleteReportSchedule(id: string) {
+    await this.request("DELETE", `/v1/reports/schedules/${encodeURIComponent(id)}`);
   }
 
   async organization(): Promise<OrganizationOverview | undefined> {

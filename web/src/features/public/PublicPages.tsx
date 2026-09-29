@@ -286,10 +286,10 @@ export function OpenDataPage() {
             </details>
             <div className="row">
               <a className="btn btn--secondary btn--small" href={api.datasetUrl(d.id, "csv")} download>
-                Bajar CSV<span className="visually-hidden"> de {d.title}</span>
+                Bajar CSV{" "}<span className="visually-hidden">de {d.title}</span>
               </a>
               <a className="btn btn--ghost btn--small" href={api.datasetUrl(d.id, "json")}>
-                Ver JSON<span className="visually-hidden"> de {d.title}</span>
+                Ver JSON{" "}<span className="visually-hidden">de {d.title}</span>
               </a>
             </div>
           </li>

@@ -48,6 +48,9 @@ import type {
   SourceConnection,
   SourceList,
   UrlRules,
+  UsagePanel,
+  ExportFormat,
+  ReportSchedule,
 } from "./types";
 
 /**
@@ -168,6 +171,14 @@ export interface SinHumoApi {
   // Derecho a réplica (representantes de medios)
   myRebuttals(): Promise<PublicRebuttal[]>;
   submitRebuttal(input: { outletId: string; topic: string; statement: string; evidenceUrls: string[] }): Promise<void>;
+
+  // Estadísticas, exportar y reportes programados
+  usagePanel(scope: "user" | "organization", from: string, to: string): Promise<UsagePanel>;
+  /** Link de descarga (la sesión viaja en la cookie). */
+  exportUrl(kind: "usage_panel" | "analysis_history", format: ExportFormat, opts?: { scope?: "user" | "organization"; from?: string; to?: string }): string;
+  reportSchedules(): Promise<ReportSchedule[]>;
+  createReportSchedule(input: { name: string; kind: "usage_panel" | "analysis_history"; scope?: "user" | "organization"; format: ExportFormat; frequency: "weekly" | "monthly"; recipients: string[] }): Promise<ReportSchedule>;
+  deleteReportSchedule(id: string): Promise<void>;
 
   // Mi organización. undefined = no soy parte de ninguna.
   organization(): Promise<OrganizationOverview | undefined>;

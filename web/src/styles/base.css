@@ -699,3 +699,29 @@ legend {
     flex-wrap: wrap;
   }
 }
+
+/* Muestra de color de una serie (leyenda y aviso del gráfico). */
+.swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  vertical-align: -0.05em;
+}
+/* Aviso al pasar el mouse sobre un gráfico. */
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}

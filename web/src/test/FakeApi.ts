@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, PublicRebuttal, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, PublicRebuttal, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -284,6 +284,32 @@ export class FakeApi implements SinHumoApi {
       signals: [{ id: "seen_before", level: "warning" as const, label: "Ya circuló antes", detail: "Nos llegó por primera vez el 12/03/2024." }],
       file: { width: 1280, height: 960, software: ["Adobe Photoshop 25.0"] },
     };
+  }
+
+  async usagePanel(scope: "user" | "organization") {
+    return {
+      scope, period: { from: "2026-09-01T03:00:00Z", to: "2026-09-29T02:59:59Z" },
+      totals: { analyses: 40, withSmoke: 15, smokeRate: 0.375, comparisons: 3 },
+      daily: [{ day: "2026-09-27", analyses: 25, withSmoke: 10, comparisons: 2 }, { day: "2026-09-28", analyses: 15, withSmoke: 5, comparisons: 1 }],
+      smokeTypes: [{ type: "alarmism", count: 9 }], channels: [{ channel: "whatsapp", count: 30 }], topics: [{ topic: "tarifas de gas", count: 6 }],
+      ...(scope === "organization" ? { activeMembers: 7 } : {}),
+    };
+  }
+  exportUrl(kind: string, format: string, opts: { scope?: string } = {}) {
+    return `/v1/export?kind=${kind}&format=${format}${opts.scope ? `&scope=${opts.scope}` : ""}`;
+  }
+  schedules: ReportSchedule[] = [];
+  async reportSchedules() {
+    return this.schedules;
+  }
+  async createReportSchedule(input: Omit<ReportSchedule, "id" | "active" | "nextRunAt">) {
+    this.log("createReportSchedule", input);
+    const s: ReportSchedule = { ...input, id: "rp1", active: true, nextRunAt: "2026-10-05T11:00:00Z" };
+    this.schedules = [s];
+    return s;
+  }
+  async deleteReportSchedule(id: string) {
+    this.log("deleteReportSchedule", id);
   }
 
   sourceList: SourceConnection[] = [];

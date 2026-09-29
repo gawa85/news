@@ -659,9 +659,7 @@ describe("Páginas públicas (sin cuenta)", () => {
 
   test("datos abiertos: se bajan con su licencia", async () => {
     renderApp(new FakeApi(), "/datos");
-    const csv = await screen.findByRole("link", { name: /Bajar CSV/ });
-    expect(csv).toHaveAttribute("href", "/public/datasets/humo-mensual.csv");
-    expect(csv).toHaveTextContent("Bajar CSV de Humo por mes");
+    expect(await screen.findByRole("link", { name: "Bajar CSV de Humo por mes" })).toHaveAttribute("href", "/public/datasets/humo-mensual.csv");
   });
 });
 
@@ -722,5 +720,46 @@ describe("Mis fuentes, reglas y réplica", () => {
     await user.type(screen.getByLabelText("Qué está mal y por qué"), " — la nota citaba la resolución oficial completa y la evaluación no lo tuvo en cuenta.");
     await user.click(screen.getByRole("button", { name: "Presentar réplica" }));
     expect(await screen.findByText("En revisión")).toBeInTheDocument();
+  });
+});
+
+describe("Estadísticas", () => {
+  const pro = (permissions: string[] = []) => sampleMe({ permissions, plan: { ...sampleMe().plan, features: ["export", "scheduled_reports"] } });
+
+  test("resumen, gráfico con su tabla, exportar y programar un reporte", async () => {
+    const api = new FakeApi(pro());
+    renderApp(api, "/estadisticas");
+    const user = userEvent.setup();
+    expect(await screen.findByText("38 %")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /40 en total, 38 % con humo/ })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Mensajes por día" })).toHaveTextContent("25");
+    expect(screen.getByRole("link", { name: /Excel \(estadísticas\)/ })).toHaveAttribute("href", expect.stringContaining("kind=usage_panel&format=xlsx&scope=user"));
+    expect(screen.queryByLabelText("De quién")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Programar" }));
+    expect(await screen.findByText(/el primero sale el/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "createReportSchedule")?.args[0]).toMatchObject({ kind: "usage_panel", frequency: "weekly", recipients: ["ana@correo.example"] });
+  });
+
+  test("con permiso de organización se elige de quién; sin plan, se explica", async () => {
+    renderApp(new FakeApi(pro(["stats:org"])), "/estadisticas");
+    const user = userEvent.setup();
+    await user.selectOptions(await screen.findByLabelText("De quién"), "organization");
+    expect(await screen.findByText("Personas que lo usaron")).toBeInTheDocument();
+  });
+
+  test("un período largo se agrupa por mes (columnas legibles) y la tabla también", async () => {
+    const api = new FakeApi(pro());
+    const days = Array.from({ length: 200 }, (_, i) => ({ day: new Date(Date.UTC(2026, 2, 1) + i * 86_400_000).toISOString().slice(0, 10), analyses: 2, withSmoke: 1, comparisons: 0 }));
+    const base = await api.usagePanel("user");
+    api.usagePanel = async () => ({ ...base, daily: days, totals: { ...base.totals, analyses: 400, withSmoke: 200 } });
+    renderApp(api, "/estadisticas");
+    expect(await screen.findByRole("heading", { name: "Mensajes por mes" })).toBeInTheDocument();
+    const rows = within(screen.getByRole("table", { name: "Mensajes por mes" })).getAllByRole("row");
+    expect(rows.length).toBe(1 + 7); // encabezado + marzo a septiembre
+  });
+
+  test("sin exportar en el plan, se explica", async () => {
+    renderApp(new FakeApi(sampleMe()), "/estadisticas");
+    expect(await screen.findByText(/Exportar a Excel, CSV o PDF viene con el plan Profesional/)).toBeInTheDocument();
   });
 });

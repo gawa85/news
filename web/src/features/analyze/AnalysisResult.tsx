@@ -25,7 +25,7 @@ export function AnalysisResult({ analysis }: { analysis: Analysis }) {
           </p>
           <blockquote className="finding finding--fact">{a.text.length > 600 ? `${a.text.slice(0, 599)}…` : a.text}</blockquote>
           <a href={a.post.url} target="_blank" rel="noopener noreferrer">
-            Ver la publicación original<span className="visually-hidden"> (se abre en otra pestaña)</span>
+            Ver la publicación original{" "}<span className="visually-hidden">(se abre en otra pestaña)</span>
           </a>
         </div>
       )}

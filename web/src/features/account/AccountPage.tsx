@@ -25,6 +25,9 @@ export function AccountPage() {
         <Link className="btn btn--secondary btn--small" to="/organizacion">
           {me.organizationId ? "Mi organización" : "Crear una organización"}
         </Link>
+        <Link className="btn btn--secondary btn--small" to="/estadisticas">
+          Estadísticas
+        </Link>
         <Link className="btn btn--secondary btn--small" to="/fuentes">
           Mis fuentes
         </Link>

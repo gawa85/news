@@ -538,3 +538,30 @@ export interface RuleSetList {
   canEditOrganization: boolean;
   limit: number | null;
 }
+
+export interface UsagePanel {
+  scope: "user" | "organization";
+  period: { from: string; to: string };
+  totals: { analyses: number; withSmoke: number; smokeRate: number | null; comparisons: number };
+  daily: { day: string; analyses: number; withSmoke: number; comparisons: number }[];
+  smokeTypes: { type: string; count: number }[];
+  channels: { channel: string; count: number }[];
+  topics: { topic: string; count: number }[];
+  activeMembers?: number;
+}
+
+export type ExportFormat = "csv" | "xlsx" | "pdf" | "json";
+
+export interface ReportSchedule {
+  id: string;
+  name: string;
+  kind: "usage_panel" | "analysis_history";
+  scope?: "user" | "organization";
+  format: ExportFormat;
+  frequency: "weekly" | "monthly";
+  recipients: string[];
+  active: boolean;
+  nextRunAt: string;
+  lastRunAt?: string;
+  lastError?: string;
+}

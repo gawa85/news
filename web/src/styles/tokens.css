@@ -25,6 +25,9 @@
   --fact-soft: #e5f4ea;
   --danger: #b42318;
   --danger-soft: #fdeceb;
+  /* Series de gráficos (validadas: saturación, daltonismo y contraste contra la superficie). */
+  --chart-smoke: #9a4a07;
+  --chart-clean: #008a7d;
   --info-soft: #e8eefb;
   --info: #274b9e;
 
@@ -72,6 +75,8 @@
     --fact-soft: #10291a;
     --danger: #ff8a80;
     --danger-soft: #3a1512;
+    --chart-smoke: #c8811f;
+    --chart-clean: #1c9d8e;
     --info-soft: #172444;
     --info: #9db8ff;
 
@@ -100,6 +105,8 @@
   --fact-soft: #10291a;
   --danger: #ff8a80;
   --danger-soft: #3a1512;
+  --chart-smoke: #c8811f;
+  --chart-clean: #1c9d8e;
   --info-soft: #172444;
   --info: #9db8ff;
   --focus: #8fb3ff;
