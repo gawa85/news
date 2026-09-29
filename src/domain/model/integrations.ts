@@ -74,6 +74,7 @@ export const DOMAIN_EVENTS = [
   "plan.migration_canceled",
   "plan.migration_applied",
   "legal.published",
+  "platform.profile_changed",
   "outlet.feed_changed",
   "model.promoted",
   "invoice.issued",

@@ -217,6 +217,16 @@ export async function platformFromEnv() {
     // Webhooks: el destino lo elige una persona → sólo direcciones públicas y sin seguir redirecciones.
     // En desarrollo se permite localhost para probarlos.
     chatLinks: { whatsappNumber: env("WHATSAPP_PUBLIC_NUMBER"), telegramBot: env("TELEGRAM_BOT_USERNAME") },
+    setupFacts: {
+      environment: { name: profile.name, production: profile.name === "production", problems: [] }, // (con problemas, no arranca)
+      publicBaseUrl: env("PUBLIC_BASE_URL", "http://localhost:8080")!,
+      mail: env("SMTP_HOST") ? "real" : "test",
+      whatsapp: { configured: !!(env("WHATSAPP_TOKEN") && env("WHATSAPP_PHONE_NUMBER_ID")), publicNumber: !!env("WHATSAPP_PUBLIC_NUMBER") },
+      telegram: { configured: !!env("TELEGRAM_BOT_TOKEN"), botUsername: !!env("TELEGRAM_BOT_USERNAME") },
+      payments: "test", // (todavía no hay proveedor real integrado)
+      invoicing: "test", // (ídem ARCA)
+      backups: !!(backupSinkFromEnv() && env("BACKUP_PASSPHRASE")),
+    },
     userDestinations: {
       http: new PublicDestinationHttpClient(new FetchHttpClient(15_000, { followRedirects: false }), { allowPrivate: profile.name === "development", allowHttp: true, maxRedirects: 5 }),
       allowPrivate: profile.name === "development",

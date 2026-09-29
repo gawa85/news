@@ -182,6 +182,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const consents = f.collection(schemas.consents);
   const legalDocs = f.collection(schemas.legalDocuments);
   const planMigrations = f.collection(schemas.planMigrations);
+  const platformProfile = f.collection(schemas.platformProfile);
   const evidence = f.collection(schemas.evidence);
   const evidenceBlobs = f.collection(schemas.evidenceBlobs);
   const digests = f.collection(schemas.digestDeliveries);
@@ -650,6 +651,10 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findById: (id) => tickets.get(id),
       findByRequester: (userId) => tickets.find({ where: { requesterId: userId }, orderBy: { field: "createdAt", direction: "desc" } }),
       findOpen: () => tickets.find({ where: { status: { in: ["open", "pending"] } }, orderBy: { field: "createdAt", direction: "asc" } }),
+    },
+    platformProfile: {
+      get: () => platformProfile.get("main"),
+      save: (p) => platformProfile.upsert(p),
     },
     planMigrations: {
       findById: (id) => planMigrations.get(id),

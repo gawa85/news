@@ -1147,6 +1147,32 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Backoffice: puesta en marcha", () => {
+  test("la lista dice qué falta y dónde; cargar la empresa y completar los legales", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["users:manage_all"] })), "/admin/puesta-en-marcha", bo);
+    const user = userEvent.setup();
+    expect(await screen.findByRole("heading", { name: "1 de 5 listos" })).toBeInTheDocument();
+    const canales = screen.getByRole("region", { name: "Canales" });
+    expect(canales).toHaveTextContent("Falta Mail");
+    expect(within(canales).getByText("SMTP_HOST")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Revisar: Términos y condiciones" })).toHaveAttribute("href", "/admin/legal");
+
+    await user.type(screen.getByLabelText("Razón social"), "Humo Cero S.A.");
+    await user.type(screen.getByLabelText(/^CUIT/), "30712345671");
+    await user.type(screen.getByLabelText("Domicilio legal"), "Av. Siempreviva 742, CABA");
+    await user.type(screen.getByLabelText(/^Mail de contacto/), "datos@sinhumo.example");
+    await user.selectOptions(screen.getByLabelText("Edad mínima (opcional)"), "16");
+    await user.click(screen.getByRole("button", { name: "Guardar datos" }));
+    expect(await screen.findByRole("heading", { name: "2 de 5 listos" })).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "saveSetupProfile")?.args[0]).toMatchObject({ legalName: "Humo Cero S.A.", taxId: "30712345671", minimumAge: 16 });
+
+    await user.click(screen.getByRole("button", { name: "Completar términos y privacidad" }));
+    expect(await screen.findByText(/Se publicaron borradores nuevos de términos y privacidad/)).toBeInTheDocument();
+    expect(screen.getByText(/En términos quedan para la revisión legal: \[30\]/)).toBeInTheDocument();
+  });
+});
+
 describe("Bienvenida", () => {
   test("el aviso 'Configurá tu cuenta' lleva a la guía y se puede cerrar para siempre", async () => {
     const api = new FakeApi(sampleMe());

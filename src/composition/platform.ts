@@ -92,6 +92,7 @@ import { OutletEditor } from "../application/catalog/OutletEditor";
 import { PlanAdmin } from "../application/commerce/PlanAdmin";
 import { PlanMigrations } from "../application/commerce/PlanMigrations";
 import { OnboardingService } from "../application/onboarding/Onboarding";
+import { SetupService } from "../application/ops/Setup";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
 import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
@@ -247,6 +248,8 @@ export interface PlatformConfig {
    * hacia internet pública (PublicDestinationHttpClient) y si se permiten redes privadas (sólo desarrollo).
    */
   userDestinations?: { http?: IHttpClient; allowPrivate?: boolean };
+  /** Qué está configurado de verdad (para la puesta en marcha). Sin esto: todo de prueba. */
+  setupFacts?: import("../domain/model").SetupFacts;
   /** Para los botones "vincular WhatsApp/Telegram" de la web (número público del WhatsApp y usuario del bot). */
   chatLinks?: { whatsappNumber?: string; telegramBot?: string };
   /**
@@ -725,6 +728,25 @@ export function buildPlatform(cfg: PlatformConfig) {
     digests,
     legal,
     legalPublisher,
+    setup: new SetupService(
+      repos.platformProfile, repos.users, repos.roles, authz, domainEvents, clock, legal, legalPublisher, repos.plans,
+      {
+        outlets: async () => (await repos.outlets.findAll()).length,
+        activeFeeds: async () => (await repos.catalog.findActiveFeeds()).length,
+        activeTopics: async () => (await taxonomy.topics()).length,
+      },
+      cfg.setupFacts ?? {
+        environment: { name: cfg.environment?.name ?? "development", production: false, problems: [] },
+        publicBaseUrl: cfg.publicBaseUrl,
+        mail: "test",
+        whatsapp: { configured: false, publicNumber: !!cfg.chatLinks?.whatsappNumber },
+        telegram: { configured: false, botUsername: !!cfg.chatLinks?.telegramBot },
+        payments: "test",
+        invoicing: cfg.invoicing ? "test" : "none",
+        backups: !!cfg.backups,
+      },
+      backups,
+    ),
     onboarding: new OnboardingService(repos.users, { followedTopics: async (u) => (await preferences.effective(u)).followedTopics }, repos.contentAnalyses, repos.orgInvitations, authz, clock),
     backups,
     environment: cfg.environment?.name ?? "development",
@@ -761,7 +783,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     verification: p.verification, personalData: p.privacy.personalData, billingProfile: p.billing.setProfile,
     invoices: p.store.repos.invoices, costReport: p.costs.report, participation: p.participation,
     catalog: p.catalog, quality: p.quality, stats: p.stats, config: p.config,
-    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, legalPublisher: p.legalPublisher, onboarding: p.onboarding, backups: p.backups, environment: p.environment,
+    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, legalPublisher: p.legalPublisher, onboarding: p.onboarding, setup: p.setup, backups: p.backups, environment: p.environment,
     metrics: p.metrics instanceof PrometheusMetrics ? { render: () => (p.metrics as PrometheusMetrics).render(), token: opts.metricsToken ?? "" } : undefined,
   };
 }

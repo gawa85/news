@@ -97,6 +97,12 @@ export interface IFeatureFlags {
   isEnabled(key: string, ctx: FlagContext): Promise<boolean>;
 }
 
+/** Datos de la empresa que opera la plataforma (uno solo). */
+export interface IPlatformProfileRepository {
+  get(): Promise<import("../model").PlatformProfile | undefined>;
+  save(p: import("../model").PlatformProfile): Promise<void>;
+}
+
 /** Versiones de los documentos legales (nunca se borran: cada aceptación apunta a una). */
 export interface ILegalDocumentRepository {
   /** Todas las versiones de un documento, la más nueva primero. */

@@ -51,6 +51,9 @@ import type {
   NewPlan,
   PlanMigration,
   NewPlanMigration,
+  PlatformProfile,
+  SetupOverview,
+  FillLegalResult,
 } from "./backofficeTypes";
 
 /**
@@ -173,4 +176,10 @@ export interface BackofficeApi {
 
   // Documentos legales (legal:publish): cada publicación es una versión nueva
   publishLegal(docId: "terms" | "privacy", input: NewLegalVersion): Promise<{ version: string }>;
+
+  // Puesta en marcha (users:manage_all)
+  setup(): Promise<SetupOverview>;
+  saveSetupProfile(input: PlatformProfile): Promise<PlatformProfile>;
+  /** Publica borradores de términos y privacidad con los datos de la empresa completos. */
+  fillLegal(): Promise<FillLegalResult>;
 }

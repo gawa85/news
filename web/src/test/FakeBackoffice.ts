@@ -40,6 +40,9 @@ import type {
   NewPlan,
   PlanMigration,
   NewPlanMigration,
+  PlatformProfile,
+  SetupOverview,
+  FillLegalResult,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -485,5 +488,29 @@ export class FakeBackoffice implements BackofficeApi {
   async publishLegal(docId: "terms" | "privacy", input: NewLegalVersion) {
     this.log("publishLegal", docId, input);
     return { version: "2026-09-29" };
+  }
+
+  setupData: SetupOverview = {
+    profile: null,
+    checks: [
+      { id: "empresa", group: "empresa", title: "Datos de la empresa", status: "todo", detail: "Razón social, CUIT, domicilio y mail de contacto.", action: { label: "Cargarlos", href: "#empresa" } },
+      { id: "legal-terms", group: "legal", title: "Términos y condiciones", status: "todo", detail: "Es un borrador: falta la revisión legal.", action: { label: "Revisar", href: "/admin/legal" } },
+      { id: "url", group: "servidor", title: "Dirección pública con HTTPS", status: "ok", detail: "https://sinhumo.example" },
+      { id: "mail", group: "canales", title: "Mail", status: "todo", detail: "Los mails no salen (modo de prueba).", action: { label: "Configurar", env: ["SMTP_HOST", "SMTP_USER"] } },
+      { id: "whatsapp", group: "canales", title: "WhatsApp", status: "optional", detail: "No está conectado." },
+      { id: "equipo", group: "operacion", title: "Equipo de la plataforma", status: "warn", detail: "Una sola cuenta administra la plataforma.", action: { label: "Personas", href: "/admin/personas" } },
+    ],
+  };
+  async setup() {
+    return this.setupData;
+  }
+  async saveSetupProfile(input: PlatformProfile) {
+    this.log("saveSetupProfile", input);
+    this.setupData = { profile: input, checks: this.setupData.checks.map((c) => (c.id === "empresa" ? { ...c, status: "ok" as const, detail: input.legalName } : c)) };
+    return input;
+  }
+  async fillLegal(): Promise<FillLegalResult> {
+    this.log("fillLegal");
+    return { published: [{ docId: "terms", version: "2026-09-29" }, { docId: "privacy", version: "2026-09-29" }], remaining: { terms: ["[30]"], privacy: [] } };
   }
 }

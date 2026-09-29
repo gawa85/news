@@ -14,6 +14,7 @@ import { SupportPage } from "../features/support/SupportPage";
 import { NotFoundPage } from "../features/home/NotFoundPage";
 import { LegalPage } from "../features/public/LegalPage";
 import { WelcomePage } from "../features/onboarding/WelcomePage";
+import { SetupPage } from "../features/admin/SetupPage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
@@ -80,6 +81,7 @@ export const routes: RouteObject[] = [
         path: "/admin",
         element: guard(<AdminLayout />),
         children: [
+          { path: "puesta-en-marcha", element: <SetupPage /> },
           { path: "personas", element: <PeoplePage /> },
           { path: "soporte", element: <SupportQueuePage /> },
           { path: "verificacion", element: <VerificationPage /> },

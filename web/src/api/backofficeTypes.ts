@@ -536,3 +536,33 @@ export interface NewPlanMigration {
   effectiveAt: string;
   message?: string;
 }
+
+// ---- Puesta en marcha (users:manage_all) ----
+export interface PlatformProfile {
+  legalName: string;
+  taxId: string;
+  address: string;
+  contactEmail: string;
+  dataRegistryNumber?: string;
+  minimumAge?: 13 | 16 | 18;
+  updatedAt?: string;
+}
+
+export interface SetupCheck {
+  id: string;
+  group: "empresa" | "legal" | "servidor" | "canales" | "cobros" | "operacion" | "contenido";
+  title: string;
+  status: "ok" | "warn" | "todo" | "optional";
+  detail: string;
+  action?: { label: string; href?: string; env?: string[] };
+}
+
+export interface SetupOverview {
+  checks: SetupCheck[];
+  profile: PlatformProfile | null;
+}
+
+export interface FillLegalResult {
+  published: { docId: string; version: string }[];
+  remaining: Record<string, string[]>;
+}

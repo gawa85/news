@@ -51,6 +51,9 @@ import type {
   NewPlan,
   PlanMigration,
   NewPlanMigration,
+  PlatformProfile,
+  SetupOverview,
+  FillLegalResult,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -308,5 +311,15 @@ export class HttpBackofficeApi implements BackofficeApi {
 
   publishLegal(docId: "terms" | "privacy", input: NewLegalVersion) {
     return this.request<{ version: string }>("POST", `/v1/admin/legal/${docId}`, input);
+  }
+
+  setup() {
+    return this.request<SetupOverview>("GET", "/v1/admin/setup");
+  }
+  saveSetupProfile(input: PlatformProfile) {
+    return this.request<PlatformProfile>("PUT", "/v1/admin/setup/profile", input);
+  }
+  fillLegal() {
+    return this.request<FillLegalResult>("POST", "/v1/admin/setup/fill-legal");
   }
 }

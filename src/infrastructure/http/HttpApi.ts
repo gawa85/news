@@ -89,6 +89,7 @@
  *  Planes (plans:manage):  GET /v1/admin/plans   POST /v1/admin/plans { basedOn, name, description, monthlyAmount, yearlyAmount, tier }
  *    GET/POST /v1/admin/plan-migrations { fromPlanId, toPlanId, effectiveAt, message? }   GET /v1/admin/plan-migrations/notice?from=&to=   POST /v1/admin/plan-migrations/:id/cancel
  *    POST /v1/admin/plans/:id { name, description, monthlyAmount, yearlyAmount, features, limits }   POST /v1/admin/plans/:id/reset   POST /v1/admin/plans/:id/for-sale { forSale }
+ *  Puesta en marcha (users:manage_all):  GET /v1/admin/setup   PUT /v1/admin/setup/profile   POST /v1/admin/setup/fill-legal
  *  Personas (users:manage_all):  GET /v1/admin/roles   GET /v1/admin/users?q=|filter=staff|suspended   GET /v1/admin/users/:id
  *    POST /v1/admin/users/:id/(roles/add|roles/remove) { roleId }   (suspend|reactivate) { reason }   (outlets/add|outlets/remove) { outletId }
  *  Legal:  GET /public/legal   GET /public/legal/:docId[/:version|/versions]   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
@@ -122,6 +123,7 @@ import type { OutletProfileService } from "../../application/catalog/OutletProfi
 import type { PlatformUsersService } from "../../application/users/PlatformUsers";
 import type { LinkChannelUseCase } from "../../application/users/UserSettingsUseCases";
 import type { OnboardingService } from "../../application/onboarding/Onboarding";
+import type { SetupService } from "../../application/ops/Setup";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
 import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
 import type { PlanMigrations } from "../../application/commerce/PlanMigrations";
@@ -248,6 +250,7 @@ export interface HttpApiDeps {
   legal: LegalService;
   legalPublisher: LegalPublisher;
   onboarding: OnboardingService;
+  setup: SetupService;
   backups?: BackupService;
   environment?: string;
   quality: { service: QualityService; feedback: FeedbackService; evaluateCurrent: (actorId: string) => Promise<EvaluationRun>; currentVersion: () => string };
@@ -700,6 +703,13 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const legalPub = path.match(/^\/v1\/admin\/legal\/([a-z]+)$/);
     if (legalPub && req.method === "POST") {
       return json(res, 201, await deps.legalPublisher.publish(who.userId, legalPub[1]!, pick(b, ["title", "summary", "body", "material", "draft"]) as never));
+    }
+    if (path.startsWith("/v1/admin/setup")) {
+      if (req.method === "GET" && path === "/v1/admin/setup") return json(res, 200, { checks: await deps.setup.checklist(who.userId), profile: (await deps.setup.profile(who.userId)) ?? null });
+      if (req.method === "PUT" && path === "/v1/admin/setup/profile") {
+        return json(res, 200, await deps.setup.saveProfile(who.userId, pick(b, ["legalName", "taxId", "address", "contactEmail", "dataRegistryNumber", "minimumAge"]) as never));
+      }
+      if (req.method === "POST" && path === "/v1/admin/setup/fill-legal") return json(res, 200, await deps.setup.fillLegal(who.userId));
     }
     if (path.startsWith("/v1/admin/plan-migrations")) {
       const mg = deps.commerce.migrations;

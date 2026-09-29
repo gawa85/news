@@ -47,3 +47,4 @@ export * from "./abuse";
 export * from "./language";
 export * from "./social";
 export * from "./media";
+export * from "./setup";
