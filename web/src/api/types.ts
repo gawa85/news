@@ -87,6 +87,8 @@ export interface Me {
   createdAt: string;
   organizationId?: string;
   roles: string[];
+  /** Medios que representa (derecho a réplica). */
+  representsOutletIds?: string[];
   /** Permisos efectivos (la web muestra el backoffice según esto; el servidor controla cada acción). */
   permissions: string[];
   channels: { type: string; address: string; verified: boolean }[];
@@ -496,4 +498,43 @@ export interface OpenDataset {
   license: string;
   updateFrequency: string;
   columns: { name: string; description: string }[];
+}
+
+export interface SourceConnection {
+  id: string;
+  type: "rss" | "email";
+  name: string;
+  config: Record<string, string>;
+  active: boolean;
+  lastSyncAt?: string;
+  lastError?: { at: string; message: string };
+  createdAt: string;
+}
+
+export interface SourceList {
+  available: boolean;
+  limit: number | null;
+  connections: SourceConnection[];
+}
+
+export interface UrlRules {
+  include?: string[];
+  onlyFrom?: string[];
+  exclude?: string[];
+}
+
+export interface RuleSet {
+  id: string;
+  name: string;
+  urlRules: UrlRules;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface RuleSetList {
+  personal: RuleSet[];
+  organization: RuleSet[];
+  canEditPersonal: boolean;
+  canEditOrganization: boolean;
+  limit: number | null;
 }

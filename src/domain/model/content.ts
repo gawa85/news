@@ -83,5 +83,7 @@ export interface SourceConnection {
   cursor?: string;
   active: boolean;
   lastSyncAt?: Date;
+  /** Último error al leerla (se borra cuando vuelve a andar): para avisarle a la persona. */
+  lastError?: { at: Date; message: string };
   createdAt: Date;
 }

@@ -70,6 +70,9 @@
  *    POST /v1/organization/invitations/:id/revoke   GET /public/invitations/:token   POST /v1/organization/join { token }
  *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
  *  Webhooks (sólo con sesión web):  GET/POST /v1/webhooks { url, events }   POST /v1/webhooks/:id/(test|remove)
+ *  Mis fuentes:  GET/POST /v1/sources { type: rss|email, name, config, secret? }   POST /v1/sources/:id/disconnect
+ *  Mis reglas de fuentes:  GET/POST /v1/rules { scope, name, urlRules }   POST /v1/rules/:id/deactivate
+ *  Mis réplicas (representantes de medios):  GET /v1/rebuttals/mine
  *  Reseñas:  GET /v1/reviews/mine?type=&id=
  *  Fotos y videos:  POST /v1/media/check  (cuerpo = el archivo, content-type image/* o video/*, hasta 20 MB)
  *  Alertas:  GET/POST /v1/alerts { topic, trigger, channel, outletId? }   POST /v1/alerts/:id/deactivate
@@ -98,6 +101,10 @@ import type { SocialReader } from "../../application/social/SocialReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
 import type { AlertSettings } from "../../application/alerts/AlertSettings";
 import type { OrganizationService } from "../../application/organizations/Organizations";
+import type { SourceSettings } from "../../application/content/SourceSettings";
+import type { ConnectSourceUseCase } from "../../application/content/SourceUseCases";
+import type { RuleSetSettings } from "../../application/rules/RuleSetSettings";
+import type { SaveRuleSetUseCase } from "../../application/users/UserSettingsUseCases";
 import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { OutletProfileService } from "../../application/catalog/OutletProfile";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
@@ -121,7 +128,7 @@ import type { SetBillingProfileUseCase } from "../../application/billing/Invoici
 import type { CostReportUseCase } from "../../application/costs/Costs";
 import type { VerificationDesk } from "../../application/factcheck/VerificationDesk";
 import type { PersonalDataService } from "../../application/privacy/PersonalData";
-import type { IInvoiceRepository } from "../../domain/ports";
+import type { IClock, IInvoiceRepository } from "../../domain/ports";
 import { billingSubjectOf } from "../../application/access/AccessControl";
 import type { CampaignService } from "../../application/participation/Campaigns";
 import type { NarrativeTracker } from "../../application/participation/Narratives";
@@ -165,12 +172,18 @@ export interface HttpApiDeps {
   social?: SocialReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
+  /** Reloj de la plataforma (por defecto, el del sistema). */
+  clock?: IClock;
   /** Ficha pública de cada medio (dueños, pauta oficial, réplicas y fe de erratas). */
   outletProfiles?: OutletProfileService;
   /** Revisar fotos y videos (¿ya circularon?, ¿qué dicen sus datos?). */
   mediaCheck?: MediaCheckService;
   /** Webhooks salientes: ver, crear, probar y apagar. */
   webhooks?: WebhookService;
+  /** Mis fuentes: ver, conectar (se prueba antes) y desconectar. */
+  sources?: { settings: SourceSettings; connect: ConnectSourceUseCase };
+  /** Mis reglas de fuentes (personales y de la organización). */
+  ruleSets?: { settings: RuleSetSettings; save: SaveRuleSetUseCase };
   /** Mi organización: equipo, invitaciones y roles. */
   organizations?: OrganizationService;
   /** Mis alertas: ver, crear y apagar. */
@@ -231,6 +244,8 @@ class HttpError extends Error {
 const MEDIA_MAX_BYTES = 20 * 1024 * 1024;
 
 export function createHttpApi(deps: HttpApiDeps): Server {
+  // Un solo reloj para toda la plataforma (límites, fechas por defecto): el de las pruebas es manual.
+  const now = () => deps.clock?.now() ?? new Date();
   const maxBody = deps.maxBodyBytes ?? 1_000_000;
 
   return createServer(async (req, res) => {
@@ -320,7 +335,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
 
   /** Frecuencia de la API y el MCP, por persona y por red. */
   async function limitApi(req: IncomingMessage, who: Caller): Promise<void> {
-    await deps.abuse?.enforce({ action: "api_request", at: new Date(), userId: who.userId, ip: clientIp(req, deps.trustedProxies ?? []) });
+    await deps.abuse?.enforce({ action: "api_request", at: now(), userId: who.userId, ip: clientIp(req, deps.trustedProxies ?? []) });
   }
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL, raw: Buffer): Promise<void> {
@@ -371,7 +386,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       return json(res, 200, (await deps.participation.narratives.top(days)).map(({ campaignIds, ...n }) => ({ ...n, countered: campaignIds.length > 0 })));
     }
     if (req.method === "GET" && path === "/public/observatory") {
-      const month = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
+      const month = url.searchParams.get("month") ?? now().toISOString().slice(0, 7);
       return json(res, 200, await deps.stats.service.observatory(month));
     }
     if (req.method === "GET" && path === "/public/datasets") return json(res, 200, deps.stats.openData.list());
@@ -392,7 +407,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     const ds = path.match(/^\/public\/datasets\/([a-z0-9-]+)\.(csv|json)$/);
     if (req.method === "GET" && ds) {
-      const to = url.searchParams.get("to") ? date(url.searchParams.get("to"), "to") : new Date();
+      const to = url.searchParams.get("to") ? date(url.searchParams.get("to"), "to") : now();
       const from = url.searchParams.get("from") ? date(url.searchParams.get("from"), "from") : new Date(to.getTime() - 365 * 86_400_000);
       const { info, rows } = await deps.stats.openData.get(ds[1]!, { from, to });
       const headers = { "access-control-allow-origin": "*", "cache-control": "public, max-age=3600", "x-license": info.license };
@@ -687,6 +702,38 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, { ok: true });
       }
     }
+    // ---- Mis fuentes (buzón IMAP, feeds RSS) ----
+    if (req.method === "GET" && path === "/v1/sources") return json(res, 200, await need(deps.sources).settings.list(who.userId));
+    if (req.method === "POST" && path === "/v1/sources") {
+      const type = str(b.type, "type");
+      if (type !== "rss" && type !== "email") throw new ValidationError("Por ahora se conectan feeds (rss) y buzones de mail (email).");
+      const config = Object.fromEntries(Object.entries((b.config ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v === "string").map(([k, v]) => [k, (v as string).trim()]));
+      const c = await need(deps.sources).connect.execute({ actorId: who.userId, type, name: str(b.name, "name").trim().slice(0, 80), config, secret: typeof b.secret === "string" && b.secret ? b.secret : undefined });
+      const { secretRef: _s, userId: _u, cursor: _c, ...shown } = c;
+      return json(res, 201, shown);
+    }
+    const srcOff = path.match(/^\/v1\/sources\/([^/]+)\/disconnect$/);
+    if (req.method === "POST" && srcOff) {
+      await need(deps.sources).settings.disconnect({ actorId: who.userId, connectionId: decodeURIComponent(srcOff[1]!) });
+      return json(res, 200, { ok: true });
+    }
+    // ---- Mis reglas de fuentes ----
+    if (req.method === "GET" && path === "/v1/rules") return json(res, 200, await need(deps.ruleSets).settings.list(who.userId));
+    if (req.method === "POST" && path === "/v1/rules") {
+      const list = (v: unknown) => (Array.isArray(v) ? v.map(String).map((x) => x.trim()).filter(Boolean).slice(0, 100) : undefined);
+      const rules = (b.urlRules ?? {}) as Record<string, unknown>;
+      return json(res, 201, await need(deps.ruleSets).save.execute({
+        actorId: who.userId, scope: b.scope === "organization" ? "organization" : "user", name: str(b.name, "name").trim().slice(0, 80),
+        urlRules: { include: list(rules.include), onlyFrom: list(rules.onlyFrom), exclude: list(rules.exclude) },
+      }));
+    }
+    const ruleOff = path.match(/^\/v1\/rules\/([^/]+)\/deactivate$/);
+    if (req.method === "POST" && ruleOff) {
+      await need(deps.ruleSets).settings.deactivate({ actorId: who.userId, ruleSetId: decodeURIComponent(ruleOff[1]!) });
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === "GET" && path === "/v1/rebuttals/mine") return json(res, 200, await deps.rebuttals.mine(who.userId));
+
     // ---- Mi organización ----
     const orgInv = path.match(/^\/v1\/organization\/invitations\/([^/]+)\/revoke$/);
     if (req.method === "POST" && orgInv) {
@@ -725,7 +772,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       const mime = String(req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
       if (!/^(image|video)\//.test(mime)) throw new ValidationError("Mandá una foto o un video.");
       if (!raw.length) throw new ValidationError("El archivo está vacío.");
-      await deps.abuse?.enforce({ action: "expensive", at: new Date(), userId: who.userId });
+      await deps.abuse?.enforce({ action: "expensive", at: now(), userId: who.userId });
       const { inspection: i, ...report } = await need(deps.mediaCheck).check({ data: raw, mime }, { channel: "web" });
       return json(res, 200, { ...report, file: { width: i.width, height: i.height, capturedAt: i.capturedAt, device: i.device, software: i.software, seconds: i.seconds } });
     }
@@ -890,7 +937,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/catalog/import":
         return json(res, 200, await deps.catalog.import.execute({ actorId: who.userId, sourceId: str(b.sourceId, "sourceId") }));
       case "GET /v1/quality": {
-        const since = new Date(Date.now() - 30 * 86_400_000);
+        const since = new Date(now().getTime() - 30 * 86_400_000);
         return json(res, 200, { current: deps.quality.currentVersion(), ...(await deps.quality.service.overview(who.userId)), usefulness: await deps.quality.feedback.usefulnessByVersion(since) });
       }
       case "POST /v1/quality/examples":
@@ -913,7 +960,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 201, await deps.rebuttals.submit({ actorId: who.userId, outletId: str(b.outletId, "outletId"), target: b.target as never, statement: str(b.statement, "statement"), evidenceUrls: b.evidenceUrls as string[] | undefined }));
       case "POST /v1/analyze": {
         const text = str(b.text, "text");
-        const now = new Date();
+        const at = now();
         let domain: string | undefined;
         if (b.url) {
           try {
@@ -924,7 +971,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         }
         const base = {
           id: randomUUID(), sourceType: b.url ? ("web" as const) : ("message" as const), origin: b.url ? { address: String(b.url), domain } : {},
-          text, urls: text.match(/https?:\/\/[^\s)]+/g) ?? [], publishedAt: now, receivedAt: now, attachments: [], metadata: {},
+          text, urls: text.match(/https?:\/\/[^\s)]+/g) ?? [], publishedAt: at, receivedAt: at, attachments: [], metadata: {},
         };
         // Un link a una red: se analiza lo que dice la publicación (igual que por el chat).
         const shared = deps.social ? await deps.social.readShared(text, { userId: who.userId }) : undefined;

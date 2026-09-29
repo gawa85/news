@@ -28,6 +28,8 @@ import { AlertSettings } from "../application/alerts/AlertSettings";
 import { OrganizationService } from "../application/organizations/Organizations";
 import { MediaCheckService } from "../application/media/MediaCheck";
 import { OutletProfileService } from "../application/catalog/OutletProfile";
+import { SourceSettings } from "../application/content/SourceSettings";
+import { RuleSetSettings } from "../application/rules/RuleSetSettings";
 import { InboundMediaDownloader } from "../application/inclusion/InboundMedia";
 import { LocalMediaInspector } from "../infrastructure/media/LocalMediaInspector";
 import { AuditQueryUseCase, AuditRecorder, DomainEventPublisher } from "../application/audit/Audit";
@@ -235,6 +237,11 @@ export interface PlatformConfig {
   supportDesk?: ISupportDesk;
   /** Ambiente: fuera de producción, sólo se envía a la lista del equipo y con prefijo. */
   environment?: { name: string; sandbox?: { allowlist: string[]; prefix: string } };
+  /**
+   * Direcciones que escribe una PERSONA (feeds RSS, buzones IMAP): cliente HTTP que sólo sale
+   * hacia internet pública (PublicDestinationHttpClient) y si se permiten redes privadas (sólo desarrollo).
+   */
+  userDestinations?: { http?: IHttpClient; allowPrivate?: boolean };
   /**
    * Webhooks salientes: cliente HTTP para entregarlos (en producción, sólo destinos públicos:
    * PublicDestinationHttpClient) y si se aceptan destinos localhost (sólo desarrollo).
@@ -561,7 +568,11 @@ export function buildPlatform(cfg: PlatformConfig) {
   webhookDispatcher.attach(events);
 
   // ---- Fuentes conectadas ----
-  const contentSources = [new ImapMailboxSource(mimeParser), new RssFeedSource(cfg.http)];
+  // Fuentes propias: la dirección la escribe la persona → sólo destinos públicos (ver userDestinations).
+  const contentSources = [
+    new ImapMailboxSource(mimeParser, 50, { allowPrivate: cfg.userDestinations?.allowPrivate }),
+    new RssFeedSource(cfg.userDestinations?.http ?? cfg.http),
+  ];
   const syncSources = new SyncSourcesUseCase(contentSources, repos.sourceConnections, vault, gateway, clock, logger);
 
   // ---- Redes: cadena de lectores (del más rico al más básico) con caché ----
@@ -719,6 +730,9 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     webhooks: p.integrations.webhooks,
     mediaCheck: p.mediaCheck,
     outletProfiles: p.outletProfiles,
+    clock: p.core.clock,
+    sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect },
+    ruleSets: { settings: new RuleSetSettings(p.store.repos.ruleSets, p.authz, p.access), save: p.users.saveRules },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },

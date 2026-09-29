@@ -46,6 +46,11 @@ import type {
   OpenDataset,
   OutletProfile,
   PublicCorrection,
+  PublicRebuttal,
+  RuleSetList,
+  SourceConnection,
+  SourceList,
+  UrlRules,
 } from "./types";
 
 
@@ -334,6 +339,38 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   reviewSummary(target: ReviewTarget) {
     return this.request<RatingSummary>("GET", `/v1/reviews/summary?type=${target.type}&id=${encodeURIComponent(target.id)}`);
+  }
+
+  sources() {
+    return this.request<SourceList>("GET", "/v1/sources");
+  }
+
+  connectSource(input: { type: "rss" | "email"; name: string; config: Record<string, string>; secret?: string }) {
+    return this.request<SourceConnection>("POST", "/v1/sources", input);
+  }
+
+  async disconnectSource(id: string) {
+    await this.request("POST", `/v1/sources/${encodeURIComponent(id)}/disconnect`);
+  }
+
+  ruleSets() {
+    return this.request<RuleSetList>("GET", "/v1/rules");
+  }
+
+  async saveRuleSet(input: { scope: "user" | "organization"; name: string; urlRules: UrlRules }) {
+    await this.request("POST", "/v1/rules", input);
+  }
+
+  async deactivateRuleSet(id: string) {
+    await this.request("POST", `/v1/rules/${encodeURIComponent(id)}/deactivate`);
+  }
+
+  myRebuttals() {
+    return this.request<PublicRebuttal[]>("GET", "/v1/rebuttals/mine");
+  }
+
+  async submitRebuttal(input: { outletId: string; topic: string; statement: string; evidenceUrls: string[] }) {
+    await this.request("POST", "/v1/rebuttals", { outletId: input.outletId, target: { type: "credibility", topic: input.topic }, statement: input.statement, evidenceUrls: input.evidenceUrls });
   }
 
   async organization(): Promise<OrganizationOverview | undefined> {

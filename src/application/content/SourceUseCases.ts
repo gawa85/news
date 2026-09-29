@@ -89,10 +89,12 @@ export class SyncSourcesUseCase {
           await this.gateway.analyzeContent({ userId: conn.userId, channel: "web" }, { ...item, connectionId: conn.id });
           analyzed++;
         }
-        await this.connections.save({ ...conn, cursor: cursor ?? conn.cursor, lastSyncAt: this.clock.now() });
+        await this.connections.save({ ...conn, cursor: cursor ?? conn.cursor, lastSyncAt: this.clock.now(), lastError: undefined });
         results.push({ connectionId: conn.id, analyzed });
       } catch (err) {
         this.logger.warn("Falló la sincronización de una fuente", { connectionId: conn.id, error: String(err) });
+        const message = err instanceof Error ? err.message : String(err);
+        await this.connections.save({ ...conn, lastError: { at: this.clock.now(), message: message.slice(0, 300) } }).catch(() => undefined);
         results.push({ connectionId: conn.id, analyzed: 0, error: err instanceof Error ? err.message : String(err) });
       }
     }

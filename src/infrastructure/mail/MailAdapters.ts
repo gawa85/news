@@ -4,6 +4,10 @@
  *  - SmtpInboundServer: recibir por SMTP (registro MX de un dominio → este servidor).
  *  - ImapMailboxSource: leer un buzón existente por IMAP (sólo lectura).
  */
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import { ValidationError } from "../../domain/errors";
+import { isPublicAddress } from "../../domain/rules/network";
 import { ImapFlow } from "imapflow";
 import nodemailer, { type Transporter } from "nodemailer";
 import { SMTPServer, type SMTPServerOptions } from "smtp-server";
@@ -173,16 +177,23 @@ export class SmtpInboundServer implements IInboundMailServer {
  * no marca como leído ni borra nada. El cursor es el último UID procesado.
  * Config: host, port, user, folder (INBOX por defecto). La contraseña o token viene de la bóveda.
  */
+/**
+ * Buzón IMAP de la persona. El host y el puerto los escribe ella: sin control, el servidor se
+ * podría usar para tocar la red interna (la base, otros servicios). Por eso: sólo puertos IMAP,
+ * sólo hosts que resuelven a IPs públicas, y se conecta A ESA IP (el nombre queda para validar
+ * el certificado): un DNS tramposo no puede cambiarla entre el control y la conexión.
+ */
 export class ImapMailboxSource implements IContentSource {
   readonly type = "email" as const;
 
   constructor(
     private readonly parser: IMimeParser,
     private readonly maxPerSync = 50,
+    private readonly opts: { allowPrivate?: boolean; resolve?: (host: string) => Promise<string[]> } = {},
   ) {}
 
   async test(conn: SourceConnection, secret?: string): Promise<void> {
-    const client = this.client(conn, secret);
+    const client = await this.client(conn, secret);
     await client.connect();
     try {
       await client.mailboxOpen(conn.config.folder ?? "INBOX", { readOnly: true });
@@ -192,7 +203,7 @@ export class ImapMailboxSource implements IContentSource {
   }
 
   async pull(conn: SourceConnection, secret?: string): Promise<PullResult> {
-    const client = this.client(conn, secret);
+    const client = await this.client(conn, secret);
     await client.connect();
     const lock = await client.getMailboxLock(conn.config.folder ?? "INBOX", { readOnly: true });
     const items: ContentItem[] = [];
@@ -212,11 +223,23 @@ export class ImapMailboxSource implements IContentSource {
     return { items, cursor: String(maxUid) };
   }
 
-  private client(conn: SourceConnection, secret?: string) {
+  private async client(conn: SourceConnection, secret?: string) {
+    const host = String(conn.config.host ?? "").trim().toLowerCase();
+    const port = Number(conn.config.port ?? 993);
+    if (!host) throw new ValidationError("Falta el servidor del buzón.");
+    if (![993, 143].includes(port)) throw new ValidationError("El buzón tiene que usar el puerto de IMAP (993, o 143).");
+    let address = host;
+    if (!this.opts.allowPrivate) {
+      const ips = isIP(host) ? [host] : await (this.opts.resolve ?? resolveAll)(host).catch(() => []);
+      if (!ips.length) throw new ValidationError(`No existe el servidor ${host}.`);
+      if (!ips.every(isPublicAddress)) throw new ValidationError("Ese servidor no es público: no se accede a redes internas.");
+      address = ips[0]!;
+    }
     return new ImapFlow({
-      host: conn.config.host!,
-      port: Number(conn.config.port ?? 993),
-      secure: conn.config.secure !== "false",
+      host: address,
+      servername: isIP(host) ? undefined : host, // el certificado se valida contra el nombre
+      port,
+      secure: port === 993 && conn.config.secure !== "false",
       auth: { user: conn.config.user!, pass: secret ?? "" },
       logger: false,
     });
@@ -242,3 +265,5 @@ export class HtmlTextExtractor implements IDocumentTextExtractor {
     return htmlToText(data.toString("utf8"));
   }
 }
+
+const resolveAll = async (host: string) => (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);

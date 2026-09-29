@@ -43,6 +43,11 @@ import type {
   OpenDataset,
   OutletProfile,
   PublicCorrection,
+  PublicRebuttal,
+  RuleSetList,
+  SourceConnection,
+  SourceList,
+  UrlRules,
 } from "./types";
 
 /**
@@ -149,6 +154,20 @@ export interface SinHumoApi {
   myReview(target: ReviewTarget): Promise<MyReview | null>;
   review(target: ReviewTarget, rating: number | null, text?: string): Promise<MyReview>;
   reviewSummary(target: ReviewTarget): Promise<RatingSummary>;
+
+  // Mis fuentes (buzón de mail, feeds): la contraseña se guarda cifrada y nunca vuelve
+  sources(): Promise<SourceList>;
+  connectSource(input: { type: "rss" | "email"; name: string; config: Record<string, string>; secret?: string }): Promise<SourceConnection>;
+  disconnectSource(id: string): Promise<void>;
+
+  // Mis reglas de fuentes
+  ruleSets(): Promise<RuleSetList>;
+  saveRuleSet(input: { scope: "user" | "organization"; name: string; urlRules: UrlRules }): Promise<void>;
+  deactivateRuleSet(id: string): Promise<void>;
+
+  // Derecho a réplica (representantes de medios)
+  myRebuttals(): Promise<PublicRebuttal[]>;
+  submitRebuttal(input: { outletId: string; topic: string; statement: string; evidenceUrls: string[] }): Promise<void>;
 
   // Mi organización. undefined = no soy parte de ninguna.
   organization(): Promise<OrganizationOverview | undefined>;

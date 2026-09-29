@@ -65,6 +65,14 @@ export class RebuttalService {
     return rebuttal;
   }
 
+  /** Las réplicas de los medios que represento (para seguir su estado y la resolución). */
+  async mine(actorId: string): Promise<PublicRebuttal[]> {
+    const actor = await this.user(actorId);
+    const outlets = actor.representsOutletIds ?? [];
+    const all = (await Promise.all(outlets.map((o) => this.rebuttals.findByOutlet(o)))).flat();
+    return all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).map(publicRebuttal);
+  }
+
   /** Réplicas por resolver (las más viejas primero), sin las que quien pregunta no puede resolver. */
   async pending(actorId: string, limit = 100): Promise<Rebuttal[]> {
     const actor = await this.user(actorId);

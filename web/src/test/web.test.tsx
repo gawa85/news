@@ -664,3 +664,63 @@ describe("Páginas públicas (sin cuenta)", () => {
     expect(csv).toHaveTextContent("Bajar CSV de Humo por mes");
   });
 });
+
+describe("Mis fuentes, reglas y réplica", () => {
+  const withSources = () => sampleMe({ plan: { ...sampleMe().plan, features: ["source_connections"] } });
+
+  test("conectar un feed; si falla la prueba se explica; desconectar", async () => {
+    const api = new FakeApi(withSources());
+    renderApp(api, "/fuentes");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Dirección del feed"), "https://roto.example/rss");
+    await user.click(screen.getByRole("button", { name: "Conectar" }));
+    expect(await screen.findByText("No se pudo conectar")).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Dirección del feed"));
+    await user.type(screen.getByLabelText("Dirección del feed"), "https://diario.example/rss");
+    await user.click(screen.getByRole("button", { name: "Conectar" }));
+    await user.click(await screen.findByRole("button", { name: "Desconectar https://diario.example/rss" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "disconnectSource")).toBe(true));
+  });
+
+  test("buzón: pide contraseña de aplicación y la manda aparte de la configuración", async () => {
+    const api = new FakeApi(withSources());
+    renderApp(api, "/fuentes");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("radio", { name: "Mi buzón de mail" }));
+    expect(screen.getByText(/contraseña de aplicación/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/Servidor IMAP/), "imap.gmail.com");
+    await user.type(screen.getByLabelText("Usuario (tu mail)"), "ana@gmail.com");
+    await user.type(screen.getByLabelText("Contraseña de aplicación"), "abcd efgh");
+    await user.click(screen.getByRole("button", { name: "Conectar" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "connectSource")?.args[0]).toEqual({ type: "email", name: "ana@gmail.com", config: { host: "imap.gmail.com", user: "ana@gmail.com", port: "993", folder: "INBOX" }, secret: "abcd efgh" }));
+  });
+
+  test("reglas: excluir medios, uno por línea", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/reglas");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre"), "Sin opinión");
+    await user.type(screen.getByLabelText("No usar nunca"), "opinionesya.example{enter}diario.example/opinion");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(await screen.findByText("Nunca: opinionesya.example, diario.example/opinion")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Quitar la regla Sin opinión" }));
+    expect(await screen.findByText("No tenés reglas guardadas.")).toBeInTheDocument();
+  });
+
+  test("réplica: sólo representantes; pide 50 caracteres y queda en revisión", async () => {
+    renderApp(new FakeApi(sampleMe()), "/replica");
+    expect(await screen.findByText(/tenés que estar acreditado/)).toBeInTheDocument();
+  });
+
+  test("réplica de un representante", async () => {
+    const api = new FakeApi(sampleMe({ representsOutletIds: ["ddv"] }));
+    renderApp(api, "/replica");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Tema de la evaluación"), "tarifas de gas");
+    await user.type(screen.getByLabelText("Qué está mal y por qué"), "Muy corto");
+    expect(screen.getByRole("button", { name: "Presentar réplica" })).toBeDisabled();
+    await user.type(screen.getByLabelText("Qué está mal y por qué"), " — la nota citaba la resolución oficial completa y la evaluación no lo tuvo en cuenta.");
+    await user.click(screen.getByRole("button", { name: "Presentar réplica" }));
+    expect(await screen.findByText("En revisión")).toBeInTheDocument();
+  });
+});

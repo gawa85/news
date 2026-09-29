@@ -16,6 +16,7 @@ import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
 import { MediaCheckPage } from "../features/media/MediaCheckPage";
+import { RebuttalPage, RulesPage as SourceRulesPage, SourcesPage } from "../features/sources/SourcesPages";
 import { CorrectionsPage, ObservatoryPage, OpenDataPage, OutletPage, OutletsPage } from "../features/public/PublicPages";
 import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
 import { JoinPage, OrganizationPage } from "../features/organization/OrganizationPages";
@@ -48,6 +49,9 @@ export const routes: RouteObject[] = [
       { path: "/credibilidad", element: guard(<CredibilityPage />) },
       { path: "/origen", element: guard(<OriginPage />) },
       { path: "/revisar", element: guard(<MediaCheckPage />) },
+      { path: "/fuentes", element: guard(<SourcesPage />) },
+      { path: "/reglas", element: guard(<SourceRulesPage />) },
+      { path: "/replica", element: guard(<RebuttalPage />) },
       { path: "/alertas", element: guard(<AlertsPage />) },
       { path: "/jugar", element: guard(<LearningPage />) },
       { path: "/salas", element: guard(<TeamRoomsPage />) },

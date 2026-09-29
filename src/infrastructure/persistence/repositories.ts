@@ -247,7 +247,8 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     ruleSets: {
       findActiveFor: (owners: BillingSubject[]) =>
         ruleSets.find({ where: { owner: { in: owners.map(subjectKeyOf) }, active: true } }),
-      countFor: (owner: BillingSubject) => ruleSets.count({ where: { owner: subjectKeyOf(owner) } }),
+      // Sólo los activos ocupan lugar del plan (uno desactivado se puede reemplazar).
+      countFor: (owner: BillingSubject) => ruleSets.count({ where: { owner: subjectKeyOf(owner), active: true } }),
       findByOwner: (owner: BillingSubject) => ruleSets.find({ where: { owner: subjectKeyOf(owner) } }),
       save: (r: SavedRuleSet) => ruleSets.upsert(r),
       deleteByOwner: (owner: BillingSubject) => ruleSets.deleteWhere({ where: { owner: subjectKeyOf(owner) } }),

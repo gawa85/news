@@ -74,6 +74,8 @@ export class AccountQueries {
       country: user.country,
       createdAt: user.createdAt,
       organizationId: user.organizationId,
+      /** Medios que representa (derecho a réplica). */
+      representsOutletIds: user.representsOutletIds ?? [],
       roles: user.roleIds,
       permissions: this.authz ? [...(await this.authz.permissionsOf(user))].sort() : [],
       channels: user.channels.map((c) => ({ type: c.channel, address: c.address, verified: c.verified })),

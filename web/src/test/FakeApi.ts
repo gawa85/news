@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, PublicRebuttal, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -284,6 +284,42 @@ export class FakeApi implements SinHumoApi {
       signals: [{ id: "seen_before", level: "warning" as const, label: "Ya circuló antes", detail: "Nos llegó por primera vez el 12/03/2024." }],
       file: { width: 1280, height: 960, software: ["Adobe Photoshop 25.0"] },
     };
+  }
+
+  sourceList: SourceConnection[] = [];
+  async sources() {
+    return { available: !!this.session?.plan.features.includes("source_connections"), limit: 1, connections: this.sourceList };
+  }
+  async connectSource(input: { type: "rss" | "email"; name: string; config: Record<string, string>; secret?: string }) {
+    this.log("connectSource", input);
+    if (input.config.url?.includes("roto")) throw new ApiError(400, "No se pudo leer el feed (HTTP 404).");
+    const c: SourceConnection = { id: `s${this.sourceList.length + 1}`, type: input.type, name: input.name, config: input.config, active: true, createdAt: "2026-09-28T12:00:00Z" };
+    this.sourceList = [c, ...this.sourceList];
+    return c;
+  }
+  async disconnectSource(id: string) {
+    this.log("disconnectSource", id);
+    this.sourceList = this.sourceList.filter((s) => s.id !== id);
+  }
+  personalRules: RuleSet[] = [];
+  async ruleSets() {
+    return { personal: this.personalRules, organization: [], canEditPersonal: true, canEditOrganization: false, limit: 1 };
+  }
+  async saveRuleSet(input: { scope: string; name: string; urlRules: RuleSet["urlRules"] }) {
+    this.log("saveRuleSet", input);
+    this.personalRules = [{ id: "rs1", name: input.name, urlRules: input.urlRules, active: true, createdAt: "2026-09-28T12:00:00Z" }];
+  }
+  async deactivateRuleSet(id: string) {
+    this.log("deactivateRuleSet", id);
+    this.personalRules = [];
+  }
+  rebuttalList: PublicRebuttal[] = [];
+  async myRebuttals() {
+    return this.rebuttalList;
+  }
+  async submitRebuttal(input: { outletId: string; topic: string; statement: string; evidenceUrls: string[] }) {
+    this.log("submitRebuttal", input);
+    this.rebuttalList = [{ id: "r1", outletId: input.outletId, statement: input.statement, evidenceUrls: input.evidenceUrls, status: "submitted", createdAt: "2026-09-28T12:00:00Z" }];
   }
 
   hooks: Webhook[] = [];
