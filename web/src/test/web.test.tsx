@@ -993,3 +993,61 @@ describe("Backoffice: temas, calidad, datos y operación", () => {
     expect(bo.calls.find((c) => c.method === "verifyBackup")?.args).toEqual(["backups/2026/09/28/sinhumo-b2.shbk"]);
   });
 });
+
+describe("Backoffice: personas", () => {
+  const admin = () => new FakeApi(sampleMe({ permissions: ["users:manage_all"] }));
+
+  test("sin buscar se ve el equipo; buscar por teléfono y darle un rol", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(admin(), "/admin/personas", bo);
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Cuentas encontradas" });
+    expect(table).toHaveTextContent("Ana Admin");
+    expect(table).not.toHaveTextContent("Juan Pérez");
+
+    await user.type(screen.getByLabelText("Mail, teléfono o id de la cuenta"), "+5491155554444");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await user.click(await screen.findByRole("button", { name: "Gestionar a Juan Pérez" }));
+    expect(screen.getByText("Organización: Redacción QA", { exact: false })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Rol para agregar"), "fact_checker");
+    await user.click(screen.getByRole("button", { name: "Dar el rol" }));
+    expect(await screen.findByRole("button", { name: "Quitar el rol Verificador a Juan Pérez" })).toBeInTheDocument();
+    expect(bo.calls.find((c) => c.method === "addUserRole")?.args).toEqual(["u-juan", "fact_checker"]);
+  });
+
+  test("suspender pide motivo; una suspendida muestra por qué y se puede reactivar", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(admin(), "/admin/personas", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Mail, teléfono o id de la cuenta"), "u-juan");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await user.click(await screen.findByRole("button", { name: "Gestionar a Juan Pérez" }));
+    await user.click(screen.getByRole("button", { name: "Suspender la cuenta" }));
+    expect(screen.getByText("Explicá el motivo (al menos 10 caracteres).")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "suspendUser")).toBe(false);
+    await user.type(screen.getByLabelText(/^Motivo de la suspensión/), "Spam en eventos en vivo");
+    await user.click(screen.getByRole("button", { name: "Suspender la cuenta" }));
+    expect(await screen.findByText(/«Spam en eventos en vivo»/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ver las suspendidas" }));
+    const table = await screen.findByRole("table", { name: "Cuentas encontradas" });
+    await waitFor(() => expect(table).toHaveTextContent("Cuenta spam"));
+    await user.click(screen.getByRole("button", { name: "Gestionar a Cuenta spam" }));
+    await user.type(screen.getByLabelText(/^Motivo para reactivarla/), "Aclaró que fue un error");
+    await user.click(screen.getByRole("button", { name: "Reactivar la cuenta" }));
+    await waitFor(() => expect(bo.calls.find((c) => c.method === "reactivateUser")?.args).toEqual(["u-susp", "Aclaró que fue un error"]));
+  });
+
+  test("acreditar y quitar un medio representado", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(admin(), "/admin/personas", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Mail, teléfono o id de la cuenta"), "juan@correo.example");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    await user.click(await screen.findByRole("button", { name: "Gestionar a Juan Pérez" }));
+    await user.click(await screen.findByRole("button", { name: "Acreditar como representante" }));
+    const quitar = await screen.findByRole("button", { name: /^Dejar de acreditar a Juan Pérez por/ });
+    await user.click(quitar);
+    expect(await screen.findByText("Ninguno.")).toBeInTheDocument();
+  });
+});

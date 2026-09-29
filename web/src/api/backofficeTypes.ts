@@ -388,3 +388,25 @@ export interface NewOfficialDocument {
 export interface OfficialDocument extends NewOfficialDocument {
   id: string;
 }
+
+// ---- Personas de la plataforma (users:manage_all) ----
+export interface RoleInfo {
+  id: string;
+  name: string;
+  description: string;
+  scope: "organization" | "platform";
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  status: "active" | "suspended" | "deleted";
+  roleIds: string[];
+  organization?: { id: string; name: string };
+  channels: { channel: string; address: string; verified: boolean }[];
+  representsOutletIds: string[];
+  suspension?: { reason: string; at: string; by: string };
+  createdAt: string;
+}
+
+export type UserListFilter = "staff" | "suspended";

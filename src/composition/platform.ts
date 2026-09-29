@@ -23,6 +23,7 @@ import { ReplyService, TrackedLinkService } from "../application/replies/ReplySe
 import { ReviewService } from "../application/reviews/ReviewService";
 import { UserRulesResolver } from "../application/rules/UserRulesResolver";
 import { ManageRolesUseCase } from "../application/users/ManageRolesUseCase";
+import { PlatformUsersService } from "../application/users/PlatformUsers";
 import { CredibilityChangeEvaluator, EvaluateAlertsUseCase, NewCoverageEvaluator, NewDisagreementEvaluator } from "../application/alerts/Alerts";
 import { AlertSettings } from "../application/alerts/AlertSettings";
 import { OrganizationService } from "../application/organizations/Organizations";
@@ -629,6 +630,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       changePlan,
       confirmPayment: new ConfirmPaymentUseCase(cfg.store, domainEvents, clock),
       assignOutletRepresentative: new AssignOutletRepresentativeUseCase(repos.users, repos.outlets, authz, domainEvents),
+      platform: new PlatformUsersService(repos.users, repos.roles, repos.organizations, authz, domainEvents, manageRoles, (userId) => auth.logoutEverywhere(userId), clock),
       linkChannel: new LinkChannelUseCase(repos.users, codes, notifications, cfg.store, clock),
       saveRules,
       createAlert: new CreateAlertUseCase(repos.alerts, authz, access, ids, clock),
@@ -734,6 +736,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect },
     ruleSets: { settings: new RuleSetSettings(p.store.repos.ruleSets, p.authz, p.access), save: p.users.saveRules },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
+    users: { platform: p.users.platform, assignOutletRepresentative: p.users.assignOutletRepresentative },
     confirmPayment: p.users.confirmPayment, deliveryStatus: p.deliveryStatus, outlets: p.store.repos.outlets,
     parsers: { whatsapp: p.channels.parser("whatsapp"), telegram: p.channels.parser("telegram") },
     logger: p.core.logger, auth: p.auth, exports: p.exports, audit: p.audit, rebuttals: p.rebuttals,
@@ -750,6 +753,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
 export async function seedPlatform(store: IDataStore): Promise<void> {
   for (const r of ROLES) await store.repos.roles.save(r);
   for (const p of PLANS) await store.repos.plans.save(p);
+  await store.repos.users.ensureRoleIndex();
   await seedTaxonomy(store.repos.taxonomy, { categories: SEED_CATEGORIES, topics: SEED_TOPICS }, new Date());
   await seedQuizItems(store.repos.learning, SEED_EVALUATION_SET, (isSmoke, types) =>
     isSmoke ? types.map((t) => SMOKE_TIPS[t]).join(" ") : CLEAN_TIP);

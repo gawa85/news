@@ -25,6 +25,9 @@ import type {
   NewOfficialDocument,
   QualityOverview,
   TopicDraft,
+  AdminUser,
+  RoleInfo,
+  UserListFilter,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -308,5 +311,57 @@ export class FakeBackoffice implements BackofficeApi {
   async uploadDocument(doc: NewOfficialDocument) {
     this.log("uploadDocument", doc);
     return { ...doc, id: "doc1" };
+  }
+
+  roleList: RoleInfo[] = [
+    { id: "reader", name: "Lector", description: "Usa su plan.", scope: "organization" },
+    { id: "fact_checker", name: "Verificador", description: "Verifica afirmaciones.", scope: "platform" },
+    { id: "support_agent", name: "Soporte", description: "Atiende tickets.", scope: "platform" },
+    { id: "outlet_rep", name: "Representante de medio", description: "Derecho a réplica.", scope: "platform" },
+    { id: "platform_admin", name: "Administrador de la plataforma", description: "Todos los permisos.", scope: "platform" },
+  ];
+  people: AdminUser[] = [
+    { id: "u-admin", name: "Ana Admin", status: "active", roleIds: ["reader", "platform_admin"], channels: [{ channel: "email", address: "ana@sinhumo.example", verified: true }], representsOutletIds: [], createdAt: "2026-01-01T10:00:00Z" },
+    { id: "u-juan", name: "Juan Pérez", status: "active", roleIds: ["reader"], organization: { id: "org1", name: "Redacción QA" }, channels: [{ channel: "whatsapp", address: "+5491155554444", verified: true }, { channel: "email", address: "juan@correo.example", verified: true }], representsOutletIds: [], createdAt: "2026-05-01T10:00:00Z" },
+    { id: "u-susp", name: "Cuenta spam", status: "suspended", roleIds: ["reader"], channels: [], representsOutletIds: [], suspension: { reason: "Spam en eventos", at: "2026-09-20T10:00:00Z", by: "u-admin" }, createdAt: "2026-09-01T10:00:00Z" },
+  ];
+  private person(id: string, patch: (u: AdminUser) => AdminUser) {
+    this.people = this.people.map((u) => (u.id === id ? patch(u) : u));
+    return this.people.find((u) => u.id === id)!;
+  }
+  async roleCatalog() {
+    return this.roleList;
+  }
+  async searchUsers(q: string, filter: UserListFilter) {
+    this.log("searchUsers", q, filter);
+    if (q.trim()) return this.people.filter((u) => u.id === q.trim() || u.channels.some((c) => c.address === q.trim().toLowerCase()));
+    return filter === "suspended" ? this.people.filter((u) => u.status === "suspended") : this.people.filter((u) => u.roleIds.some((r) => r !== "reader"));
+  }
+  async addUserRole(userId: string, roleId: string) {
+    this.log("addUserRole", userId, roleId);
+    return this.person(userId, (u) => ({ ...u, roleIds: [...u.roleIds, roleId] }));
+  }
+  async removeUserRole(userId: string, roleId: string) {
+    this.log("removeUserRole", userId, roleId);
+    return this.person(userId, (u) => ({ ...u, roleIds: u.roleIds.filter((r) => r !== roleId) }));
+  }
+  async suspendUser(userId: string, reason: string) {
+    this.log("suspendUser", userId, reason);
+    return this.person(userId, (u) => ({ ...u, status: "suspended", suspension: { reason, at: "2026-09-28T10:00:00Z", by: "u-admin" } }));
+  }
+  async reactivateUser(userId: string, reason: string) {
+    this.log("reactivateUser", userId, reason);
+    return this.person(userId, (u) => ({ ...u, status: "active", suspension: undefined }));
+  }
+  async addRepresentedOutlet(userId: string, outletId: string) {
+    this.log("addRepresentedOutlet", userId, outletId);
+    return this.person(userId, (u) => ({ ...u, representsOutletIds: [...u.representsOutletIds, outletId], roleIds: [...new Set([...u.roleIds, "outlet_rep"])] }));
+  }
+  async removeRepresentedOutlet(userId: string, outletId: string) {
+    this.log("removeRepresentedOutlet", userId, outletId);
+    return this.person(userId, (u) => {
+      const outlets = u.representsOutletIds.filter((o) => o !== outletId);
+      return { ...u, representsOutletIds: outlets, roleIds: outlets.length ? u.roleIds : u.roleIds.filter((r) => r !== "outlet_rep") };
+    });
   }
 }

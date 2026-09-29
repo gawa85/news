@@ -535,6 +535,7 @@ legend {
 /* Tablas de datos (también son la versión accesible de los gráficos). */
 .table-wrap {
   overflow-x: auto;
+  position: relative; /* (el texto oculto para lectores de pantalla no escapa del recorte) */
 }
 .table {
   width: 100%;
@@ -692,7 +693,7 @@ legend {
 }
 @media (max-width: 48rem) {
   .admin {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr); /* (con 1fr, una tabla ancha estiraba toda la página) */
   }
   .admin__nav ul {
     display: flex;

@@ -36,6 +36,9 @@ import type {
   OfficialDocument,
   QualityOverview,
   TopicDraft,
+  AdminUser,
+  RoleInfo,
+  UserListFilter,
 } from "./backofficeTypes";
 
 /**
@@ -123,4 +126,14 @@ export interface BackofficeApi {
 
   // Documentos oficiales para la búsqueda de evidencia (verdicts:write)
   uploadDocument(doc: NewOfficialDocument): Promise<OfficialDocument>;
+
+  // Personas de la plataforma (users:manage_all): por mail, teléfono o id exactos
+  roleCatalog(): Promise<RoleInfo[]>;
+  searchUsers(q: string, filter: UserListFilter): Promise<AdminUser[]>;
+  addUserRole(userId: string, roleId: string): Promise<AdminUser>;
+  removeUserRole(userId: string, roleId: string): Promise<AdminUser>;
+  suspendUser(userId: string, reason: string): Promise<AdminUser>;
+  reactivateUser(userId: string, reason: string): Promise<AdminUser>;
+  addRepresentedOutlet(userId: string, outletId: string): Promise<AdminUser>;
+  removeRepresentedOutlet(userId: string, outletId: string): Promise<AdminUser>;
 }

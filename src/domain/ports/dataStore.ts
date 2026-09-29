@@ -32,7 +32,7 @@ import type { IContentAnalysisRepository, ISourceConnectionRepository } from "./
 import type { IAlertRuleRepository, IRuleSetRepository } from "./userRules";
 import type { IPlanRepository, IPlanWriter, ISubscriptionRepository, IUsageRepository } from "./billing";
 import type { IMediaFingerprintRepository } from "./media";
-import type { IOrganizationInvitationRepository, IOrganizationRepository, IRoleRepository, IRoleWriter, IUserRepository } from "./identity";
+import type { IOrganizationInvitationRepository, IOrganizationRepository, IRoleRepository, IRoleWriter, IUserDirectory, IUserRepository } from "./identity";
 import type {
   IArticleReader,
   IArticleWriter,
@@ -81,7 +81,7 @@ export interface Repositories {
   articles: IArticleReader & IArticleWriter;
   claims: IClaimReader & IClaimWriter;
   verdicts: IVerdictReader & IVerdictWriter;
-  users: IUserRepository;
+  users: IUserRepository & IUserDirectory;
   roles: IRoleRepository & IRoleWriter;
   organizations: IOrganizationRepository;
   orgInvitations: IOrganizationInvitationRepository;

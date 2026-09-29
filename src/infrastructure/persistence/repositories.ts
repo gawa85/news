@@ -6,6 +6,7 @@ import { canonicalUrl } from "../../domain/model";
 import { randomUUID } from "node:crypto";
 import { ConflictError } from "../../domain/errors";
 import type {
+  UserStatus,
   AlertRule,
   MediaFingerprint,
   Article,
@@ -27,7 +28,7 @@ import type {
 } from "../../domain/model";
 import type { ArticleFilter, Repositories, SecretRecord, VerificationCodeRecord } from "../../domain/ports";
 import type { ICollectionFactory, IDocumentCollection, Query } from "./collection";
-import { schemas, subjectKeyOf, type ChannelLink, type MediaRecord, type UsageRow } from "./schemas";
+import { schemas, subjectKeyOf, type ChannelLink, type MediaRecord, type UsageRow, type UserRoleRow } from "./schemas";
 
 const linkId = (channel: ChannelType, address: string) => `${channel}:${address.trim().toLowerCase()}`;
 
@@ -35,7 +36,31 @@ class UserRepository {
   constructor(
     private readonly users: IDocumentCollection<User>,
     private readonly links: IDocumentCollection<ChannelLink>,
+    private readonly roles: IDocumentCollection<UserRoleRow>,
   ) {}
+
+  async findWithRoles(roleIds: string[], limit: number) {
+    if (!roleIds.length) return [];
+    const ids = [...new Set((await this.roles.find({ where: { roleId: { in: roleIds } }, limit: limit * roleIds.length })).map((r) => r.userId))].slice(0, limit);
+    return (await Promise.all(ids.map((id) => this.users.get(id)))).filter((u): u is User => !!u);
+  }
+
+  findByStatus(status: UserStatus, limit: number) {
+    return this.users.find({ where: { status }, orderBy: { field: "createdAt", direction: "desc" }, limit });
+  }
+
+  async ensureRoleIndex() {
+    if ((await this.roles.count()) > 0) return;
+    for (const u of await this.users.find()) await this.syncRoles(u);
+  }
+
+  /** Mantiene las filas de roles al día con la cuenta (sólo escribe lo que cambió). */
+  private async syncRoles(user: User) {
+    const rows = await this.roles.find({ where: { userId: user.id } });
+    const want = new Set(user.status === "deleted" ? [] : user.roleIds);
+    for (const r of rows) if (!want.has(r.roleId)) await this.roles.deleteWhere({ where: { id: r.id } });
+    for (const roleId of want) if (!rows.some((r) => r.roleId === roleId)) await this.roles.upsert({ id: `${user.id}:${roleId}`, userId: user.id, roleId });
+  }
 
   findById(id: string) {
     return this.users.get(id);
@@ -50,8 +75,9 @@ class UserRepository {
     return this.users.find({ where: { organizationId } });
   }
 
-  save(user: User) {
-    return this.users.upsert(user);
+  async save(user: User) {
+    await this.users.upsert(user);
+    await this.syncRoles(user);
   }
 
   releaseChannels(userId: string) {
@@ -198,7 +224,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findByClaimIds: (ids) => verdicts.find({ where: { claimId: { in: ids } } }),
       save: (v: ClaimVerdict) => verdicts.upsert(v),
     },
-    users: new UserRepository(f.collection(schemas.users), f.collection(schemas.channelLinks)),
+    users: new UserRepository(f.collection(schemas.users), f.collection(schemas.channelLinks), f.collection(schemas.userRoles)),
     roles: {
       findByIds: (ids) => roles.find({ where: { id: { in: ids } } }),
       findAll: () => roles.find(),

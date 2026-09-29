@@ -108,6 +108,7 @@ export class PersonalDataService {
         channels: [],
         preferredChannel: undefined,
         representsOutletIds: [],
+        suspension: undefined,
       });
     });
     await this.events.emit("personal_data.deleted", { userId: user.id, organizationId: user.organizationId });

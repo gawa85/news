@@ -120,6 +120,12 @@ export class HandleInboundMessageUseCase {
   async execute(msg: InboundMessage): Promise<{ user: User; response: ResponseContent; delivery: DeliveryResult }> {
     await this.windows.touch(msg.channel, msg.from, msg.receivedAt);
     const existing = await this.users.findByChannel(msg.channel, msg.from);
+    if (existing && existing.status !== "active") {
+      // Cuenta suspendida: no se analiza nada (tampoco se cobra); sólo se avisa.
+      const response = this.composer.info("Tu cuenta está suspendida.", "Si creés que es un error, escribinos desde la web (Ayuda).");
+      const delivery = await this.notifications.sendTo(msg.channel, msg.from, response, "reply", { replyTo: { externalId: msg.externalId } });
+      return { user: existing, response, delivery };
+    }
     const user = existing ?? (await this.register.execute({ name: msg.displayName ?? "Usuario", channel: { type: msg.channel, address: msg.from, verified: true } }));
     if (!existing) await this.guessLanguage(user, msg.text);
 

@@ -34,6 +34,7 @@ import { ParametersPage } from "../features/admin/ParametersPage";
 import { RulesPage } from "../features/admin/RulesPage";
 import { FlagsPage } from "../features/admin/FlagsPage";
 import { TaxonomyPage } from "../features/admin/TaxonomyPage";
+import { PeoplePage } from "../features/admin/PeoplePage";
 import { QualityPage } from "../features/admin/QualityPage";
 import { CatalogPage, DocumentsPage } from "../features/admin/DataPages";
 import { AuditPage, BackupsPage, CostsPage } from "../features/admin/OpsPages";
@@ -73,6 +74,7 @@ export const routes: RouteObject[] = [
         path: "/admin",
         element: guard(<AdminLayout />),
         children: [
+          { path: "personas", element: <PeoplePage /> },
           { path: "soporte", element: <SupportQueuePage /> },
           { path: "verificacion", element: <VerificationPage /> },
           { path: "replicas", element: <RebuttalsPage /> },

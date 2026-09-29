@@ -129,6 +129,12 @@ export interface ConversationWindow {
 const subjectKey = (s: { type: string; id: string }) => `${s.type}:${s.id}`;
 
 /** Parte de una huella → id de la huella. */
+export interface UserRoleRow {
+  id: string;
+  userId: string;
+  roleId: string;
+}
+
 export interface MediaBand {
   id: string;
   band: string;
@@ -160,8 +166,18 @@ export const schemas = {
   users: {
     name: "users",
     idOf: (u: User) => u.id,
-    indexes: { organizationId: { type: "text", get: (u: User) => u.organizationId ?? null } },
+    indexes: {
+      organizationId: { type: "text", get: (u: User) => u.organizationId ?? null },
+      status: { type: "text", get: (u: User) => u.status },
+      createdAt: { type: "text", get: (u: User) => u.createdAt },
+    },
   } satisfies CollectionSchema<User>,
+  /** Una fila por persona y rol: "quiénes tienen tal rol" es una sola consulta "in". */
+  userRoles: {
+    name: "user_roles",
+    idOf: (r: UserRoleRow) => r.id,
+    indexes: { userId: { type: "text", get: (r: UserRoleRow) => r.userId }, roleId: { type: "text", get: (r: UserRoleRow) => r.roleId } },
+  } satisfies CollectionSchema<UserRoleRow>,
   channelLinks: {
     name: "channel_links",
     idOf: (l: ChannelLink) => l.id,

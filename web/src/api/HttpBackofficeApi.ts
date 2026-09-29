@@ -36,6 +36,9 @@ import type {
   OfficialDocument,
   QualityOverview,
   TopicDraft,
+  AdminUser,
+  RoleInfo,
+  UserListFilter,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -216,5 +219,33 @@ export class HttpBackofficeApi implements BackofficeApi {
 
   uploadDocument(doc: NewOfficialDocument) {
     return this.request<OfficialDocument>("POST", "/v1/verification/documents", doc);
+  }
+
+  roleCatalog() {
+    return this.request<RoleInfo[]>("GET", "/v1/admin/roles");
+  }
+  searchUsers(q: string, filter: UserListFilter) {
+    return this.request<AdminUser[]>("GET", q.trim() ? `/v1/admin/users?q=${enc(q.trim())}` : `/v1/admin/users?filter=${filter}`);
+  }
+  private userAction(userId: string, action: string, body: unknown) {
+    return this.request<AdminUser>("POST", `/v1/admin/users/${enc(userId)}/${action}`, body);
+  }
+  addUserRole(userId: string, roleId: string) {
+    return this.userAction(userId, "roles/add", { roleId });
+  }
+  removeUserRole(userId: string, roleId: string) {
+    return this.userAction(userId, "roles/remove", { roleId });
+  }
+  suspendUser(userId: string, reason: string) {
+    return this.userAction(userId, "suspend", { reason });
+  }
+  reactivateUser(userId: string, reason: string) {
+    return this.userAction(userId, "reactivate", { reason });
+  }
+  addRepresentedOutlet(userId: string, outletId: string) {
+    return this.userAction(userId, "outlets/add", { outletId });
+  }
+  removeRepresentedOutlet(userId: string, outletId: string) {
+    return this.userAction(userId, "outlets/remove", { outletId });
   }
 }

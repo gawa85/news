@@ -28,6 +28,8 @@ export interface User {
   representsOutletIds?: string[];
   /** País (ISO 3166-1 alfa-2). Si falta, el país por defecto de la plataforma. */
   country?: string;
+  /** Por qué y quién la suspendió (sólo mientras está suspendida). */
+  suspension?: { reason: string; at: Date; by: string };
   createdAt: Date;
 }
 

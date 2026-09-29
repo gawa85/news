@@ -36,3 +36,15 @@ export function canRemoveRole(actor: User, target: User, role: Role, adminsLeft:
   }
   return { ok: true };
 }
+
+/**
+ * Cambios que dejan a alguien SIN administrar la plataforma (quitarle el rol o suspenderlo):
+ * - nadie se suspende a sí mismo (se pediría a otra persona del equipo);
+ * - siempre queda al menos una cuenta activa que administra la plataforma.
+ * `otherActiveAdmins`: cuántas cuentas activas, además de `target`, tienen users:manage_all.
+ */
+export function canRemovePlatformAccess(actor: User, target: User, change: "suspend" | "remove_role", targetIsAdmin: boolean, otherActiveAdmins: number): PolicyResult {
+  if (change === "suspend" && actor.id === target.id) return { ok: false, reason: "No podés suspender tu propia cuenta." };
+  if (targetIsAdmin && otherActiveAdmins === 0) return { ok: false, reason: "Es la única cuenta que administra la plataforma: asigná otra antes." };
+  return { ok: true };
+}

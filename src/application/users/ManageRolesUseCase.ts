@@ -27,10 +27,13 @@ export class ManageRolesUseCase {
     const assignCheck = canAssignRole(actor, perms, target, role); // mismas reglas para quitar
     if (!assignCheck.ok) throw new AccessDeniedError(assignCheck.reason, "no_permission");
 
-    const members = target.organizationId ? await this.users.findByOrganization(target.organizationId) : [target];
+    // "El último administrador" es de una organización: sin organización no hay a quién dejar sin admin
+    // (la plataforma tiene su propia regla, en PlatformUsersService).
     const allRoles = await this.roles.findAll();
     const adminRoleIds = new Set(allRoles.filter((r) => r.permissions.includes("users:manage_org")).map((r) => r.id));
-    const adminsLeft = members.filter((m) => m.roleIds.some((id) => adminRoleIds.has(id))).length;
+    const adminsLeft = target.organizationId
+      ? (await this.users.findByOrganization(target.organizationId)).filter((m) => m.roleIds.some((id) => adminRoleIds.has(id))).length
+      : Number.POSITIVE_INFINITY;
     const removeCheck = canRemoveRole(actor, target, role, adminsLeft);
     if (!removeCheck.ok) throw new AccessDeniedError(removeCheck.reason, "no_permission");
 

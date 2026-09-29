@@ -1,5 +1,6 @@
 /** Secciones del backoffice y el permiso que muestra cada una (el servidor controla cada acción igual). */
 export const ADMIN_SECTIONS = [
+  { path: "personas", label: "Personas", permission: "users:manage_all" },
   { path: "soporte", label: "Soporte", permission: "support:handle" },
   { path: "verificacion", label: "Verificación", permission: "verdicts:write" },
   { path: "replicas", label: "Réplicas de medios", permission: "rebuttal:resolve" },

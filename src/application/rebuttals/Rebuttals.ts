@@ -187,6 +187,21 @@ export class AssignOutletRepresentativeUseCase {
     await this.events.emit("outlet_representative.assigned", { userId: actor.id }, { outletId: input.outletId }, { type: "user", id: target.id });
     return target;
   }
+
+  /** Deja de representar a un medio; sin medios, deja también el rol de representante. */
+  async revoke(input: { actorId: string; targetId: string; outletId: string }): Promise<User> {
+    const actor = await this.users.findById(input.actorId);
+    if (!actor || !(await this.authz.permissionsOf(actor)).has("users:manage_all")) {
+      throw new AccessDeniedError("Sólo la administración de la plataforma acredita representantes.", "no_permission");
+    }
+    const target = await this.users.findById(input.targetId);
+    if (!target) throw new NotFoundError("Usuario inexistente.");
+    target.representsOutletIds = (target.representsOutletIds ?? []).filter((o) => o !== input.outletId);
+    if (!target.representsOutletIds.length) target.roleIds = target.roleIds.filter((r) => r !== "outlet_rep");
+    await this.users.save(target);
+    await this.events.emit("outlet_representative.removed", { userId: actor.id }, { outletId: input.outletId }, { type: "user", id: target.id });
+    return target;
+  }
 }
 
 /** Lo que se publica de una réplica: el medio, qué pidió y cómo se resolvió; no quién (ids internos). */

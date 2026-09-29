@@ -81,6 +81,8 @@
  *  Evidencias:  POST /v1/evidence {url, monitor}   GET /v1/evidence[?url=]   GET /v1/evidence/:id[/verify|/content?kind=raw|text]
  *  Operación:  GET/POST /v1/ops/backups   POST /v1/ops/backups/verify { key }   (ops:backup, una operación por vez)   GET /health (con el ambiente)
  *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
+ *  Personas (users:manage_all):  GET /v1/admin/roles   GET /v1/admin/users?q=|filter=staff|suspended   GET /v1/admin/users/:id
+ *    POST /v1/admin/users/:id/(roles/add|roles/remove) { roleId }   (suspend|reactivate) { reason }   (outlets/add|outlets/remove) { outletId }
  *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
  *  Métricas (Prometheus, con token):  GET /metrics
  *
@@ -108,6 +110,7 @@ import type { RuleSetSettings } from "../../application/rules/RuleSetSettings";
 import type { SaveRuleSetUseCase } from "../../application/users/UserSettingsUseCases";
 import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { OutletProfileService } from "../../application/catalog/OutletProfile";
+import type { PlatformUsersService } from "../../application/users/PlatformUsers";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -123,7 +126,7 @@ import type { ConfirmPaymentUseCase } from "../../application/users/PlansUseCase
 import type { AuthService } from "../../application/auth/AuthService";
 import type { AuditQueryUseCase } from "../../application/audit/Audit";
 import type { ExportRequest, ExportService } from "../../application/exports/ExportService";
-import type { RebuttalService } from "../../application/rebuttals/Rebuttals";
+import type { AssignOutletRepresentativeUseCase, RebuttalService } from "../../application/rebuttals/Rebuttals";
 import type { ExportFormat } from "../../domain/model";
 import type { SetBillingProfileUseCase } from "../../application/billing/Invoicing";
 import type { CostReportUseCase } from "../../application/costs/Costs";
@@ -159,6 +162,8 @@ import { buildMcpServer } from "../integrations/McpServer";
 
 export interface HttpApiDeps {
   gateway: ProductGateway;
+  /** Administración de cuentas de la plataforma y representantes de medios. */
+  users: { platform: PlatformUsersService; assignOutletRepresentative: AssignOutletRepresentativeUseCase };
   access: AccessControl;
   authz: IAuthorizationService;
   apiKeys: ApiKeyService;
@@ -657,6 +662,38 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return void res.writeHead(200, { "content-type": "text/csv; charset=utf-8", ...(r.nextSince ? { "x-next-since": r.nextSince } : {}) }).end(toCsv(Object.keys(r.rows[0] ?? {}), r.rows));
       }
       return json(res, 200, r);
+    }
+    // ---- Personas de la plataforma (users:manage_all) ----
+    if (path.startsWith("/v1/admin/")) {
+      const pu = deps.users.platform;
+      if (req.method === "GET" && path === "/v1/admin/roles") return json(res, 200, await pu.roleCatalog(who.userId));
+      if (req.method === "GET" && path === "/v1/admin/users") {
+        const f = url.searchParams.get("filter");
+        return json(res, 200, await pu.search(who.userId, { q: url.searchParams.get("q") ?? undefined, filter: f === "suspended" ? "suspended" : "staff" }));
+      }
+      const au = path.match(/^\/v1\/admin\/users\/([^/]+)(?:\/(roles\/add|roles\/remove|suspend|reactivate|outlets\/add|outlets\/remove))?$/);
+      if (au) {
+        const id = decodeURIComponent(au[1]!);
+        if (req.method === "GET" && !au[2]) return json(res, 200, await pu.detail(who.userId, id));
+        if (req.method === "POST") {
+          switch (au[2]) {
+            case "roles/add":
+              return json(res, 200, await pu.addRole(who.userId, id, str(b.roleId, "roleId")));
+            case "roles/remove":
+              return json(res, 200, await pu.removeRole(who.userId, id, str(b.roleId, "roleId")));
+            case "suspend":
+              return json(res, 200, await pu.suspend(who.userId, id, str(b.reason, "reason")));
+            case "reactivate":
+              return json(res, 200, await pu.reactivate(who.userId, id, str(b.reason, "reason")));
+            case "outlets/add":
+              await deps.users.assignOutletRepresentative.execute({ actorId: who.userId, targetId: id, outletId: str(b.outletId, "outletId") });
+              return json(res, 200, await pu.detail(who.userId, id));
+            case "outlets/remove":
+              await deps.users.assignOutletRepresentative.revoke({ actorId: who.userId, targetId: id, outletId: str(b.outletId, "outletId") });
+              return json(res, 200, await pu.detail(who.userId, id));
+          }
+        }
+      }
     }
     const qrev = path.match(/^\/v1\/quality\/examples\/([^/]+)\/review$/);
     if (req.method === "POST" && qrev) {
