@@ -185,6 +185,34 @@ export interface FeatureFlag {
 
 export type FlagPatch = Partial<Pick<FeatureFlag, "enabled" | "rolloutPercent" | "allowUsers" | "allowOrgs" | "plans" | "countries">>;
 
+export interface Coupon {
+  code: string;
+  description: string;
+  kind: "percent" | "fixed";
+  value: number;
+  currency?: string;
+  planIds: string[];
+  intervals: ("month" | "year")[];
+  durationCycles: number | null;
+  maxRedemptions: number | null;
+  redemptions: number;
+  newCustomersOnly: boolean;
+  validTo?: string;
+  active: boolean;
+}
+
+export interface NewCoupon {
+  code: string;
+  description: string;
+  kind: "percent" | "fixed";
+  value: number;
+  planIds: string[];
+  maxRedemptions: number | null;
+  durationCycles: number | null;
+  newCustomersOnly: boolean;
+  validTo?: string;
+}
+
 export interface NewEvent {
   title: string;
   description?: string;

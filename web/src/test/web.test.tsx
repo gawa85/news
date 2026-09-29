@@ -819,3 +819,51 @@ describe("Aulas, respuestas públicas y campañas", () => {
     expect(await within(second!).findByText("-45 %")).toBeInTheDocument();
   });
 });
+
+describe("Referidos, marca propia y cupones", () => {
+  test("referidos: mi código y usar el de quien me invitó", async () => {
+    const api = new FakeApi(sampleMe());
+    renderApp(api, "/cuenta");
+    const user = userEvent.setup();
+    expect(await screen.findByText("ANA-7K2P")).toBeInTheDocument();
+    expect(screen.getByText(/Invitaste a 3; 1 ya te dieron premio y 2 todavía no se suscribió/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/Te invitó alguien/), "juan-1234");
+    await user.click(screen.getByRole("button", { name: "Usar código" }));
+    expect(await screen.findByText("BIENVENIDA-X1")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "applyReferral")?.args).toEqual(["JUAN-1234"]);
+  });
+
+  test("marca propia: el color sin contraste no se guarda; el dominio se verifica con un TXT", async () => {
+    const api = new FakeApi(sampleMe({ organizationId: "org1", permissions: ["users:manage_org"], plan: { ...sampleMe().plan, features: ["white_label"] } }));
+    renderApp(api, "/marca");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre que se muestra"), "Diario Norte");
+    const color = screen.getByLabelText("Color principal");
+    await user.clear(color);
+    await user.type(color, "#ffff00");
+    expect(screen.getByText("Elegí un color más oscuro.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
+    await user.clear(color);
+    await user.type(color, "#0b3d91");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.type(await screen.findByLabelText("Dominio"), "chequeo.diarionorte.example");
+    await user.click(screen.getByRole("button", { name: "Usar este dominio" }));
+    expect(await screen.findByText("_sinhumo.chequeo.diarionorte.example")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Verificar" }));
+    expect(await screen.findByText("Verificado")).toBeInTheDocument();
+  });
+
+  test("cupones en el backoffice: crear y desactivar", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["plans:manage"] })), "/admin/cupones", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("Nuevo cupón", { selector: "summary" }));
+    await user.type(screen.getByLabelText(/^Código/), "beca-prensa");
+    await user.type(screen.getByLabelText("Descripción"), "Beca para periodistas");
+    await user.click(screen.getByRole("button", { name: "Crear cupón" }));
+    const table = await screen.findByRole("table", { name: "Cupones" });
+    expect(table).toHaveTextContent("BECA-PRENSA");
+    await user.click(screen.getByRole("button", { name: "Desactivar el cupón BECA-PRENSA" }));
+    expect(await screen.findByText("Inactivo")).toBeInTheDocument();
+  });
+});

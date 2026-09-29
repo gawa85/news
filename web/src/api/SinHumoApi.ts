@@ -56,6 +56,8 @@ import type {
   ClassroomReport,
   ClassroomSummary,
   ReplyDraft,
+  Branding,
+  ReferralSummary,
 } from "./types";
 
 /**
@@ -202,6 +204,17 @@ export interface SinHumoApi {
   reviewCampaign(id: string, approve: boolean, note: string): Promise<Campaign>;
   launchCampaign(id: string): Promise<Campaign>;
   campaignReport(id: string): Promise<CampaignReport>;
+
+  // Referidos
+  referrals(): Promise<ReferralSummary>;
+  applyReferral(code: string): Promise<{ welcomeCoupon: string; percent: number }>;
+
+  // Marca blanca (organizaciones con el plan que la incluye)
+  branding(): Promise<Branding | null>;
+  /** null borra el campo (vuelve el de Sin Humo). */
+  updateBranding(input: { displayName?: string; logoUrl?: string | null; primaryColor?: string | null; footer?: string | null; emailFromName?: string | null; hidePoweredBy?: boolean }): Promise<void>;
+  setBrandingDomain(domain: string): Promise<{ domain: string; txtName: string; txtValue: string }>;
+  verifyBrandingDomain(): Promise<void>;
 
   // Mi organización. undefined = no soy parte de ninguna.
   organization(): Promise<OrganizationOverview | undefined>;

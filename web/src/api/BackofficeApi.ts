@@ -1,6 +1,8 @@
 import type { PublicEvent } from "./types";
 import type {
   AgentTicket,
+  Coupon,
+  NewCoupon,
   BusinessRule,
   BusinessStats,
   FeatureFlag,
@@ -66,6 +68,11 @@ export interface BackofficeApi {
   approveRule(id: string): Promise<BusinessRule>;
   archiveRule(id: string): Promise<void>;
   ruleHistory(id: string): Promise<BusinessRule[]>;
+
+  // Cupones (plans:manage)
+  coupons(): Promise<Coupon[]>;
+  createCoupon(input: NewCoupon): Promise<Coupon>;
+  deactivateCoupon(code: string): Promise<void>;
 
   // Funciones en prueba (flags:manage)
   flags(): Promise<FeatureFlag[]>;

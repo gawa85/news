@@ -867,6 +867,10 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 201, await deps.commerce.service.createCoupon({
           ...(b as object), actorId: who.userId, validFrom: b.validFrom ? date(b.validFrom, "validFrom") : undefined, validTo: b.validTo ? date(b.validTo, "validTo") : undefined,
         } as never));
+      case "GET /v1/coupons":
+        return json(res, 200, await deps.commerce.service.listCoupons(who.userId));
+      case "GET /v1/organization/branding":
+        return json(res, 200, await deps.commerce.branding.mine(who.userId));
       case "GET /v1/referrals":
         return json(res, 200, await deps.commerce.referrals.summary(who.userId));
       case "POST /v1/referrals/apply":

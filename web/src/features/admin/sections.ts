@@ -8,6 +8,7 @@ export const ADMIN_SECTIONS = [
   { path: "metricas", label: "Métricas del negocio", permission: "stats:business" },
   { path: "parametros", label: "Parámetros", permission: "rules:business" },
   { path: "reglas", label: "Reglas del negocio", permission: "rules:business" },
+  { path: "cupones", label: "Cupones", permission: "plans:manage" },
   { path: "funciones", label: "Funciones en prueba", permission: "flags:manage" },
 ] as const;
 

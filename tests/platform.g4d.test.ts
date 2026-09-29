@@ -55,6 +55,8 @@ describe("Plan anual y cupones", () => {
     await assert.rejects(t.p.commerce.service.createCoupon({ actorId: (await userWithPlan(t, "empresa")).id, code: "X", kind: "percent", value: 10, description: "x" }), AccessDeniedError);
     await assert.rejects(t.p.commerce.service.createCoupon({ actorId: a.id, code: "MAL", kind: "percent", value: 150, description: "x" }), ValidationError);
     await t.p.commerce.service.createCoupon({ actorId: a.id, code: "lanzamiento25", kind: "percent", value: 25, description: "Lanzamiento", planIds: ["personal"], maxRedemptions: 1 });
+    assert.deepEqual((await t.p.commerce.service.listCoupons(a.id)).map((c) => c.code), ["LANZAMIENTO25"]);
+    await assert.rejects(t.p.commerce.service.listCoupons((await userWithPlan(t, "gratis")).id), AccessDeniedError);
 
     const u = await userWithPlan(t, "gratis");
     const q = await t.p.commerce.service.quote({ userId: u.id, planId: "personal", interval: "month", couponCode: "LANZAMIENTO25" });
@@ -182,11 +184,15 @@ describe("Marca blanca", () => {
     await t.p.commerce.branding.update({ actorId: boss.id, displayName: "Diario Norte" });
     const d = await t.p.commerce.branding.setDomain({ actorId: boss.id, domain: "Chequeo.DiarioNorte.example" });
     assert.equal(d.txtName, "_sinhumo.chequeo.diarionorte.example");
+    const pending = await t.p.commerce.branding.mine(boss.id);
+    assert.deepEqual(pending?.txt, { name: d.txtName, value: d.txtValue }, "mientras no se verifica, se muestra qué cargar en el DNS");
+    assert.ok(!("domainToken" in pending!));
     await assert.rejects(t.p.commerce.branding.verifyDomain(boss.id), /No encontramos el registro TXT/);
     assert.equal(await t.p.commerce.branding.byHost("chequeo.diarionorte.example"), undefined, "sin verificar no se usa");
     t.dns.records[d.txtName] = [d.txtValue];
     await t.p.commerce.branding.verifyDomain(boss.id);
     assert.equal((await t.p.commerce.branding.byHost("chequeo.diarionorte.example:443"))?.displayName, "Diario Norte");
+    assert.equal((await t.p.commerce.branding.mine(boss.id))?.txt, undefined);
 
     const other = await org(t, "empresa");
     await t.p.commerce.branding.update({ actorId: other.admin.id, displayName: "Otro" });

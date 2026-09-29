@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -310,6 +310,33 @@ export class FakeApi implements SinHumoApi {
   }
   async deleteReportSchedule(id: string) {
     this.log("deleteReportSchedule", id);
+  }
+
+  async referrals() {
+    return { code: "ANA-7K2P", invited: 3, rewarded: 1, pending: 2 };
+  }
+  async applyReferral(code: string) {
+    this.log("applyReferral", code);
+    if (code !== "JUAN-1234") throw new ApiError(404, "Ese código no existe.");
+    return { welcomeCoupon: "BIENVENIDA-X1", percent: 20 };
+  }
+  brand: Branding | null = null;
+  async branding() {
+    return this.brand;
+  }
+  async updateBranding(input: { displayName?: string; logoUrl?: string | null; primaryColor?: string | null; footer?: string | null; emailFromName?: string | null; hidePoweredBy?: boolean }) {
+    this.log("updateBranding", input);
+    const clean = Object.fromEntries(Object.entries(input).map(([k, v]) => [k, v ?? undefined]));
+    this.brand = { organizationId: "org1", displayName: "", hidePoweredBy: false, ...this.brand, ...clean } as Branding;
+  }
+  async setBrandingDomain(domain: string) {
+    this.log("setBrandingDomain", domain);
+    this.brand = { ...this.brand!, customDomain: domain, txt: { name: `_sinhumo.${domain}`, value: "sinhumo-verify=abc123" } };
+    return { domain, txtName: `_sinhumo.${domain}`, txtValue: "sinhumo-verify=abc123" };
+  }
+  async verifyBrandingDomain() {
+    this.log("verifyBrandingDomain");
+    this.brand = { ...this.brand!, txt: undefined, domainVerifiedAt: "2026-09-29T12:00:00Z" };
   }
 
   rooms_: ClassroomSummary[] = [];

@@ -8,6 +8,7 @@ import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 import { TopicSuggestions, useTopicNames } from "../shared/catalog";
 import { ApiKeysSection } from "./ApiKeysSection";
+import { ReferralsSection } from "../commerce/CommercePages";
 import { WebhooksSection } from "./WebhooksSection";
 
 const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", telegram: "Telegram", sms: "SMS", web: "Web" };
@@ -38,6 +39,11 @@ export function AccountPage() {
         {(has("campaigns:manage") || has("campaigns:review")) && (
           <Link className="btn btn--secondary btn--small" to="/campanas">
             Campañas
+          </Link>
+        )}
+        {has("users:manage_org") && me.plan.features.includes("white_label") && (
+          <Link className="btn btn--secondary btn--small" to="/marca">
+            Marca propia
           </Link>
         )}
         <Link className="btn btn--secondary btn--small" to="/estadisticas">
@@ -102,6 +108,7 @@ export function AccountPage() {
       </div>
       <PreferencesForm />
       <FollowedTopics />
+      <ReferralsSection />
       <ApiKeysSection />
       <WebhooksSection />
       <SessionAndData />

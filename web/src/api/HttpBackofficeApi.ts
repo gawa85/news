@@ -1,6 +1,8 @@
 import type { BackofficeApi } from "./BackofficeApi";
 import type {
   AgentTicket,
+  Coupon,
+  NewCoupon,
   BusinessRule,
   BusinessStats,
   FeatureFlag,
@@ -123,6 +125,16 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   ruleHistory(id: string) {
     return this.request<BusinessRule[]>("GET", `/v1/business-rules/${enc(id)}/history`);
+  }
+
+  coupons() {
+    return this.request<Coupon[]>("GET", "/v1/coupons");
+  }
+  createCoupon(input: NewCoupon) {
+    return this.request<Coupon>("POST", "/v1/coupons", input);
+  }
+  async deactivateCoupon(code: string) {
+    await this.request("POST", `/v1/coupons/${enc(code)}/deactivate`);
   }
 
   flags() {

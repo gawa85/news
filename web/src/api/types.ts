@@ -618,3 +618,23 @@ export interface CampaignReport {
   alliesAccepted: number;
   narrative?: { weeklyBefore: number; weeklyAfter: number; change: number | null };
 }
+
+export interface ReferralSummary {
+  code: string;
+  invited: number;
+  rewarded: number;
+  pending: number;
+}
+
+export interface Branding {
+  organizationId: string;
+  displayName: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  footer?: string;
+  emailFromName?: string;
+  customDomain?: string;
+  domainVerifiedAt?: string;
+  hidePoweredBy: boolean;
+  txt?: { name: string; value: string };
+}

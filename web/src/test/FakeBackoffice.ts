@@ -1,6 +1,8 @@
 import type { BackofficeApi } from "../api/BackofficeApi";
 import type {
   AgentTicket,
+  Coupon,
+  NewCoupon,
   BusinessRule,
   FeatureFlag,
   FlagPatch,
@@ -160,6 +162,21 @@ export class FakeBackoffice implements BackofficeApi {
   }
   async ruleHistory() {
     return this.ruleList;
+  }
+
+  couponList: Coupon[] = [];
+  async coupons() {
+    return this.couponList;
+  }
+  async createCoupon(input: NewCoupon) {
+    this.log("createCoupon", input);
+    const c: Coupon = { ...input, intervals: ["month", "year"], redemptions: 0, active: true };
+    this.couponList = [c, ...this.couponList];
+    return c;
+  }
+  async deactivateCoupon(code: string) {
+    this.log("deactivateCoupon", code);
+    this.couponList = this.couponList.map((c) => (c.code === code ? { ...c, active: false } : c));
   }
 
   flagList: FeatureFlag[] = [

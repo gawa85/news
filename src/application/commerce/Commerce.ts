@@ -132,6 +132,13 @@ export class CommerceService {
     return c;
   }
 
+  /** Cupones creados a mano (los personales de bienvenida y premios no se listan: son de cada persona). */
+  async listCoupons(actorId: string): Promise<Coupon[]> {
+    const actor = await this.users.findById(actorId);
+    if (!actor || !(await this.authz.permissionsOf(actor)).has("plans:manage")) throw new AccessDeniedError("No tenés permiso para ver los cupones.", "no_permission");
+    return (await this.coupons.findAll()).filter((c) => c.source === "manual").sort((a, b) => Number(b.active) - Number(a.active) || a.code.localeCompare(b.code));
+  }
+
   async deactivateCoupon(input: { actorId: string; code: string }): Promise<void> {
     const actor = await this.users.findById(input.actorId);
     if (!actor || !(await this.authz.permissionsOf(actor)).has("plans:manage")) throw new AccessDeniedError("No tenés permiso para gestionar cupones.", "no_permission");
@@ -318,6 +325,14 @@ export class BrandingService {
     await this.repo.save(next);
     await this.events.emit("branding.updated", { userId: actor.id, organizationId: actor.organizationId }, { hidePoweredBy: next.hidePoweredBy });
     return next;
+  }
+
+  /** La marca de mi organización (para editarla). Sin marca todavía: vacía. */
+  async mine(actorId: string): Promise<(Omit<Branding, "domainToken"> & { txt?: { name: string; value: string } }) | null> {
+    const { current } = await this.admin(actorId);
+    if (!current) return null;
+    const { domainToken, ...rest } = current;
+    return { ...rest, ...(current.customDomain && domainToken && !current.domainVerifiedAt ? { txt: { name: `_sinhumo.${current.customDomain}`, value: `sinhumo-verify=${domainToken}` } } : {}) };
   }
 
   async setDomain(input: { actorId: string; domain: string }): Promise<{ domain: string; txtName: string; txtValue: string }> {

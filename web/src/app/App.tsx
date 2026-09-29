@@ -18,6 +18,7 @@ import { OriginPage } from "../features/origin/OriginPage";
 import { MediaCheckPage } from "../features/media/MediaCheckPage";
 import { StatsPage } from "../features/stats/StatsPage";
 import { CampaignsPage, ClassroomsPage, RepliesPage } from "../features/team/TeamToolsPages";
+import { BrandingPage, CouponsPage } from "../features/commerce/CommercePages";
 import { RebuttalPage, RulesPage as SourceRulesPage, SourcesPage } from "../features/sources/SourcesPages";
 import { CorrectionsPage, ObservatoryPage, OpenDataPage, OutletPage, OutletsPage } from "../features/public/PublicPages";
 import { TeamRoomPage, TeamRoomsPage } from "../features/rooms/TeamRoomsPages";
@@ -56,6 +57,7 @@ export const routes: RouteObject[] = [
       { path: "/aulas", element: guard(<ClassroomsPage />) },
       { path: "/respuestas", element: guard(<RepliesPage />) },
       { path: "/campanas", element: guard(<CampaignsPage />) },
+      { path: "/marca", element: guard(<BrandingPage />) },
       { path: "/reglas", element: guard(<SourceRulesPage />) },
       { path: "/replica", element: guard(<RebuttalPage />) },
       { path: "/alertas", element: guard(<AlertsPage />) },
@@ -75,6 +77,7 @@ export const routes: RouteObject[] = [
           { path: "metricas", element: <MetricsPage /> },
           { path: "parametros", element: <ParametersPage /> },
           { path: "reglas", element: <RulesPage /> },
+          { path: "cupones", element: <CouponsPage /> },
           { path: "funciones", element: <FlagsPage /> },
         ],
       },

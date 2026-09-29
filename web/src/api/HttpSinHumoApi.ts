@@ -59,6 +59,8 @@ import type {
   ClassroomReport,
   ClassroomSummary,
   ReplyDraft,
+  Branding,
+  ReferralSummary,
 } from "./types";
 
 
@@ -451,6 +453,32 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   campaignReport(id: string) {
     return this.request<CampaignReport>("GET", `/v1/campaigns/${encodeURIComponent(id)}/report`);
+  }
+
+  referrals() {
+    return this.request<ReferralSummary>("GET", "/v1/referrals");
+  }
+
+  applyReferral(code: string) {
+    return this.request<{ welcomeCoupon: string; percent: number }>("POST", "/v1/referrals/apply", { code });
+  }
+
+  async branding() {
+    // Sin marca todavía, el servidor responde null.
+    const b = await this.request<Branding | null>("GET", "/v1/organization/branding");
+    return b && typeof b === "object" && "displayName" in b ? b : null;
+  }
+
+  async updateBranding(input: { displayName?: string; logoUrl?: string | null; primaryColor?: string | null; footer?: string | null; emailFromName?: string | null; hidePoweredBy?: boolean }) {
+    await this.request("PUT", "/v1/organization/branding", input);
+  }
+
+  setBrandingDomain(domain: string) {
+    return this.request<{ domain: string; txtName: string; txtValue: string }>("POST", "/v1/organization/branding/domain", { domain });
+  }
+
+  async verifyBrandingDomain() {
+    await this.request("POST", "/v1/organization/branding/verify");
   }
 
   async organization(): Promise<OrganizationOverview | undefined> {
