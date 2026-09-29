@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useBackoffice } from "../../api/BackofficeContext";
-import type { AdminPlan, AdminPlanLimits, NewPlan, PlanCatalog } from "../../api/backofficeTypes";
-import { formatDateTime, formatNumber } from "../../domain/labels";
+import type { AdminPlan, AdminPlanLimits, NewPlan, PlanCatalog, PlanMigration } from "../../api/backofficeTypes";
+import { formatDate, formatDateTime, formatNumber } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 
@@ -35,6 +35,11 @@ function reductions(before: AdminPlan, features: string[], limits: AdminPlanLimi
 export function PlansAdminPage() {
   const api = useBackoffice();
   const data = useAsync(() => api.planCatalog(), [api]);
+  const migrations = useAsync(() => api.planMigrations(), [api]);
+  const afterSchedule = () => {
+    void migrations.reload();
+    void data.reload();
+  };
   const replace = (p: AdminPlan) => data.data && data.setData({ ...data.data, plans: data.data.plans.map((x) => (x.id === p.id ? p : x)) });
   // Volver a la versión del código recarga el formulario con esos valores (guardar no: se perdería el aviso).
   const [resets, setResets] = useState<Record<string, number>>({});
@@ -46,6 +51,9 @@ export function PlansAdminPage() {
     <Page title="Planes" lead="Un plan editado acá deja de actualizarse desde el código hasta que lo vuelvas a su versión original.">
       {data.loading && !data.data && <Spinner />}
       <ErrorAlert error={data.error} />
+      {data.data && migrations.data && migrations.data.length > 0 && (
+        <MigrationsList migrations={migrations.data} plans={data.data.plans} onChange={() => void migrations.reload()} />
+      )}
       {data.data && (
         <NewPlanForm
           plans={data.data.plans}
@@ -55,13 +63,35 @@ export function PlansAdminPage() {
         />
       )}
       {data.data?.plans.map((p) => (
-        <PlanForm key={`${p.id}:${resets[p.id] ?? 0}`} plan={p} catalog={data.data!} onSaved={replace} onReset={afterReset} />
+        <PlanForm
+          key={`${p.id}:${resets[p.id] ?? 0}`}
+          plan={p}
+          catalog={data.data!}
+          onSaved={replace}
+          onReset={afterReset}
+          scheduled={migrations.data?.find((m) => m.status === "scheduled" && m.fromPlanId === p.id)}
+          onScheduled={afterSchedule}
+        />
       ))}
     </Page>
   );
 }
 
-function PlanForm({ plan, catalog, onSaved, onReset }: { plan: AdminPlan; catalog: PlanCatalog; onSaved: (p: AdminPlan) => void; onReset: (p: AdminPlan) => void }) {
+function PlanForm({
+  plan,
+  catalog,
+  onSaved,
+  onReset,
+  scheduled,
+  onScheduled,
+}: {
+  plan: AdminPlan;
+  catalog: PlanCatalog;
+  onSaved: (p: AdminPlan) => void;
+  onReset: (p: AdminPlan) => void;
+  scheduled?: PlanMigration;
+  onScheduled: () => void;
+}) {
   const api = useBackoffice();
   const labelOf = (id: string) => catalog.features.find((f) => f.id === id)?.label ?? id;
   const [name, setName] = useState(plan.name);
@@ -161,6 +191,15 @@ function PlanForm({ plan, catalog, onSaved, onReset }: { plan: AdminPlan; catalo
         <p className="muted" style={{ margin: 0 }}>
           No se ofrece ni se puede elegir. Quien ya lo tiene lo conserva y se le sigue renovando.
         </p>
+      )}
+      {plan.price && plan.liveSubscriptions > 0 && (
+        scheduled ? (
+          <p className="muted" style={{ margin: 0 }}>
+            Mudanza programada: el {formatDate(scheduled.effectiveAt)} sus suscriptores pasan a {catalog.plans.find((x) => x.id === scheduled.toPlanId)?.name ?? scheduled.toPlanId}.
+          </p>
+        ) : (
+          <MigrationForm from={plan} plans={catalog.plans} onScheduled={onScheduled} />
+        )
       )}
       {save.result && (
         <Notice tone="ok">
@@ -293,6 +332,116 @@ function NewPlanForm({ plans, onCreated }: { plans: AdminPlan[]; onCreated: (p: 
           )}
         </form>
       )}
+    </section>
+  );
+}
+
+const DAY = 86_400_000;
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Mudar a los suscriptores de un plan a otro, con aviso previo: si el nuevo cuesta más o quita
+ * algo, la fecha es al menos 30 días después (lo decide el servidor; acá se muestra la mínima).
+ */
+function MigrationForm({ from, plans, onScheduled }: { from: AdminPlan; plans: AdminPlan[]; onScheduled: () => void }) {
+  const api = useBackoffice();
+  const targets = plans.filter((p) => p.id !== from.id && p.price && p.audience === from.audience);
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState(targets.find((p) => p.forSale !== false)?.id ?? targets[0]?.id ?? "");
+  const [date, setDate] = useState("");
+  const [message, setMessage] = useState("");
+  const notice = useAsync(() => (open && to ? api.migrationNotice(from.id, to) : Promise.resolve(undefined)), [api, open, from.id, to]);
+  const minDate = isoDate(new Date(Date.now() + (notice.data ?? 0) * DAY + DAY));
+  const schedule = useAction(async () => {
+    const m = await api.scheduleMigration({ fromPlanId: from.id, toPlanId: to, effectiveAt: new Date(`${date}T09:00:00-03:00`).toISOString(), message: message.trim() || undefined });
+    onScheduled();
+    return m;
+  });
+  const ready = to && date && date >= minDate;
+  if (!targets.length) return null;
+  const id = `mudar-${from.id}`;
+  return (
+    <div className="stack">
+      <div className="row">
+        <button className="btn btn--ghost btn--small" type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+          {open ? "Cerrar" : `Mudar a los suscriptores de ${from.name} a otro plan`}
+        </button>
+      </div>
+      {open && (
+        <div id={id} className="card card--flat stack">
+          <p className="muted" style={{ margin: 0 }}>
+            Se les avisa ahora, con la fecha y lo que van a pagar, y que pueden darse de baja sin costo. {from.name} sale de la venta. En la fecha pasan al plan
+            nuevo conservando lo que ya pagaron; el precio nuevo rige desde el próximo cobro. Quien ya canceló no se muda.
+          </p>
+          <div className="grid-2">
+            <Field label={`Plan nuevo para quienes tienen ${from.name}`}>
+              {(p) => (
+                <select {...p} className="input" value={to} onChange={(e) => setTo(e.target.value)}>
+                  {targets.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.forSale === false ? " (no se vende)" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field
+              label={`Fecha del cambio (${from.name})`}
+              hint={notice.data ? `Cuesta más o quita algo: al menos ${notice.data} días de aviso (desde el ${formatDate(`${minDate}T12:00:00`)}).` : "Es igual o mejor: puede ser desde mañana."}
+              error={date && date < minDate ? `Tiene que ser desde el ${formatDate(`${minDate}T12:00:00`)}.` : undefined}
+            >
+              {(p) => <input {...p} className="input" type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} />}
+            </Field>
+          </div>
+          <Field label={`Por qué cambia (se suma al aviso, opcional) (${from.name})`}>
+            {(p) => <textarea {...p} className="input" rows={2} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} />}
+          </Field>
+          <div className="row">
+            <button className="btn btn--small" type="button" disabled={schedule.pending || !ready} onClick={() => void schedule.run()}>
+              Programar la mudanza y avisar
+            </button>
+          </div>
+          <ErrorAlert error={notice.error ?? schedule.error} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STATUS: Record<PlanMigration["status"], string> = { scheduled: "Programada", applied: "Hecha", canceled: "Cancelada" };
+
+function MigrationsList({ migrations, plans, onChange }: { migrations: PlanMigration[]; plans: AdminPlan[]; onChange: () => void }) {
+  const api = useBackoffice();
+  const name = (id: string) => plans.find((p) => p.id === id)?.name ?? id;
+  const cancel = useAction(async (id: string) => {
+    await api.cancelMigration(id);
+    onChange();
+  });
+  return (
+    <section className="card stack" aria-labelledby="mudanzas">
+      <h2 id="mudanzas" style={{ margin: 0 }}>
+        Mudanzas de suscriptores
+      </h2>
+      <ul className="plain-list stack">
+        {migrations.map((m) => (
+          <li key={m.id} className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+            <span>
+              {name(m.fromPlanId)} → {name(m.toPlanId)}, el {formatDate(m.effectiveAt)}.{" "}
+              <span className={`badge ${m.status === "scheduled" ? "badge--neutral" : m.status === "applied" ? "badge--fact" : "badge--danger"}`}>{STATUS[m.status]}</span>{" "}
+              <span className="muted">
+                {m.applied ? `${formatNumber(m.applied.subscriptions)} suscripción(es) mudada(s).` : `Avisado a ${formatNumber(m.notified)}.`}
+              </span>
+            </span>
+            {m.status === "scheduled" && (
+              <button className="btn btn--ghost btn--small" type="button" aria-label={`Cancelar la mudanza de ${name(m.fromPlanId)} a ${name(m.toPlanId)}`} disabled={cancel.pending} onClick={() => void cancel.run(m.id)}>
+                Cancelar
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <ErrorAlert error={cancel.error} />
     </section>
   );
 }

@@ -62,7 +62,7 @@ import type {
 } from "../../domain/model";
 import type { SecretRecord, VerificationCodeRecord } from "../../domain/ports";
 import type { CollectionSchema } from "./collection";
-import type { Branding, Coupon, CouponRedemption, LegalDocument, ReferralCode, ReferralUse } from "../../domain/model";
+import type { Branding, Coupon, CouponRedemption, LegalDocument, PlanMigration, ReferralCode, ReferralUse } from "../../domain/model";
 import type { ConsentRecord } from "../../domain/model";
 import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttempt, QuizItem, Ticket } from "../../domain/model";
 
@@ -596,6 +596,11 @@ export const schemas = {
     idOf: (b: Branding) => b.organizationId,
     indexes: { customDomain: { type: "text", get: (b: Branding) => b.customDomain ?? null } },
   } satisfies CollectionSchema<Branding>,
+  planMigrations: {
+    name: "plan_migrations",
+    idOf: (m: PlanMigration) => m.id,
+    indexes: { status: { type: "text", get: (m: PlanMigration) => m.status }, announcedAt: { type: "text", get: (m: PlanMigration) => m.announcedAt } },
+  } satisfies CollectionSchema<PlanMigration>,
   legalDocuments: {
     name: "legal_documents",
     idOf: (d: LegalDocument) => `${d.id}@${d.version}`,

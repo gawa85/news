@@ -75,6 +75,27 @@ export interface Plan {
   forSale?: boolean;
 }
 
+/**
+ * MUDANZA DE SUSCRIPTORES de un plan a otro, avisada con anticipación. En la fecha, cada
+ * suscripción vigente pasa al plan nuevo: conserva el período ya pagado y el precio nuevo
+ * rige desde el próximo cobro.
+ */
+export interface PlanMigration {
+  id: string;
+  fromPlanId: string;
+  toPlanId: string;
+  status: "scheduled" | "applied" | "canceled";
+  announcedAt: Date;
+  effectiveAt: Date;
+  /** Texto propio que se suma al aviso (por qué cambia). */
+  message?: string;
+  createdBy: string;
+  /** A cuántas personas o equipos se les avisó. */
+  notified: number;
+  applied?: { at: Date; subscriptions: number };
+  canceled?: { at: Date; by: string };
+}
+
 /** ¿Se ofrece este plan a quien lo quiera contratar? */
 export const onSale = (p: Plan): boolean => p.forSale !== false;
 
@@ -98,6 +119,8 @@ export interface Subscription {
   endedAt?: Date;
   /** Período de cobro elegido. */
   interval?: "month" | "year";
+  /** Si llegó por una mudanza de plan (no la eligió la persona). */
+  migratedFrom?: { planId: string; migrationId: string };
   /** Lo que efectivamente se cobra (con cupón, país e impuestos). Si falta, el precio del plan. */
   charged?: { amount: number; currency: string; listAmount: number; couponCode?: string; discountCycles?: number | null; country?: string };
   /**

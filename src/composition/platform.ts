@@ -90,6 +90,7 @@ import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "..
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
 import { OutletEditor } from "../application/catalog/OutletEditor";
 import { PlanAdmin } from "../application/commerce/PlanAdmin";
+import { PlanMigrations } from "../application/commerce/PlanMigrations";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
 import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
@@ -375,6 +376,7 @@ export function buildPlatform(cfg: PlatformConfig) {
   const countries = new CountryRegistry(COUNTRIES, DEFAULT_COUNTRY);
   const commerce = new CommerceService(repos.coupons, repos.plans, repos.subscriptions, repos.users, repos.organizations, countries, authz, domainEvents, clock);
   commerce.attach(events);
+  const planMigrations = new PlanMigrations(repos.planMigrations, repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, ids, cfg.store, countries, tell("cambio_de_plan"), cfg.recurringCharges);
   const register = new RegisterUserUseCase(cfg.store, ids, clock, { roleIds: ["reader"], planId: "gratis", trialDays: 0 }, domainEvents);
   const payments = cfg.payments ?? new FakePaymentGateway();
   const changePlan = new ChangePlanUseCase(repos.users, repos.plans, authz, payments, cfg.store, ids, clock, domainEvents, commerce);
@@ -682,6 +684,7 @@ export function buildPlatform(cfg: PlatformConfig) {
           media_cleanup: async () => void (await repos.media.deleteExpired(clock.now())),
           evidence_seal: async (p) => void (await evidence.seal(String(p.id))),
           expire_subscriptions: async () => void (await lifecycle.expireDue()),
+          apply_plan_migrations: async () => void (await planMigrations.applyDue()),
           abuse_cleanup: async () => void (await repos.rateCounters.deleteExpired(clock.now())),
           [EVENT_NOTIFY_JOB]: async (p) => void (await eventRooms.notifySubscribers(String(p.roomId), String(p.messageId))),
           evidence_recheck: async () => void (await evidence.recheckDue()),
@@ -706,7 +709,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
-    commerce: { service: commerce, referrals, branding, countries, plans: new PlanAdmin(repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, PLANS, FEATURE_LABELS, "gratis") },
+    commerce: { service: commerce, referrals, branding, countries, plans: new PlanAdmin(repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, PLANS, FEATURE_LABELS, "gratis"), migrations: planMigrations },
     inclusion: { learning, audio, plainLanguage, media, voice, screenshots },
     flags,
     support,

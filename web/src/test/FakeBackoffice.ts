@@ -38,6 +38,8 @@ import type {
   PlanPatch,
   NewLegalVersion,
   NewPlan,
+  PlanMigration,
+  NewPlanMigration,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -448,6 +450,26 @@ export class FakeBackoffice implements BackofficeApi {
     };
     this.planData = { ...this.planData, plans: [...this.planData.plans, plan] };
     return plan;
+  }
+  migrationList: PlanMigration[] = [];
+  async planMigrations() {
+    return this.migrationList;
+  }
+  async migrationNotice(fromPlanId: string, toPlanId: string) {
+    this.log("migrationNotice", fromPlanId, toPlanId);
+    return 30;
+  }
+  async scheduleMigration(input: NewPlanMigration) {
+    this.log("scheduleMigration", input);
+    const m: PlanMigration = { id: "mig1", ...input, status: "scheduled", announcedAt: "2026-09-29T10:00:00Z", notified: 12 };
+    this.migrationList = [m, ...this.migrationList];
+    return m;
+  }
+  async cancelMigration(id: string) {
+    this.log("cancelMigration", id);
+    const m = { ...this.migrationList.find((x) => x.id === id)!, status: "canceled" as const, canceled: { at: "2026-09-29T11:00:00Z", by: "u1" } };
+    this.migrationList = this.migrationList.map((x) => (x.id === id ? m : x));
+    return m;
   }
   async setPlanForSale(id: string, forSale: boolean) {
     this.log("setPlanForSale", id, forSale);

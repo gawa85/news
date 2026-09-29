@@ -30,7 +30,7 @@ import type { IReplyDraftRepository } from "./replies";
 import type { IReviewRepository } from "./reviews";
 import type { IContentAnalysisRepository, ISourceConnectionRepository } from "./content";
 import type { IAlertRuleRepository, IRuleSetRepository } from "./userRules";
-import type { IPlanRepository, IPlanWriter, ISubscriptionRepository, IUsageRepository } from "./billing";
+import type { IPlanMigrationRepository, IPlanRepository, IPlanWriter, ISubscriptionRepository, IUsageRepository } from "./billing";
 import type { IMediaFingerprintRepository } from "./media";
 import type { IOrganizationInvitationRepository, IOrganizationRepository, IRoleRepository, IRoleWriter, IUserDirectory, IUserRepository } from "./identity";
 import type {
@@ -87,6 +87,7 @@ export interface Repositories {
   orgInvitations: IOrganizationInvitationRepository;
   mediaFingerprints: IMediaFingerprintRepository;
   plans: IPlanRepository & IPlanWriter;
+  planMigrations: IPlanMigrationRepository;
   subscriptions: ISubscriptionRepository;
   usage: IUsageRepository;
   ruleSets: IRuleSetRepository;

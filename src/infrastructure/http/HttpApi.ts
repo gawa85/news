@@ -85,6 +85,7 @@
  *    POST /v1/catalog/outlets { id?, name, url, kind, region, aliases }   GET /v1/catalog/outlets/:id (con feeds y propiedad)
  *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate)   (outlets:write)
  *  Planes (plans:manage):  GET /v1/admin/plans   POST /v1/admin/plans { basedOn, name, description, monthlyAmount, yearlyAmount, tier }
+ *    GET/POST /v1/admin/plan-migrations { fromPlanId, toPlanId, effectiveAt, message? }   GET /v1/admin/plan-migrations/notice?from=&to=   POST /v1/admin/plan-migrations/:id/cancel
  *    POST /v1/admin/plans/:id { name, description, monthlyAmount, yearlyAmount, features, limits }   POST /v1/admin/plans/:id/reset   POST /v1/admin/plans/:id/for-sale { forSale }
  *  Personas (users:manage_all):  GET /v1/admin/roles   GET /v1/admin/users?q=|filter=staff|suspended   GET /v1/admin/users/:id
  *    POST /v1/admin/users/:id/(roles/add|roles/remove) { roleId }   (suspend|reactivate) { reason }   (outlets/add|outlets/remove) { outletId }
@@ -119,6 +120,7 @@ import type { OutletProfileService } from "../../application/catalog/OutletProfi
 import type { PlatformUsersService } from "../../application/users/PlatformUsers";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
 import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
+import type { PlanMigrations } from "../../application/commerce/PlanMigrations";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -233,7 +235,7 @@ export interface HttpApiDeps {
   catalog: { import: ImportCatalogUseCase; editor: OutletEditor; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
   config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
-  commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry; plans: PlanAdmin };
+  commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry; plans: PlanAdmin; migrations: PlanMigrations };
   inclusion: { learning: LearningService; media: IMediaStore };
   flags: FeatureFlagService;
   support: SupportService;
@@ -693,6 +695,18 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     const legalPub = path.match(/^\/v1\/admin\/legal\/([a-z]+)$/);
     if (legalPub && req.method === "POST") {
       return json(res, 201, await deps.legalPublisher.publish(who.userId, legalPub[1]!, pick(b, ["title", "summary", "body", "material", "draft"]) as never));
+    }
+    if (path.startsWith("/v1/admin/plan-migrations")) {
+      const mg = deps.commerce.migrations;
+      if (req.method === "GET" && path === "/v1/admin/plan-migrations") return json(res, 200, await mg.list(who.userId));
+      if (req.method === "GET" && path === "/v1/admin/plan-migrations/notice") {
+        return json(res, 200, { days: await mg.noticeDays(who.userId, str(url.searchParams.get("from"), "from"), str(url.searchParams.get("to"), "to")) });
+      }
+      if (req.method === "POST" && path === "/v1/admin/plan-migrations") {
+        return json(res, 201, await mg.schedule(who.userId, { fromPlanId: str(b.fromPlanId, "fromPlanId"), toPlanId: str(b.toPlanId, "toPlanId"), effectiveAt: date(b.effectiveAt, "effectiveAt"), message: b.message as string | undefined }));
+      }
+      const mc = path.match(/^\/v1\/admin\/plan-migrations\/([^/]+)\/cancel$/);
+      if (mc && req.method === "POST") return json(res, 200, await mg.cancel(who.userId, decodeURIComponent(mc[1]!)));
     }
     if (path.startsWith("/v1/admin/plans")) {
       const pl = deps.commerce.plans;

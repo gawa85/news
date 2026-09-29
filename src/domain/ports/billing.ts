@@ -1,4 +1,4 @@
-import type { BillingSubject, Plan, Subscription, UsageEvent, UsageMetric } from "../model";
+import type { BillingSubject, Plan, PlanMigration, Subscription, UsageEvent, UsageMetric } from "../model";
 
 export interface IPlanRepository {
   findById(id: string): Promise<Plan | undefined>;
@@ -18,6 +18,8 @@ export interface ISubscriptionRepository {
   findAll(): Promise<Subscription[]>;
   /** Cuántas vigentes (activas, en prueba o con pago atrasado) tiene un plan. */
   countLive(planId: string): Promise<number>;
+  /** Las vigentes de un plan (de a tandas). */
+  findLiveByPlan(planId: string, limit: number): Promise<Subscription[]>;
   /** Vigentes cuyo período ya terminó (para vencerlas). */
   findDue(now: Date, limit: number): Promise<Subscription[]>;
 }
@@ -31,6 +33,16 @@ export interface IRecurringCharges {
   stop(subscription: Subscription): Promise<void>;
   /** Que se vuelva a cobrar (deshizo la cancelación antes de que venza). */
   resume(subscription: Subscription): Promise<void>;
+  /** Que desde el próximo cobro se cobre `subscription.charged` (cambió de plan). Si el proveedor no puede, no está. */
+  reprice?(subscription: Subscription): Promise<void>;
+}
+
+export interface IPlanMigrationRepository {
+  findById(id: string): Promise<PlanMigration | undefined>;
+  /** Las más recientes primero. */
+  findRecent(limit: number): Promise<PlanMigration[]>;
+  findScheduled(): Promise<PlanMigration[]>;
+  save(m: PlanMigration): Promise<void>;
 }
 
 export interface IUsageRepository {

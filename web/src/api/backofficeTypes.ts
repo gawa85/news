@@ -515,3 +515,24 @@ export interface NewLegalVersion {
   /** Todavía sin revisión legal (se muestra el aviso de borrador). */
   draft: boolean;
 }
+
+// ---- Mudanzas de suscriptores (plans:manage) ----
+export interface PlanMigration {
+  id: string;
+  fromPlanId: string;
+  toPlanId: string;
+  status: "scheduled" | "applied" | "canceled";
+  announcedAt: string;
+  effectiveAt: string;
+  message?: string;
+  notified: number;
+  applied?: { at: string; subscriptions: number };
+  canceled?: { at: string; by: string };
+}
+
+export interface NewPlanMigration {
+  fromPlanId: string;
+  toPlanId: string;
+  effectiveAt: string;
+  message?: string;
+}

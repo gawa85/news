@@ -318,6 +318,17 @@ main {
   height: 1.25rem;
   accent-color: var(--brand);
 }
+/* Lo mismo para las casillas dentro de una etiqueta en fila (backoffice): blanco cómodo de tocar. */
+label.row:has(> input[type="checkbox"], > input[type="radio"]) {
+  min-height: 2.75rem;
+}
+label.row > input[type="checkbox"],
+label.row > input[type="radio"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  accent-color: var(--brand);
+}
 fieldset {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

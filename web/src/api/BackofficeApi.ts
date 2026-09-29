@@ -49,6 +49,8 @@ import type {
   PlanPatch,
   NewLegalVersion,
   NewPlan,
+  PlanMigration,
+  NewPlanMigration,
 } from "./backofficeTypes";
 
 /**
@@ -162,6 +164,12 @@ export interface BackofficeApi {
   resetPlan(id: string): Promise<AdminPlan>;
   createPlan(input: NewPlan): Promise<AdminPlan>;
   setPlanForSale(id: string, forSale: boolean): Promise<AdminPlan>;
+  // Mudar suscriptores de un plan a otro, con aviso previo
+  planMigrations(): Promise<PlanMigration[]>;
+  /** Días de aviso mínimos para pasar de un plan a otro. */
+  migrationNotice(fromPlanId: string, toPlanId: string): Promise<number>;
+  scheduleMigration(input: NewPlanMigration): Promise<PlanMigration>;
+  cancelMigration(id: string): Promise<PlanMigration>;
 
   // Documentos legales (legal:publish): cada publicación es una versión nueva
   publishLegal(docId: "terms" | "privacy", input: NewLegalVersion): Promise<{ version: string }>;

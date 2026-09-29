@@ -75,3 +75,17 @@ export function planReductions(before: Plan, after: Plan): string[] {
   }
   return out;
 }
+
+/** Días de aviso mínimos para mudar suscriptores (términos: "aviso previo de 30 días"). */
+export const PRICE_CHANGE_NOTICE_DAYS = 30;
+
+/**
+ * Cuánto aviso previo hace falta para pasar a los suscriptores de `from` a `to`: si el plan
+ * nuevo cuesta más (por mes, o por año si es anual) o les quita algo, el aviso completo; si es
+ * igual o mejor en todo, puede ser enseguida.
+ */
+export function migrationNoticeDays(from: Plan, to: Plan): number {
+  const more = (a: Plan["price"] | undefined, b: Plan["price"] | undefined) => !!b && (!a || b.amount > a.amount);
+  const pricier = more(from.price, to.price) || (!!from.yearlyPrice && more(from.yearlyPrice, to.yearlyPrice ?? to.price));
+  return pricier || planReductions(from, to).length ? PRICE_CHANGE_NOTICE_DAYS : 0;
+}

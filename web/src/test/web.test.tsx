@@ -1147,6 +1147,38 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Backoffice: mudar suscriptores", () => {
+  test("la fecha respeta el aviso mínimo; al programar se lista y se puede cancelar", async () => {
+    const bo = new FakeBackoffice();
+    bo.planData = {
+      ...bo.planData,
+      plans: [...bo.planData.plans, { ...bo.planData.plans[0]!, id: "personal-2027", name: "Personal 2027", tier: 1, liveSubscriptions: 0, price: { amount: 6990, currency: "ARS", interval: "month" } }],
+    };
+    renderApp(new FakeApi(sampleMe({ permissions: ["plans:manage"] })), "/admin/planes", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Mudar a los suscriptores de Personal a otro plan" }));
+    expect(await screen.findByText(/al menos 30 días de aviso/)).toBeInTheDocument();
+    const date = screen.getByLabelText(/^Fecha del cambio \(Personal\)/);
+    const tooSoon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    await user.type(date, tooSoon);
+    expect(screen.getByText(/Tiene que ser desde el/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Programar la mudanza y avisar" })).toBeDisabled();
+
+    await user.clear(date);
+    const ok = new Date(Date.now() + 40 * 86_400_000).toISOString().slice(0, 10);
+    await user.type(date, ok);
+    await user.type(screen.getByLabelText(/^Por qué cambia/), "Sumamos el archivo de notas.");
+    await user.click(screen.getByRole("button", { name: "Programar la mudanza y avisar" }));
+    const list = await screen.findByRole("region", { name: "Mudanzas de suscriptores" });
+    expect(list).toHaveTextContent("Personal → Personal 2027");
+    expect(list).toHaveTextContent("Avisado a 12.");
+    expect(bo.calls.find((c) => c.method === "scheduleMigration")?.args[0]).toMatchObject({ fromPlanId: "personal", toPlanId: "personal-2027", message: "Sumamos el archivo de notas." });
+
+    await user.click(within(list).getByRole("button", { name: "Cancelar la mudanza de Personal a Personal 2027" }));
+    expect(await within(list).findByText("Cancelada")).toBeInTheDocument();
+  });
+});
+
 describe("Backoffice: fe de erratas", () => {
   test("publicar: pide referencia y descripción; manda sólo lo de la corrección", async () => {
     const bo = new FakeBackoffice();

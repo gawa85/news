@@ -181,6 +181,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const media = f.collection(schemas.media);
   const consents = f.collection(schemas.consents);
   const legalDocs = f.collection(schemas.legalDocuments);
+  const planMigrations = f.collection(schemas.planMigrations);
   const evidence = f.collection(schemas.evidence);
   const evidenceBlobs = f.collection(schemas.evidenceBlobs);
   const digests = f.collection(schemas.digestDeliveries);
@@ -264,6 +265,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       save: (s: Subscription) => subs.upsert(s),
       findAll: () => subs.find({ orderBy: { field: "createdAt", direction: "asc" } }),
       countLive: (planId) => subs.count({ where: { planId, status: { in: ["active", "trialing", "past_due"] } } }),
+      findLiveByPlan: (planId, limit) => subs.find({ where: { planId, status: { in: ["active", "trialing", "past_due"] } }, orderBy: { field: "createdAt", direction: "asc" }, limit }),
       findDue: (now, limit) =>
         subs.find({ where: { status: { in: ["active", "trialing", "past_due"] }, currentPeriodEnd: { lte: new Date(now.getTime() - 1) } }, orderBy: { field: "currentPeriodEnd", direction: "asc" }, limit }),
     },
@@ -648,6 +650,12 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findById: (id) => tickets.get(id),
       findByRequester: (userId) => tickets.find({ where: { requesterId: userId }, orderBy: { field: "createdAt", direction: "desc" } }),
       findOpen: () => tickets.find({ where: { status: { in: ["open", "pending"] } }, orderBy: { field: "createdAt", direction: "asc" } }),
+    },
+    planMigrations: {
+      findById: (id) => planMigrations.get(id),
+      findRecent: (limit) => planMigrations.find({ orderBy: { field: "announcedAt", direction: "desc" }, limit }),
+      findScheduled: () => planMigrations.find({ where: { status: "scheduled" } }),
+      save: (m) => planMigrations.upsert(m),
     },
     legalDocuments: {
       findVersions: (docId) => legalDocs.find({ where: { docId }, orderBy: { field: "publishedAt", direction: "desc" } }),

@@ -155,6 +155,7 @@ export const SCHEDULES: import("../domain/model").RecurringSchedule[] = [
   { name: "send_digests", jobType: "send_digests", everyMinutes: 15 },
   { name: "abuse_cleanup", jobType: "abuse_cleanup", everyMinutes: 1_440 },
   { name: "expire_subscriptions", jobType: "expire_subscriptions", everyMinutes: 60 },
+  { name: "apply_plan_migrations", jobType: "apply_plan_migrations", everyMinutes: 60 },
   { name: "backup_daily", jobType: "backup_daily", everyMinutes: 1_440 },
   { name: "backup_verify", jobType: "backup_verify", everyMinutes: 10_080 },
   { name: "collect_impact", jobType: "collect_impact", everyMinutes: 360 },

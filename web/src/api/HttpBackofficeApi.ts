@@ -49,6 +49,8 @@ import type {
   PlanPatch,
   NewLegalVersion,
   NewPlan,
+  PlanMigration,
+  NewPlanMigration,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -284,6 +286,18 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   createPlan(input: NewPlan) {
     return this.request<AdminPlan>("POST", "/v1/admin/plans", input);
+  }
+  planMigrations() {
+    return this.request<PlanMigration[]>("GET", "/v1/admin/plan-migrations");
+  }
+  async migrationNotice(fromPlanId: string, toPlanId: string) {
+    return (await this.request<{ days: number }>("GET", `/v1/admin/plan-migrations/notice?from=${enc(fromPlanId)}&to=${enc(toPlanId)}`)).days;
+  }
+  scheduleMigration(input: NewPlanMigration) {
+    return this.request<PlanMigration>("POST", "/v1/admin/plan-migrations", input);
+  }
+  cancelMigration(id: string) {
+    return this.request<PlanMigration>("POST", `/v1/admin/plan-migrations/${enc(id)}/cancel`);
   }
   setPlanForSale(id: string, forSale: boolean) {
     return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}/for-sale`, { forSale });
