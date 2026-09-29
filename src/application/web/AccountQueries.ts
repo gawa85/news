@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../domain/errors";
-import { onSale, type ContentAnalysis, type Feature, type Plan, type SocialPost } from "../../domain/model";
+import { onSale, type ContentAnalysis, type Feature, type Plan, type SocialPost, type Subscription } from "../../domain/model";
 import type { IAuthorizationService, IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
 import type { AccessControl } from "../access/AccessControl";
 import type { LegalService } from "../legal/Legal";
@@ -57,6 +57,8 @@ export class AccountQueries {
     private readonly subscriptions?: ISubscriptionRepository,
     /** Para decir qué puede hacer (la web muestra el backoffice según esto; el servidor igual controla cada acción). */
     private readonly authz?: IAuthorizationService,
+    /** Mudanza de plan programada (si hay). */
+    private readonly planChanges?: { pendingFor(sub: Subscription): Promise<unknown> },
   ) {}
 
   /** Quién soy: datos de la cuenta, plan, uso de hoy y documentos legales por aceptar. */
@@ -67,7 +69,11 @@ export class AccountQueries {
     return {
       /** Para mostrar "se renueva / termina el …" y el botón de cancelar o retomar. */
       subscription: sub
-        ? { status: sub.status, interval: sub.interval, currentPeriodEnd: sub.currentPeriodEnd, cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd, managedByOrganization: subject.type === "organization" }
+        ? {
+            status: sub.status, interval: sub.interval, currentPeriodEnd: sub.currentPeriodEnd, cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd, managedByOrganization: subject.type === "organization",
+            /** "Tu plan cambia el …" (mudanza avisada con anticipación). */
+            planChange: await this.planChanges?.pendingFor(sub),
+          }
         : undefined,
       id: user.id,
       name: user.name,

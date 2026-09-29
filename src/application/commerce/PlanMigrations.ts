@@ -23,6 +23,15 @@ const dateEs = (d: Date) => d.toLocaleDateString("es-AR", { day: "numeric", mont
 
 type Notify = (u: User, title: string, summary: string) => Promise<unknown>;
 
+export interface PendingPlanChange {
+  toPlanId: string;
+  toPlanName: string;
+  effectiveAt: Date;
+  /** Lo que se va a cobrar desde el próximo período. */
+  price: { amount: number; currency: string; interval: "month" | "year" };
+  message?: string;
+}
+
 /**
  * MUDAR SUSCRIPTORES de un plan a otro (permiso `plans:manage`), con aviso previo.
  * REGLAS:
@@ -107,6 +116,17 @@ export class PlanMigrations {
     await this.tell(await this.movable(from.id), "Tu plan no cambia", () => `Te habíamos avisado que tu plan ${from.name} iba a cambiar. Al final no cambia: seguís igual que hasta ahora.`);
     await this.events.emit("plan.migration_canceled", { userId: actor.id }, { from: m.fromPlanId, to: m.toPlanId }, { type: "plan_migration", id: m.id });
     return canceled;
+  }
+
+  /** Para "Mi cuenta": si a esta suscripción le toca una mudanza programada, a qué plan, cuándo y cuánto. */
+  async pendingFor(sub: Subscription): Promise<PendingPlanChange | undefined> {
+    if (sub.cancelAtPeriodEnd || !["active", "trialing", "past_due"].includes(sub.status)) return undefined;
+    const m = (await this.migrations.findScheduled()).find((x) => x.fromPlanId === sub.planId);
+    const to = m && (await this.plans.findById(m.toPlanId));
+    if (!m || !to?.price) return undefined;
+    const interval = sub.interval === "year" && (to.yearlyPrice || to.price.interval === "year") ? "year" : "month";
+    const q = quote(to, interval, this.countries.get(sub.charged?.country));
+    return { toPlanId: to.id, toPlanName: to.name, effectiveAt: m.effectiveAt, price: { amount: q.amount, currency: q.currency, interval }, message: m.message };
   }
 
   /** Lo corre la cola: aplica las mudanzas cuya fecha llegó. */

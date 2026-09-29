@@ -90,6 +90,19 @@ export function AccountPage() {
         <section className="card" aria-labelledby="plan">
           <h2 id="plan">Tu plan: {me.plan.name}</h2>
           {me.plan.price && <p className="muted">{formatPrice(me.plan.price)}</p>}
+          {me.subscription?.planChange && (
+            <Notice title={`Tu plan cambia el ${formatDate(me.subscription.planChange.effectiveAt)}`}>
+              <p>
+                Pasás a {me.subscription.planChange.toPlanName}. Conservás lo que ya pagaste; desde el próximo cobro pagás {formatPrice(me.subscription.planChange.price)}.
+                {me.subscription.planChange.message && ` ${me.subscription.planChange.message}`}
+              </p>
+              <p>
+                {me.subscription.managedByOrganization
+                  ? "Si no les sirve, quien administra la organización puede darla de baja sin costo antes de esa fecha."
+                  : "Si no te sirve, podés darte de baja sin costo antes de esa fecha (más abajo)."}
+              </p>
+            </Notice>
+          )}
           <ul>
             <li>
               Análisis hoy: {me.usage.analyses} de {limitText(me.plan.limits.analysesPerDay, "por día")}

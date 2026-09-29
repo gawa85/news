@@ -1147,6 +1147,23 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Mi cuenta: cambio de plan avisado", () => {
+  test("muestra a qué plan pasa, cuándo, cuánto y que puede darse de baja sin costo", async () => {
+    const me = sampleMe({ plan: { ...sampleMe().plan, price: { amount: 4990, currency: "ARS", interval: "month" } } });
+    me.subscription = {
+      status: "active", interval: "month", currentPeriodEnd: "2026-11-30T00:00:00Z", cancelAtPeriodEnd: false, managedByOrganization: false,
+      planChange: { toPlanId: "personal-2027", toPlanName: "Personal 2027", effectiveAt: "2026-11-01T12:00:00Z", price: { amount: 6990, currency: "ARS", interval: "month" }, message: "Sumamos el archivo de notas." },
+    };
+    renderApp(new FakeApi(me), "/cuenta");
+    const notice = await screen.findByText(/^Tu plan cambia el/);
+    const box = notice.closest("[role=status]")!;
+    expect(box).toHaveTextContent("Pasás a Personal 2027");
+    expect(box).toHaveTextContent("6.990 / mes");
+    expect(box).toHaveTextContent("Sumamos el archivo de notas.");
+    expect(box).toHaveTextContent("darte de baja sin costo");
+  });
+});
+
 describe("Backoffice: mudar suscriptores", () => {
   test("la fecha respeta el aviso mínimo; al programar se lista y se puede cancelar", async () => {
     const bo = new FakeBackoffice();

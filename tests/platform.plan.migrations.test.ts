@@ -86,8 +86,17 @@ describe("Planes: mudar suscriptores", () => {
     assert.equal((await admin("/v1/admin/plans", post({ basedOn: "profesional", name: "Profesional Promo", description: "", monthlyAmount: 9_990, yearlyAmount: null, tier: 2 }))).status, 201);
     const notice = (await (await admin("/v1/admin/plan-migrations/notice?from=profesional&to=profesional-promo")).json()) as { days: number };
     assert.equal(notice.days, 0);
+    // Alguien con sesión web en Profesional: "Mi cuenta" le muestra el cambio programado.
+    const person = await web.login("suscriptora.promo@correo.example");
+    const prev = await t.store.repos.subscriptions.findCurrent({ type: "user", id: person.userId });
+    if (prev) await t.store.repos.subscriptions.save({ ...prev, status: "replaced" });
+    await t.store.repos.subscriptions.save({ id: `sub-${person.userId}-pro`, subject: { type: "user", id: person.userId }, planId: "profesional", status: "active", interval: "month", currentPeriodEnd: new Date(t.clock.now().getTime() + 20 * DAY), createdAt: new Date(t.clock.now().getTime() + 1000) });
+
     const m = (await (await admin("/v1/admin/plan-migrations", post({ fromPlanId: "profesional", toPlanId: "profesional-promo", effectiveAt: inDays(1) }))).json()) as M;
     assert.equal(m.status, "scheduled");
+    type Me = { subscription?: { planChange?: { toPlanName: string; effectiveAt: string; price: { amount: number } } } };
+    const change = ((await (await person("/v1/me")).json()) as Me).subscription?.planChange;
+    assert.deepEqual([change?.toPlanName, change?.effectiveAt, change?.price.amount], ["Profesional Promo", m.effectiveAt, 9_990]);
 
     const c = await admin(`/v1/admin/plan-migrations/${m.id}/cancel`, post({}));
     assert.equal(c.status, 200);
@@ -96,6 +105,7 @@ describe("Planes: mudar suscriptores", () => {
     await drainJobs(t);
     assert.match(sentTo(phone), /no cambia/);
     assert.equal((await admin(`/v1/admin/plan-migrations/${m.id}/cancel`, post({}))).status, 409);
+    assert.equal(((await (await person("/v1/me")).json()) as Me).subscription?.planChange, undefined, "cancelada: ya no se muestra");
     t.clock.advance(2 * DAY);
     await t.p.commerce.migrations.applyDue();
     const sub = (await t.store.repos.subscriptions.findLiveByPlan("profesional", 100)).length;
