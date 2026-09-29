@@ -8,7 +8,7 @@
  *    GET  /v1/plan
  *    POST /v1/reviews        { target: {type,id}, rating, text? }
  *    GET  /v1/reviews/summary?type=&id=
- *    POST /v1/replies        { target, content, topic? }
+ *    POST /v1/replies        { target, content, topic? }   GET /v1/replies (mías)   GET /v1/replies/pending   POST /v1/replies/:id/review { approve }
  *    GET  /v1/impact?from=&to=
  *    POST /mcp               MCP por HTTP (Streamable HTTP, sin estado)
  *
@@ -58,7 +58,7 @@
  *    GET /v1/referrals   POST /v1/referrals/apply { code }
  *    PUT /v1/organization/branding   POST /v1/organization/branding/(domain|verify)   GET /public/branding (por dominio)
  *  Aprendizaje:  POST /v1/learning/next   POST /v1/learning/answer { isSmoke }   GET /v1/learning/progress
- *    POST /v1/classrooms   POST /v1/classrooms/join { code, alias }   GET /v1/classrooms/:id/report
+ *    GET/POST /v1/classrooms   POST /v1/classrooms/join { code, alias }   GET /v1/classrooms/:id/report   POST /v1/classrooms/:id/archive
  *  Soporte:  GET/POST /v1/support/tickets   POST /v1/support/tickets/:id/(messages|reply|rate)   GET /v1/support/queue
  *  Funciones en prueba:  GET /v1/flags   PATCH /v1/flags/:key
  *  Audios firmados:  GET /media/:id?exp=&sig=
@@ -566,6 +566,11 @@ export function createHttpApi(deps: HttpApiDeps): Server {
 
     // ---- Participación ----
     const P = deps.participation;
+    if (req.method === "GET" && path === "/v1/campaigns") return json(res, 200, { campaigns: await P.campaigns.list(who.userId), channels: P.campaigns.channelOptions() });
+    if (req.method === "GET" && path === "/v1/replies") return json(res, 200, await deps.replies.mine(who.userId));
+    if (req.method === "GET" && path === "/v1/replies/pending") return json(res, 200, await deps.replies.pendingFor(who.userId));
+    const replyRev = path.match(/^\/v1\/replies\/([^/]+)\/review$/);
+    if (req.method === "POST" && replyRev) return json(res, 200, await deps.replies.review({ moderatorId: who.userId, draftId: decodeURIComponent(replyRev[1]!), approve: b.approve === true }));
     const camp = path.match(/^\/v1\/campaigns\/([^/]+)\/(review|launch|allies|respond|report)$/);
     if (camp) {
       const id = decodeURIComponent(camp[1]!);
@@ -574,12 +579,18 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         case "POST launch": return json(res, 200, await P.campaigns.launch({ actorId: who.userId, campaignId: id }));
         case "POST allies": return json(res, 200, { invited: await P.campaigns.inviteAllies({ actorId: who.userId, campaignId: id, userIds: (b.userIds as string[]) ?? [] }) });
         case "POST respond": return json(res, 200, await P.campaigns.respondAlly({ userId: who.userId, campaignId: id, accept: !!b.accept }).then(() => ({ ok: true })));
-        case "GET report": return json(res, 200, await P.campaigns.report(id));
+        case "GET report": return json(res, 200, await P.campaigns.report({ actorId: who.userId, campaignId: id }));
       }
     }
     const couponM = path.match(/^\/v1\/coupons\/([A-Za-z0-9-]+)\/deactivate$/);
     if (req.method === "POST" && couponM) {
       await deps.commerce.service.deactivateCoupon({ actorId: who.userId, code: couponM[1]! });
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === "GET" && path === "/v1/classrooms") return json(res, 200, await deps.inclusion.learning.classrooms(who.userId));
+    const classArch = path.match(/^\/v1\/classrooms\/([^/]+)\/archive$/);
+    if (req.method === "POST" && classArch) {
+      await deps.inclusion.learning.archiveClassroom({ teacherId: who.userId, classroomId: decodeURIComponent(classArch[1]!) });
       return json(res, 200, { ok: true });
     }
     const classM = path.match(/^\/v1\/classrooms\/([^/]+)\/report$/);

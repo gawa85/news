@@ -14,7 +14,7 @@ const CHANNELS: Record<string, string> = { email: "Mail", whatsapp: "WhatsApp", 
 
 /** MI CUENTA: plan y uso, preferencias, temas, sesión y mis datos. */
 export function AccountPage() {
-  const { me } = useSession();
+  const { me, has } = useSession();
   if (!me) return null;
   return (
     <Page title="Mi cuenta">
@@ -25,6 +25,21 @@ export function AccountPage() {
         <Link className="btn btn--secondary btn--small" to="/organizacion">
           {me.organizationId ? "Mi organización" : "Crear una organización"}
         </Link>
+        {has("learning:teach") && (
+          <Link className="btn btn--secondary btn--small" to="/aulas">
+            Aulas
+          </Link>
+        )}
+        {(has("replies:publish_public") || has("replies:moderate")) && (
+          <Link className="btn btn--secondary btn--small" to="/respuestas">
+            Respuestas públicas
+          </Link>
+        )}
+        {(has("campaigns:manage") || has("campaigns:review")) && (
+          <Link className="btn btn--secondary btn--small" to="/campanas">
+            Campañas
+          </Link>
+        )}
         <Link className="btn btn--secondary btn--small" to="/estadisticas">
           Estadísticas
         </Link>

@@ -112,6 +112,26 @@ export class ReplyService {
     return this.publish(draft);
   }
 
+  /** Lo que pedí publicar (y en qué quedó). */
+  async mine(actorId: string, limit = 50): Promise<ReplyDraft[]> {
+    const actor = await this.access.userOrThrow(actorId);
+    return this.drafts.findByRequester(actor.id, limit);
+  }
+
+  /** Pendientes de moderar de MI organización (el equipo de la plataforma ve todas). */
+  async pendingFor(moderatorId: string): Promise<ReplyDraft[]> {
+    const moderator = await this.access.userOrThrow(moderatorId);
+    const perms = await this.authz.permissionsOf(moderator);
+    if (!perms.has("replies:moderate")) throw new AccessDeniedError("No tenés permiso para moderar respuestas.", "no_permission");
+    const out: ReplyDraft[] = [];
+    for (const d of await this.drafts.findByStatus("pending_review", 200)) {
+      if (d.requestedBy === moderator.id) continue; // lo propio lo aprueba otra persona
+      const requester = await this.access.userOrThrow(d.requestedBy).catch(() => undefined);
+      if (perms.has("users:manage_all") || (requester && requester.organizationId && requester.organizationId === moderator.organizationId)) out.push(d);
+    }
+    return out;
+  }
+
   async review(input: { moderatorId: string; draftId: string; approve: boolean }): Promise<ReplyDraft> {
     const moderator = await this.access.userOrThrow(input.moderatorId);
     const perms = await this.authz.permissionsOf(moderator);
@@ -120,7 +140,8 @@ export class ReplyService {
     if (!draft) throw new NotFoundError("No existe esa respuesta.");
     if (draft.status !== "pending_review") throw new ConflictError(`La respuesta ya está ${draft.status}.`);
     const requester = await this.access.userOrThrow(draft.requestedBy);
-    if (!perms.has("users:manage_all") && requester.organizationId !== moderator.organizationId) {
+    // Sin organización no hay "misma organización" (undefined === undefined no alcanza).
+    if (!perms.has("users:manage_all") && (!requester.organizationId || requester.organizationId !== moderator.organizationId)) {
       throw new AccessDeniedError("Sólo podés moderar respuestas de tu organización.", "no_permission");
     }
 

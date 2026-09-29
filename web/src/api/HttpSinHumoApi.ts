@@ -54,6 +54,11 @@ import type {
   UsagePanel,
   ExportFormat,
   ReportSchedule,
+  Campaign,
+  CampaignReport,
+  ClassroomReport,
+  ClassroomSummary,
+  ReplyDraft,
 } from "./types";
 
 
@@ -395,6 +400,57 @@ export class HttpSinHumoApi implements SinHumoApi {
 
   async deleteReportSchedule(id: string) {
     await this.request("DELETE", `/v1/reports/schedules/${encodeURIComponent(id)}`);
+  }
+
+  classrooms() {
+    return this.request<ClassroomSummary[]>("GET", "/v1/classrooms");
+  }
+
+  async createClassroom(name: string, showLeaderboard: boolean) {
+    await this.request("POST", "/v1/classrooms", { name, showLeaderboard });
+  }
+
+  classroomReport(id: string) {
+    return this.request<ClassroomReport>("GET", `/v1/classrooms/${encodeURIComponent(id)}/report`);
+  }
+
+  async archiveClassroom(id: string) {
+    await this.request("POST", `/v1/classrooms/${encodeURIComponent(id)}/archive`);
+  }
+
+  myReplies() {
+    return this.request<ReplyDraft[]>("GET", "/v1/replies");
+  }
+
+  pendingReplies() {
+    return this.request<ReplyDraft[]>("GET", "/v1/replies/pending");
+  }
+
+  reviewReply(id: string, approve: boolean) {
+    return this.request<ReplyDraft>("POST", `/v1/replies/${encodeURIComponent(id)}/review`, { approve });
+  }
+
+  campaigns() {
+    return this.request<{ campaigns: Campaign[]; channels: { id: string; label: string }[] }>("GET", "/v1/campaigns");
+  }
+
+  createCampaign(input: { claim: string; title: string; summary: string; links: { label: string; url: string }[]; channelIds: string[]; topic?: string; political: boolean }) {
+    return this.request<Campaign>("POST", "/v1/campaigns", {
+      claim: input.claim, channelIds: input.channelIds, topic: input.topic, political: input.political,
+      message: { kind: "result", title: input.title, summary: input.summary, sections: [], links: input.links },
+    });
+  }
+
+  reviewCampaign(id: string, approve: boolean, note: string) {
+    return this.request<Campaign>("POST", `/v1/campaigns/${encodeURIComponent(id)}/review`, { approve, note });
+  }
+
+  launchCampaign(id: string) {
+    return this.request<Campaign>("POST", `/v1/campaigns/${encodeURIComponent(id)}/launch`);
+  }
+
+  campaignReport(id: string) {
+    return this.request<CampaignReport>("GET", `/v1/campaigns/${encodeURIComponent(id)}/report`);
   }
 
   async organization(): Promise<OrganizationOverview | undefined> {

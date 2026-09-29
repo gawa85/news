@@ -83,9 +83,27 @@ describe("Campañas", () => {
     const code = kitText.match(/\/r\/([\w-]+)/)![1]!;
     await t.p.trackedLinks.resolve(code);
     await t.p.trackedLinks.resolve(code);
-    const report = await t.p.participation.campaigns.report(c.id);
+    const report = await t.p.participation.campaigns.report({ actorId: admin.id, campaignId: c.id });
     assert.equal(report.reach, 1);
     assert.equal(report.clicksByAlly[ally.id], 2);
+
+    // Otra organización no ve, no lanza ni invita en nombre de esta campaña.
+    const other = await orgWithTeam(t);
+    const outsider = await other.member("analyst");
+    await assert.rejects(t.p.participation.campaigns.report({ actorId: outsider.id, campaignId: c.id }), /otra organización/);
+    await assert.rejects(t.p.participation.campaigns.inviteAllies({ actorId: outsider.id, campaignId: c.id, userIds: [ally.id] }), /otra organización/);
+    assert.deepEqual((await t.p.participation.campaigns.list(analyst.id)).map((x) => x.id), [c.id]);
+    assert.deepEqual(await t.p.participation.campaigns.list(outsider.id), []);
+    assert.ok(t.p.participation.campaigns.channelOptions().some((ch) => ch.id === "seguidores_del_tema"));
+  });
+
+  test("una campaña aprobada de otra organización no se puede lanzar", async () => {
+    const t = await testPlatform();
+    const a = await orgWithTeam(t);
+    const b = await orgWithTeam(t);
+    const c = await t.p.participation.campaigns.create({ actorId: (await a.member("analyst")).id, claim: "El gas sube 300% mañana", message: verified, channelIds: ["seguidores_del_tema"], topic: "tarifas de gas", political: false });
+    await t.p.participation.campaigns.review({ actorId: a.admin.id, campaignId: c.id, approve: true, note: "Fuentes correctas, tono adecuado." });
+    await assert.rejects(t.p.participation.campaigns.launch({ actorId: (await b.member("analyst")).id, campaignId: c.id }), /otra organización/);
   });
 
   test("contenido político no se difunde en veda electoral", async () => {

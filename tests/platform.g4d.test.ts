@@ -247,6 +247,13 @@ describe("Modo aprendizaje", () => {
     assert.ok(!JSON.stringify(rep).includes("+54911"), "el docente nunca ve teléfonos");
     await assert.rejects(t.p.inclusion.learning.report({ teacherId: (await school.member()).id, classroomId: c.id }), NotFoundError);
 
+    // Mis aulas: con cuántos se sumaron; archivar al terminar el año (el código deja de servir).
+    assert.deepEqual((await t.p.inclusion.learning.classrooms(teacher.id)).map((x) => [x.name, x.students]), [["3° B", 2]]);
+    await t.p.inclusion.learning.archiveClassroom({ teacherId: teacher.id, classroomId: c.id });
+    assert.deepEqual(await t.p.inclusion.learning.classrooms(teacher.id), []);
+    const late = await say("+5491155550203", `/aula ${c.joinCode} Sofi`);
+    assert.match(`${late.title} ${late.summary ?? ""}`, /No existe un aula con ese código/);
+
     const company = await org(t, "equipo");
     await t.store.repos.users.save({ ...company.admin, roleIds: [...company.admin.roleIds, "teacher"] });
     await assert.rejects(t.p.inclusion.learning.createClassroom({ teacherId: company.admin.id, name: "x" }), (e: AccessDeniedError) => e.code === "feature_not_in_plan");

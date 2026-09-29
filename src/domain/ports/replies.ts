@@ -13,6 +13,7 @@ export interface IReplyPublisher {
 export interface IReplyDraftRepository {
   findById(id: string): Promise<ReplyDraft | undefined>;
   findByStatus(status: ReplyStatus, limit: number): Promise<ReplyDraft[]>;
+  findByRequester(userId: string, limit: number): Promise<ReplyDraft[]>;
   findPublishedBetween(from: Date, to: Date): Promise<ReplyDraft[]>;
   save(draft: ReplyDraft): Promise<void>;
 }

@@ -51,6 +51,11 @@ import type {
   UsagePanel,
   ExportFormat,
   ReportSchedule,
+  Campaign,
+  CampaignReport,
+  ClassroomReport,
+  ClassroomSummary,
+  ReplyDraft,
 } from "./types";
 
 /**
@@ -179,6 +184,24 @@ export interface SinHumoApi {
   reportSchedules(): Promise<ReportSchedule[]>;
   createReportSchedule(input: { name: string; kind: "usage_panel" | "analysis_history"; scope?: "user" | "organization"; format: ExportFormat; frequency: "weekly" | "monthly"; recipients: string[] }): Promise<ReportSchedule>;
   deleteReportSchedule(id: string): Promise<void>;
+
+  // Aulas (docentes)
+  classrooms(): Promise<ClassroomSummary[]>;
+  createClassroom(name: string, showLeaderboard: boolean): Promise<void>;
+  classroomReport(id: string): Promise<ClassroomReport>;
+  archiveClassroom(id: string): Promise<void>;
+
+  // Respuestas públicas (foros, páginas): las mías y las que modero
+  myReplies(): Promise<ReplyDraft[]>;
+  pendingReplies(): Promise<ReplyDraft[]>;
+  reviewReply(id: string, approve: boolean): Promise<ReplyDraft>;
+
+  // Campañas para contrarrestar humo
+  campaigns(): Promise<{ campaigns: Campaign[]; channels: { id: string; label: string }[] }>;
+  createCampaign(input: { claim: string; title: string; summary: string; links: { label: string; url: string }[]; channelIds: string[]; topic?: string; political: boolean }): Promise<Campaign>;
+  reviewCampaign(id: string, approve: boolean, note: string): Promise<Campaign>;
+  launchCampaign(id: string): Promise<Campaign>;
+  campaignReport(id: string): Promise<CampaignReport>;
 
   // Mi organización. undefined = no soy parte de ninguna.
   organization(): Promise<OrganizationOverview | undefined>;

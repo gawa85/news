@@ -47,6 +47,12 @@ describe("Respuestas públicas", () => {
     assert.equal(draft.status, "pending_review");
     assert.ok(t.p.events.history.some((e) => e.type === "reply.pending_review"));
     assert.equal(t.http.requests.filter((r) => r.method === "POST").length, 0, "no se publica nada sin aprobación");
+    assert.deepEqual((await t.p.replies.mine(analyst.id)).map((d) => d.id), [draft.id]);
+    assert.deepEqual((await t.p.replies.pendingFor(admin.id)).map((d) => d.id), [draft.id], "la ve quien modera en su organización");
+    const otherMod = await userWithPlan(t, "gratis");
+    await t.p.users.createOrganization.execute({ ownerId: otherMod.id, name: "Otra" });
+    assert.deepEqual(await t.p.replies.pendingFor(otherMod.id), [], "otra organización no la ve");
+    await assert.rejects(t.p.replies.review({ moderatorId: otherMod.id, draftId: draft.id, approve: true }), /tu organización/);
 
     const published = await t.p.replies.review({ moderatorId: admin.id, draftId: draft.id, approve: true });
     assert.equal(published.status, "published");

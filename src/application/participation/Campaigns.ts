@@ -1,5 +1,5 @@
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
-import type { Campaign, CampaignPiece, CampaignReport, ResponseContent, User } from "../../domain/model";
+import { actorCampaignScope, campaignScope, type Campaign, type CampaignPiece, type CampaignReport, type ResponseContent, type User } from "../../domain/model";
 import type {
   IAssetGenerator,
   IAuthorizationService,
@@ -39,6 +39,8 @@ export interface ElectoralBlackout {
  *    aliados que dijeron que sí). No hay envío a desconocidos ni cuentas falsas.
  *  - Contenido político: no se lanza durante una veda electoral de la región.
  *  - Todo pasa además por las reglas de cumplimiento de cada canal (frecuencia, bajas).
+ *  - Lanzar, invitar aliados y ver el informe: sólo la organización dueña de la campaña
+ *    (o quien la creó, si no tiene organización).
  */
 export class CampaignService {
   constructor(
@@ -104,9 +106,23 @@ export class CampaignService {
     return next;
   }
 
+  /** Las campañas de mi organización (o mías), las más nuevas primero. */
+  async list(actorId: string): Promise<Campaign[]> {
+    const actor = await this.access.userOrThrow(actorId);
+    const perms = await this.authz.permissionsOf(actor);
+    if (!perms.has("campaigns:manage") && !perms.has("campaigns:review")) throw new AccessDeniedError("Tu rol no permite ver campañas.", "no_permission");
+    return (await this.campaigns.findByScope(actorCampaignScope(actor))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  /** Por dónde se puede difundir (canales propios configurados). */
+  channelOptions(): { id: string; label: string }[] {
+    return this.channels.map((c) => ({ id: c.id, label: c.label }));
+  }
+
   async launch(input: { actorId: string; campaignId: string }): Promise<Campaign> {
     const actor = await this.actor(input.actorId, "campaigns:manage");
     const c = await this.campaign(input.campaignId);
+    await this.ensureOwn(actor, c);
     if (c.status !== "approved") throw new ConflictError("Sólo se lanza una campaña aprobada.");
     const now = this.clock.now();
     const blackout = this.blackouts.find((b) => b.region === this.region && b.from <= now && now <= b.to);
@@ -134,6 +150,7 @@ export class CampaignService {
   async inviteAllies(input: { actorId: string; campaignId: string; userIds: string[] }): Promise<number> {
     const actor = await this.actor(input.actorId, "campaigns:manage");
     const c = await this.campaign(input.campaignId);
+    await this.ensureOwn(actor, c);
     let invited = 0;
     for (const userId of input.userIds) {
       const u = await this.users.findById(userId);
@@ -149,7 +166,6 @@ export class CampaignService {
       }, ["web", "whatsapp", "telegram", "email"], { name: "campana_invitacion", language: "es_AR", params: [c.sponsor, c.claim] });
       invited++;
     }
-    void actor;
     return invited;
   }
 
@@ -170,8 +186,10 @@ export class CampaignService {
     );
   }
 
-  async report(campaignId: string): Promise<CampaignReport> {
-    const c = await this.campaign(campaignId);
+  async report(input: { actorId: string; campaignId: string }): Promise<CampaignReport> {
+    const actor = await this.access.userOrThrow(input.actorId);
+    const c = await this.campaign(input.campaignId);
+    await this.ensureOwn(actor, c);
     const deliveries = await this.campaigns.findDeliveries(c.id);
     const allies = await this.campaigns.findAllies(c.id);
     let clicks = 0;
@@ -206,6 +224,13 @@ export class CampaignService {
       clicksByAlly,
       narrative,
     };
+  }
+
+  /** Sólo la organización dueña (o la persona, si no tiene organización); el equipo de la plataforma, todas. */
+  private async ensureOwn(actor: User, c: Campaign): Promise<void> {
+    if (actorCampaignScope(actor) === campaignScope(c)) return;
+    if ((await this.authz.permissionsOf(actor)).has("users:manage_all")) return;
+    throw new AccessDeniedError("Esa campaña es de otra organización.", "no_permission");
   }
 
   private async buildPieces(m: ResponseContent, sponsor: string): Promise<CampaignPiece[]> {

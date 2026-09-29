@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, MyReview, OrganizationOverview, PublicRebuttal, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -310,6 +310,56 @@ export class FakeApi implements SinHumoApi {
   }
   async deleteReportSchedule(id: string) {
     this.log("deleteReportSchedule", id);
+  }
+
+  rooms_: ClassroomSummary[] = [];
+  async classrooms() {
+    return this.rooms_;
+  }
+  async createClassroom(name: string, showLeaderboard: boolean) {
+    this.log("createClassroom", name, showLeaderboard);
+    this.rooms_ = [{ id: "cl1", name, joinCode: "A1B2C3", showLeaderboard, students: 0, createdAt: "2026-09-28T12:00:00Z" }];
+  }
+  async classroomReport() {
+    return { classroom: { name: "3° B", joinCode: "A1B2C3", students: 2 }, students: [{ alias: "Lu", answered: 4, correct: 3, accuracy: 0.75 }, { alias: "Tomi", answered: 0, correct: 0, accuracy: null }], hardest: [{ type: "Alarmismo", misses: 2 }] };
+  }
+  async archiveClassroom(id: string) {
+    this.log("archiveClassroom", id);
+    this.rooms_ = [];
+  }
+  pendingList: ReplyDraft[] = [{ id: "rp1", target: { kind: "forum_thread", destination: "discourse:foro.example", ref: "123" }, content: { title: "El gas no sube 300%", summary: "La resolución 45 fija 30%.", links: [{ label: "Boletín", url: "https://boletin.example/45" }] }, visibility: "public", status: "pending_review", createdAt: "2026-09-28T12:00:00Z" }];
+  async myReplies() {
+    return [];
+  }
+  async pendingReplies() {
+    return this.pendingList;
+  }
+  async reviewReply(id: string, approve: boolean) {
+    this.log("reviewReply", id, approve);
+    return { ...this.pendingList[0]!, status: approve ? ("published" as const) : ("rejected" as const) };
+  }
+  campaignList: Campaign[] = [];
+  async campaigns() {
+    return { campaigns: this.campaignList, channels: [{ id: "seguidores_del_tema", label: "Quienes siguen el tema" }] };
+  }
+  async createCampaign(input: { claim: string; title: string; summary: string; links: { label: string; url: string }[]; channelIds: string[]; political: boolean }) {
+    this.log("createCampaign", input);
+    const c: Campaign = { id: "cp1", sponsor: "Diario Norte", claim: input.claim, message: { title: input.title, summary: input.summary, links: input.links }, channelIds: input.channelIds, political: input.political, status: "pending_review", ownerId: this.session?.id ?? "u1", createdAt: "2026-09-28T12:00:00Z" };
+    this.campaignList = [c];
+    return c;
+  }
+  async reviewCampaign(id: string, approve: boolean, note: string) {
+    this.log("reviewCampaign", id, approve, note);
+    this.campaignList = this.campaignList.map((c) => ({ ...c, status: approve ? ("approved" as const) : ("rejected" as const), reviewNote: note }));
+    return this.campaignList[0]!;
+  }
+  async launchCampaign(id: string) {
+    this.log("launchCampaign", id);
+    this.campaignList = this.campaignList.map((c) => ({ ...c, status: "running" as const }));
+    return this.campaignList[0]!;
+  }
+  async campaignReport() {
+    return { deliveries: 1, reach: 120, clicks: 14, alliesAccepted: 3, narrative: { weeklyBefore: 40, weeklyAfter: 22, change: -0.45 } };
   }
 
   sourceList: SourceConnection[] = [];

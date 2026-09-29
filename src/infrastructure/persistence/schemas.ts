@@ -2,7 +2,7 @@
  * Esquema de todas las colecciones: nombre de tabla e índices.
  * Es la única "definición de base de datos" del sistema; vale para todos los motores.
  */
-import { canonicalUrl } from "../../domain/model";
+import { campaignScope, canonicalUrl } from "../../domain/model";
 import type {
   AdvertisingSpend,
   AnalysisFeedback,
@@ -257,6 +257,7 @@ export const schemas = {
     idOf: (r: ReplyDraft) => r.id,
     indexes: {
       status: { type: "text", get: (r: ReplyDraft) => r.status },
+      requestedBy: { type: "text", get: (r: ReplyDraft) => r.requestedBy },
       publishedAt: { type: "text", get: (r: ReplyDraft) => r.publishedAt ?? null },
       createdAt: { type: "text", get: (r: ReplyDraft) => r.createdAt },
     },
@@ -424,7 +425,11 @@ export const schemas = {
   campaigns: {
     name: "campaigns",
     idOf: (c: Campaign) => c.id,
-    indexes: { status: { type: "text", get: (c: Campaign) => c.status } },
+    indexes: {
+      status: { type: "text", get: (c: Campaign) => c.status },
+      /** De quién es: la organización o, si no tiene, la persona. */
+      scope: { type: "text", get: (c: Campaign) => campaignScope(c) },
+    },
   } satisfies CollectionSchema<Campaign>,
   campaignAllies: {
     name: "campaign_allies",

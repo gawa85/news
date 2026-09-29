@@ -113,6 +113,25 @@ export class LearningService {
   }
 
   /** Informe del docente: apodos, aciertos y los tipos de humo que más cuestan. */
+  /** Mis aulas (las activas), con cuántos estudiantes se sumaron. */
+  async classrooms(teacherId: string): Promise<{ id: string; name: string; joinCode: string; showLeaderboard: boolean; students: number; createdAt: Date }[]> {
+    await this.teacher(teacherId);
+    const list = (await this.repo.findClassroomsByTeacher(teacherId)).filter((c) => c.active);
+    const out = [];
+    for (const c of list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())) {
+      out.push({ id: c.id, name: c.name, joinCode: c.joinCode, showLeaderboard: c.showLeaderboard, students: (await this.repo.findMembers(c.id)).length, createdAt: c.createdAt });
+    }
+    return out;
+  }
+
+  /** Archivar un aula (fin del año lectivo): el código deja de servir; el progreso de cada estudiante queda suyo. */
+  async archiveClassroom(input: { teacherId: string; classroomId: string }): Promise<void> {
+    await this.teacher(input.teacherId);
+    const c = await this.repo.findClassroom(input.classroomId);
+    if (!c || c.teacherId !== input.teacherId || !c.active) throw new NotFoundError("No existe esa aula.");
+    await this.repo.saveClassroom({ ...c, active: false });
+  }
+
   async report(input: { teacherId: string; classroomId: string }) {
     const c = await this.repo.findClassroom(input.classroomId);
     if (!c || c.teacherId !== input.teacherId) throw new NotFoundError("No existe esa aula.");

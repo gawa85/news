@@ -211,3 +211,8 @@ export type RoomEvent =
   /** En equipos, quiénes están; en eventos, cuántos (no quiénes). */
   | { type: "presence"; userIds?: string[]; count?: number }
   | { type: "closed" };
+
+/** De quién es una campaña: su organización o, si no tiene, la persona que la creó. */
+export const campaignScope = (c: { organizationId?: string; ownerId: string }): string => c.organizationId ?? `user:${c.ownerId}`;
+/** El "dueño" que corresponde a una persona (para comparar con campaignScope). */
+export const actorCampaignScope = (u: { organizationId?: string; id: string }): string => u.organizationId ?? `user:${u.id}`;

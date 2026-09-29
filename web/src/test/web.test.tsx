@@ -763,3 +763,59 @@ describe("Estadísticas", () => {
     expect(await screen.findByText(/Exportar a Excel, CSV o PDF viene con el plan Profesional/)).toBeInTheDocument();
   });
 });
+
+describe("Aulas, respuestas públicas y campañas", () => {
+  test("aulas: sólo docentes; crear, ver el progreso por apodo y archivar", async () => {
+    renderApp(new FakeApi(sampleMe()), "/aulas");
+    expect(await screen.findByText(/docentes de escuelas registradas/)).toBeInTheDocument();
+  });
+
+  test("aulas de un docente", async () => {
+    const api = new FakeApi(sampleMe({ permissions: ["learning:teach"], plan: { ...sampleMe().plan, features: ["learning_mode"] } }));
+    renderApp(api, "/aulas");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre"), "3° B");
+    await user.click(screen.getByRole("button", { name: "Crear aula" }));
+    expect(await screen.findByText("A1B2C3")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ver progreso" }));
+    const table = await screen.findByRole("table", { name: "Progreso por estudiante" });
+    expect(table).toHaveTextContent("Lu");
+    expect(table).toHaveTextContent("3 (75 %)");
+    expect(screen.getByText(/Lo que más les cuesta/).closest("p")).toHaveTextContent("Alarmismo (2 errores)");
+    await user.click(screen.getByRole("button", { name: "Archivar (fin del año)" }));
+    await user.click(screen.getByRole("button", { name: "Sí, archivar" }));
+    expect(await screen.findByText("Todavía no creaste aulas.")).toBeInTheDocument();
+  });
+
+  test("respuestas: quien modera aprueba y se publica", async () => {
+    const api = new FakeApi(sampleMe({ permissions: ["replies:moderate", "replies:publish_public"] }));
+    renderApp(api, "/respuestas");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Aprobar y publicar: El gas no sube 300%" }));
+    expect(await screen.findByText("No hay respuestas esperando.")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "reviewReply")?.args).toEqual(["rp1", true]);
+  });
+
+  test("campañas: crear (a revisión), aprobar otra persona, lanzar y ver resultados", async () => {
+    const api = new FakeApi(sampleMe({ permissions: ["campaigns:manage", "campaigns:review"] }));
+    renderApp(api, "/campanas");
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("Nueva campaña", { selector: "summary" }));
+    await user.type(screen.getByLabelText(/Qué afirmación contrarresta/), "El gas sube 300% mañana en todo el país");
+    await user.type(screen.getByLabelText("Título del mensaje"), "El gas no sube 300%");
+    await user.type(screen.getByLabelText("Qué dicen los datos"), "La resolución 45 fija un aumento de 30%.");
+    await user.type(screen.getByLabelText(/Fuentes/), "https://boletin.example/45");
+    await user.click(screen.getByRole("button", { name: "Mandar a revisión" }));
+    expect(await screen.findByText("La tiene que aprobar otra persona del equipo.")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "createCampaign")?.args[0]).toMatchObject({ links: [{ label: "boletin.example", url: "https://boletin.example/45" }], channelIds: ["seguidores_del_tema"] });
+
+    api.campaignList = api.campaignList.map((c) => ({ ...c, ownerId: "otra" }));
+    renderApp(api, "/campanas");
+    const [second] = screen.getAllByRole("main").slice(-1);
+    await user.type(await within(second!).findByLabelText(/Nota de revisión/), "Fuentes correctas, tono adecuado.");
+    await user.click(within(second!).getByRole("button", { name: "Aprobar" }));
+    await user.click(await within(second!).findByRole("button", { name: "Lanzar" }));
+    await user.click(await within(second!).findByRole("button", { name: "Ver resultados" }));
+    expect(await within(second!).findByText("-45 %")).toBeInTheDocument();
+  });
+});

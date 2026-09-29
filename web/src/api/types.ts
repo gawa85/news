@@ -565,3 +565,56 @@ export interface ReportSchedule {
   lastRunAt?: string;
   lastError?: string;
 }
+
+export interface ClassroomSummary {
+  id: string;
+  name: string;
+  joinCode: string;
+  showLeaderboard: boolean;
+  students: number;
+  createdAt: string;
+}
+
+export interface ClassroomReport {
+  classroom: { name: string; joinCode: string; students: number };
+  students: { alias: string; answered: number; correct: number; accuracy: number | null }[];
+  hardest: { type: string; misses: number }[];
+  leaderboard?: string[];
+}
+
+export interface ReplyDraft {
+  id: string;
+  target: { kind: string; destination: string; ref: string; subject?: string };
+  content: { title: string; summary?: string; links: { label: string; url: string }[] };
+  visibility: "private" | "public";
+  status: "pending_review" | "published" | "rejected" | "failed";
+  topic?: string;
+  createdAt: string;
+  publishedAt?: string;
+  publishedUrl?: string;
+  error?: string;
+}
+
+export interface Campaign {
+  id: string;
+  sponsor: string;
+  claim: string;
+  message: { title: string; summary?: string; links: { label: string; url: string }[] };
+  channelIds: string[];
+  topic?: string;
+  political: boolean;
+  status: "pending_review" | "approved" | "rejected" | "running" | "finished";
+  ownerId: string;
+  reviewNote?: string;
+  riskNotes?: string[];
+  createdAt: string;
+  launchedAt?: string;
+}
+
+export interface CampaignReport {
+  deliveries: number;
+  reach: number;
+  clicks: number;
+  alliesAccepted: number;
+  narrative?: { weeklyBefore: number; weeklyAfter: number; change: number | null };
+}

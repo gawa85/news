@@ -23,6 +23,8 @@ export interface INarrativeRepository {
 export interface ICampaignRepository {
   findById(id: string): Promise<Campaign | undefined>;
   findByStatus(status: Campaign["status"]): Promise<Campaign[]>;
+  /** Las de una organización o de una persona sin organización (ver campaignScope). */
+  findByScope(scope: string): Promise<Campaign[]>;
   save(c: Campaign): Promise<void>;
   findAllies(campaignId: string): Promise<CampaignAlly[]>;
   saveAlly(a: CampaignAlly): Promise<void>;

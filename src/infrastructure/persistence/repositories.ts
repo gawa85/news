@@ -290,6 +290,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     replyDrafts: {
       findById: (id) => drafts.get(id),
       findByStatus: (status, limit) => drafts.find({ where: { status }, orderBy: { field: "createdAt", direction: "asc" }, limit }),
+      findByRequester: (userId, limit) => drafts.find({ where: { requestedBy: userId }, orderBy: { field: "createdAt", direction: "desc" }, limit }),
       findPublishedBetween: (from, to) => drafts.find({ where: { status: "published", publishedAt: { gte: from, lte: to } } }),
       save: (d) => drafts.upsert(d),
     },
@@ -437,6 +438,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     campaigns: {
       findById: (id) => campaigns.get(id),
       findByStatus: (status) => campaigns.find({ where: { status } }),
+      findByScope: (scope) => campaigns.find({ where: { scope } }),
       save: (c) => campaigns.upsert(c),
       findAllies: (campaignId) => allies.find({ where: { campaignId } }),
       saveAlly: (a) => allies.upsert(a),
