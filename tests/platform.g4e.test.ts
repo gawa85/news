@@ -9,7 +9,6 @@ import { gunzipSync } from "node:zlib";
 import { createDecipheriv, scryptSync } from "node:crypto";
 import { httpApiDeps } from "../src/composition/platform";
 import { profileFor, validateEnvironment } from "../src/composition/environment";
-import { LegalService } from "../src/application/legal/Legal";
 import { BackupService, retentionPlan, DEFAULT_RETENTION } from "../src/application/ops/Backups";
 import { LEGAL_DOCUMENTS } from "../src/config/legal";
 import { ValidationError } from "../src/domain/errors";
@@ -214,7 +213,9 @@ describe("Legal", () => {
     assert.doesNotMatch(r2.response.footer ?? "", /Términos/, "una sola vez por versión");
 
     // Nueva versión MATERIAL de los términos: se vuelve a pedir.
-    const v2 = new LegalService(LEGAL_DOCUMENTS.map((d) => (d.id === "terms" ? { ...d, version: "2027-01" } : d)), t.store.repos.consents, t.clock, "https://sinhumo.example");
+    const terms = LEGAL_DOCUMENTS.find((d) => d.id === "terms")!;
+    await t.store.repos.legalDocuments.save({ ...terms, version: "2027-01", publishedAt: new Date("2027-01-01T00:00:00Z") });
+    const v2 = t.p.legal;
     assert.deepEqual((await v2.pendingFor(u.id)).map((d) => d.id), ["terms"]);
     await assert.rejects(v2.accept({ userId: u.id, docId: "terms", version: "2026-09-borrador", method: "click", channel: "web" }), ValidationError);
     await v2.accept({ userId: u.id, docId: "terms", version: "2027-01", method: "click", channel: "web" });

@@ -89,6 +89,7 @@ import { RoomService } from "../application/participation/Rooms";
 import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "../infrastructure/participation/Participation";
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
 import { OutletEditor } from "../application/catalog/OutletEditor";
+import { PlanAdmin } from "../application/commerce/PlanAdmin";
 import { FeedbackService, QualityService } from "../application/quality/Quality";
 import { CsvCatalogSource, HttpFeedReader } from "../infrastructure/catalog/CatalogAdapters";
 import { SEED_CATEGORIES, SEED_TOPICS } from "../config/topics";
@@ -139,7 +140,7 @@ import { NodeDnsTxtResolver, RuleBasedPlainLanguage, SignedMediaStore } from "..
 import { COUNTRIES, DEFAULT_COUNTRY } from "../config/countries";
 import { FEATURE_FLAGS } from "../config/flags";
 import { CLEAN_TIP, SMOKE_TIPS } from "../config/learning";
-import { DefamationAwareModerator, LegalService } from "../application/legal/Legal";
+import { DefamationAwareModerator, LegalPublisher, LegalService, seedLegal } from "../application/legal/Legal";
 import { LEGAL_DOCUMENTS } from "../config/legal";
 import { BackupService } from "../application/ops/Backups";
 import { SandboxGuardSender } from "../infrastructure/messaging/SandboxGuard";
@@ -536,7 +537,8 @@ export function buildPlatform(cfg: PlatformConfig) {
   const backups = cfg.backups
     ? new BackupService(cfg.store, cfg.backups.sink, cfg.backups.passphrase, cfg.backups.scratch, clock, logger, cfg.environment?.name ?? "development", domainEvents, { users: repos.users, authz })
     : undefined;
-  const legal = new LegalService(LEGAL_DOCUMENTS, repos.consents, clock, cfg.publicBaseUrl);
+  const legal = new LegalService(repos.legalDocuments, repos.consents, clock, cfg.publicBaseUrl);
+  const legalPublisher = new LegalPublisher(repos.legalDocuments, repos.users, authz, domainEvents, clock);
   const support = new SupportService(repos.tickets, repos.users, authz, access, params, domainEvents, ids, clock, logger, tell("soporte_respuesta"), cfg.supportDesk);
   const evidence = new EvidenceService(
     repos.evidence,
@@ -704,13 +706,14 @@ export function buildPlatform(cfg: PlatformConfig) {
     catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
-    commerce: { service: commerce, referrals, branding, countries },
+    commerce: { service: commerce, referrals, branding, countries, plans: new PlanAdmin(repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, PLANS, FEATURE_LABELS) },
     inclusion: { learning, audio, plainLanguage, media, voice, screenshots },
     flags,
     support,
     evidence,
     digests,
     legal,
+    legalPublisher,
     backups,
     environment: cfg.environment?.name ?? "development",
     quality,
@@ -746,16 +749,19 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     verification: p.verification, personalData: p.privacy.personalData, billingProfile: p.billing.setProfile,
     invoices: p.store.repos.invoices, costReport: p.costs.report, participation: p.participation,
     catalog: p.catalog, quality: p.quality, stats: p.stats, config: p.config,
-    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, backups: p.backups, environment: p.environment,
+    commerce: p.commerce, inclusion: p.inclusion, flags: p.flags, support: p.support, evidence: p.evidence, changePlan: p.users.changePlan, legal: p.legal, legalPublisher: p.legalPublisher, backups: p.backups, environment: p.environment,
     metrics: p.metrics instanceof PrometheusMetrics ? { render: () => (p.metrics as PrometheusMetrics).render(), token: opts.metricsToken ?? "" } : undefined,
   };
 }
 
 /** Carga roles y planes del catálogo (idempotente). */
-export async function seedPlatform(store: IDataStore): Promise<void> {
+/** `legalTexts`: el texto completo de términos y privacidad (docs/legal), si se tiene. */
+export async function seedPlatform(store: IDataStore, opts: { legalTexts?: Partial<Record<"terms" | "privacy", string>> } = {}): Promise<void> {
   for (const r of ROLES) await store.repos.roles.save(r);
-  for (const p of PLANS) await store.repos.plans.save(p);
+  // Los planes editados desde el backoffice no se pisan con la versión del código.
+  for (const p of PLANS) if (!(await store.repos.plans.findById(p.id))?.customized) await store.repos.plans.save(p);
   await store.repos.users.ensureRoleIndex();
+  await seedLegal(store.repos.legalDocuments, LEGAL_DOCUMENTS, opts.legalTexts);
   await seedTaxonomy(store.repos.taxonomy, { categories: SEED_CATEGORIES, topics: SEED_TOPICS }, new Date());
   await seedQuizItems(store.repos.learning, SEED_EVALUATION_SET, (isSmoke, types) =>
     isSmoke ? types.map((t) => SMOKE_TIPS[t]).join(" ") : CLEAN_TIP);

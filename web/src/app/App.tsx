@@ -12,6 +12,7 @@ import { EvidencePage } from "../features/evidence/EvidencePage";
 import { EventPage, EventsPage } from "../features/events/EventsPages";
 import { SupportPage } from "../features/support/SupportPage";
 import { NotFoundPage } from "../features/home/NotFoundPage";
+import { LegalPage } from "../features/public/LegalPage";
 import { AlertsPage } from "../features/alerts/AlertsPage";
 import { LearningPage } from "../features/learning/LearningPage";
 import { OriginPage } from "../features/origin/OriginPage";
@@ -39,6 +40,8 @@ import { QualityPage } from "../features/admin/QualityPage";
 import { CatalogPage, DocumentsPage } from "../features/admin/DataPages";
 import { OutletsAdminPage } from "../features/admin/OutletsAdminPage";
 import { CorrectionsAdminPage } from "../features/admin/CorrectionsAdminPage";
+import { PlansAdminPage } from "../features/admin/PlansAdminPage";
+import { LegalAdminPage } from "../features/admin/LegalAdminPage";
 import { AuditPage, BackupsPage, CostsPage } from "../features/admin/OpsPages";
 import { Layout } from "./Layout";
 import { RequireSession } from "./RequireSession";
@@ -85,6 +88,8 @@ export const routes: RouteObject[] = [
           { path: "metricas", element: <MetricsPage /> },
           { path: "parametros", element: <ParametersPage /> },
           { path: "reglas", element: <RulesPage /> },
+          { path: "planes", element: <PlansAdminPage /> },
+          { path: "legal", element: <LegalAdminPage /> },
           { path: "cupones", element: <CouponsPage /> },
           { path: "funciones", element: <FlagsPage /> },
           { path: "temas", element: <TaxonomyPage /> },
@@ -108,6 +113,7 @@ export const routes: RouteObject[] = [
       { path: "/medios/:id", element: <OutletPage /> },
       { path: "/fe-de-erratas", element: <CorrectionsPage /> },
       { path: "/datos", element: <OpenDataPage /> },
+      { path: "/legal/:slug", element: <LegalPage /> },
       { path: "/eventos/:code", element: <EventPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

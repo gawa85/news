@@ -97,6 +97,13 @@ export interface IFeatureFlags {
   isEnabled(key: string, ctx: FlagContext): Promise<boolean>;
 }
 
+/** Versiones de los documentos legales (nunca se borran: cada aceptación apunta a una). */
+export interface ILegalDocumentRepository {
+  /** Todas las versiones de un documento, la más nueva primero. */
+  findVersions(docId: import("../model").LegalDocId): Promise<import("../model").LegalDocument[]>;
+  save(doc: import("../model").LegalDocument): Promise<void>;
+}
+
 export interface IConsentRepository {
   save(c: import("../model").ConsentRecord): Promise<void>;
   findByUser(userId: string): Promise<import("../model").ConsentRecord[]>;

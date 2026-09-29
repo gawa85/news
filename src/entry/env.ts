@@ -15,6 +15,7 @@ import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastruct
 import { HCaptcha, TurnstileCaptcha } from "../infrastructure/abuse/AbuseAdapters";
 import { DISPOSABLE_EMAIL_DOMAINS } from "../config/abuse";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ISocialSource, ITranslator } from "../domain/ports";
 import { OEmbedSocialSource, OpenGraphSocialSource, YouTubeDataApiSource } from "../infrastructure/social/SocialSources";
 import { HttpPageCapturer } from "../infrastructure/evidence/HttpPageCapturer";
@@ -150,7 +151,7 @@ export async function platformFromEnv() {
   if (problems.length) throw new Error(`Configuración inválida para ${profile.label}:\n- ${problems.join("\n- ")}`);
   const store = storeFromEnv();
   await store.migrate();
-  await seedPlatform(store);
+  await seedPlatform(store, { legalTexts: legalTexts() });
   if (env("LOAD_DEMO_DATA") === "1" && profile.allowDemoData) await seedCore(store, demoSeed);
 
   const http = new FetchHttpClient();
@@ -231,4 +232,16 @@ export async function platformFromEnv() {
     },
   });
   return { platform, store, logger };
+}
+
+/** Texto completo de términos y privacidad (docs/legal, copiado en la imagen). Si falta, se publica sin texto. */
+function legalTexts(): Partial<Record<"terms" | "privacy", string>> {
+  const read = (file: string) => {
+    try {
+      return readFileSync(join(process.cwd(), "docs", "legal", file), "utf8");
+    } catch {
+      return undefined;
+    }
+  };
+  return { terms: read("TERMINOS.md"), privacy: read("PRIVACIDAD.md") };
 }

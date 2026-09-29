@@ -726,3 +726,19 @@ legend {
   white-space: nowrap;
   z-index: 1;
 }
+
+/* Textos largos (términos, privacidad): renglones cómodos de leer y títulos con aire. */
+.prose {
+  max-width: 70ch;
+  line-height: 1.65;
+}
+.prose h2,
+.prose h3 {
+  margin-top: var(--space-5);
+}
+.prose blockquote {
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 4px solid var(--border);
+  color: var(--text-muted, inherit);
+}

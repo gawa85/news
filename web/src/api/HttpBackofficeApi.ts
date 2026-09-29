@@ -44,6 +44,10 @@ import type {
   OutletFeed,
   OutletRecord,
   NewCorrection,
+  AdminPlan,
+  PlanCatalog,
+  PlanPatch,
+  NewLegalVersion,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -269,5 +273,19 @@ export class HttpBackofficeApi implements BackofficeApi {
 
   publishCorrection(input: NewCorrection) {
     return this.request<{ id: string }>("POST", "/v1/corrections", input);
+  }
+
+  planCatalog() {
+    return this.request<PlanCatalog>("GET", "/v1/admin/plans");
+  }
+  updatePlan(id: string, patch: PlanPatch) {
+    return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}`, patch);
+  }
+  resetPlan(id: string) {
+    return this.request<AdminPlan>("POST", `/v1/admin/plans/${enc(id)}/reset`);
+  }
+
+  publishLegal(docId: "terms" | "privacy", input: NewLegalVersion) {
+    return this.request<{ version: string }>("POST", `/v1/admin/legal/${docId}`, input);
   }
 }

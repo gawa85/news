@@ -84,9 +84,11 @@
  *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
  *    POST /v1/catalog/outlets { id?, name, url, kind, region, aliases }   GET /v1/catalog/outlets/:id (con feeds y propiedad)
  *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate)   (outlets:write)
+ *  Planes (plans:manage):  GET /v1/admin/plans   POST /v1/admin/plans/:id { name, description, monthlyAmount, yearlyAmount, features, limits }   POST /v1/admin/plans/:id/reset
  *  Personas (users:manage_all):  GET /v1/admin/roles   GET /v1/admin/users?q=|filter=staff|suspended   GET /v1/admin/users/:id
  *    POST /v1/admin/users/:id/(roles/add|roles/remove) { roleId }   (suspend|reactivate) { reason }   (outlets/add|outlets/remove) { outletId }
- *  Legal:  GET /public/legal   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
+ *  Legal:  GET /public/legal   GET /public/legal/:docId[/:version|/versions]   GET /v1/legal/pending   POST /v1/legal/accept { docId, version }
+ *    POST /v1/admin/legal/:docId { title, summary, body, material, draft }   (legal:publish: una versión nueva)
  *  Métricas (Prometheus, con token):  GET /metrics
  *
  *  Público:
@@ -115,6 +117,7 @@ import type { MediaCheckService } from "../../application/media/MediaCheck";
 import type { OutletProfileService } from "../../application/catalog/OutletProfile";
 import type { PlatformUsersService } from "../../application/users/PlatformUsers";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
+import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -153,7 +156,7 @@ import type { SupportService } from "../../application/support/Support";
 import type { EvidenceService } from "../../application/evidence/Evidence";
 import type { FeatureFlagService } from "../../application/flags/FeatureFlags";
 import type { ChangePlanUseCase } from "../../application/users/PlansUseCases";
-import type { LegalService } from "../../application/legal/Legal";
+import type { LegalPublisher, LegalService } from "../../application/legal/Legal";
 import type { BackupService } from "../../application/ops/Backups";
 import type { ICountryRegistry, IMediaStore } from "../../domain/ports";
 import type { PreferencesService } from "../../application/config/Preferences";
@@ -229,13 +232,14 @@ export interface HttpApiDeps {
   catalog: { import: ImportCatalogUseCase; editor: OutletEditor; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
   config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
-  commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry };
+  commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry; plans: PlanAdmin };
   inclusion: { learning: LearningService; media: IMediaStore };
   flags: FeatureFlagService;
   support: SupportService;
   evidence: EvidenceService;
   changePlan: ChangePlanUseCase;
   legal: LegalService;
+  legalPublisher: LegalPublisher;
   backups?: BackupService;
   environment?: string;
   quality: { service: QualityService; feedback: FeedbackService; evaluateCurrent: (actorId: string) => Promise<EvaluationRun>; currentVersion: () => string };
@@ -402,7 +406,12 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     if (req.method === "GET" && path === "/public/datasets") return json(res, 200, deps.stats.openData.list());
     if (req.method === "GET" && path === "/public/topics") return json(res, 200, await deps.config.taxonomy.publicTree());
-    if (req.method === "GET" && path === "/public/legal") return json(res, 200, deps.legal.current());
+    if (req.method === "GET" && path === "/public/legal") return json(res, 200, await deps.legal.current());
+    const legalDoc = path.match(/^\/public\/legal\/([a-z]+)(?:\/([\w-]+))?$/);
+    if (req.method === "GET" && legalDoc) {
+      if (legalDoc[2] === "versions") return json(res, 200, await deps.legal.versions(legalDoc[1]!));
+      return json(res, 200, await deps.legal.document(legalDoc[1]!, legalDoc[2]));
+    }
     if (req.method === "GET" && path === "/public/countries") {
       return json(res, 200, deps.commerce.countries.all().map(({ planPrices: _p, ...c }) => ({ ...c, regions: c.regions.map((r) => r.name) })));
     }
@@ -680,6 +689,20 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       if (id && req.method === "POST" && om[2]) return json(res, 200, await ed.setFeedActive(who.userId, id, decodeURIComponent(om[2]), om[3] === "activate"));
     }
     // ---- Personas de la plataforma (users:manage_all) ----
+    const legalPub = path.match(/^\/v1\/admin\/legal\/([a-z]+)$/);
+    if (legalPub && req.method === "POST") {
+      return json(res, 201, await deps.legalPublisher.publish(who.userId, legalPub[1]!, pick(b, ["title", "summary", "body", "material", "draft"]) as never));
+    }
+    if (path.startsWith("/v1/admin/plans")) {
+      const pl = deps.commerce.plans;
+      if (req.method === "GET" && path === "/v1/admin/plans") return json(res, 200, await pl.list(who.userId));
+      const pm = path.match(/^\/v1\/admin\/plans\/([^/]+)(\/reset)?$/);
+      if (pm && req.method === "POST") {
+        const id = decodeURIComponent(pm[1]!);
+        if (pm[2]) return json(res, 200, await pl.reset(who.userId, id));
+        return json(res, 200, await pl.update(who.userId, id, pick(b, ["name", "description", "monthlyAmount", "yearlyAmount", "features", "limits"]) as never));
+      }
+    }
     if (path.startsWith("/v1/admin/")) {
       const pu = deps.users.platform;
       if (req.method === "GET" && path === "/v1/admin/roles") return json(res, 200, await pu.roleCatalog(who.userId));

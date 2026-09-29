@@ -62,7 +62,7 @@ import type {
 } from "../../domain/model";
 import type { SecretRecord, VerificationCodeRecord } from "../../domain/ports";
 import type { CollectionSchema } from "./collection";
-import type { Branding, Coupon, CouponRedemption, ReferralCode, ReferralUse } from "../../domain/model";
+import type { Branding, Coupon, CouponRedemption, LegalDocument, ReferralCode, ReferralUse } from "../../domain/model";
 import type { ConsentRecord } from "../../domain/model";
 import type { Classroom, ClassroomMember, FeatureFlag, LearningState, QuizAttempt, QuizItem, Ticket } from "../../domain/model";
 
@@ -218,6 +218,7 @@ export const schemas = {
       status: { type: "text", get: (s: Subscription) => s.status },
       createdAt: { type: "text", get: (s: Subscription) => s.createdAt },
       currentPeriodEnd: { type: "text", get: (s: Subscription) => s.currentPeriodEnd },
+      planId: { type: "text", get: (s: Subscription) => s.planId },
     },
   } satisfies CollectionSchema<Subscription>,
   usage: {
@@ -595,6 +596,11 @@ export const schemas = {
     idOf: (b: Branding) => b.organizationId,
     indexes: { customDomain: { type: "text", get: (b: Branding) => b.customDomain ?? null } },
   } satisfies CollectionSchema<Branding>,
+  legalDocuments: {
+    name: "legal_documents",
+    idOf: (d: LegalDocument) => `${d.id}@${d.version}`,
+    indexes: { docId: { type: "text", get: (d: LegalDocument) => d.id }, publishedAt: { type: "text", get: (d: LegalDocument) => d.publishedAt } },
+  } satisfies CollectionSchema<LegalDocument>,
   consents: {
     name: "legal_consents",
     idOf: (c: ConsentRecord) => c.id,

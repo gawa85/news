@@ -61,6 +61,7 @@ import type {
   ReplyDraft,
   Branding,
   ReferralSummary,
+  LegalDocument,
 } from "./types";
 
 
@@ -249,6 +250,12 @@ export class HttpSinHumoApi implements SinHumoApi {
     await this.request("POST", "/v1/subscription/resume");
   }
 
+  legalDocument(docId: string, version?: string) {
+    return this.request<LegalDocument>("GET", `/public/legal/${encodeURIComponent(docId)}${version ? `/${encodeURIComponent(version)}` : ""}`);
+  }
+  legalVersions(docId: string) {
+    return this.request<LegalDocument[]>("GET", `/public/legal/${encodeURIComponent(docId)}/versions`);
+  }
   async acceptLegal(docId: string, version: string) {
     await this.request("POST", "/v1/legal/accept", { docId, version });
   }

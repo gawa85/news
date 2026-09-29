@@ -15,7 +15,13 @@ export interface LegalDocument {
   summary: string;
   /** Mientras sea borrador, se muestra el aviso. */
   draft: boolean;
+  /** Texto completo (Markdown simple: títulos, párrafos, listas, citas, negrita). */
+  body?: string;
+  /** Quién publicó esta versión desde el backoffice (las del código: "sistema"). Interno. */
+  publishedBy?: string;
 }
+
+export const LEGAL_DOC_IDS: LegalDocId[] = ["terms", "privacy"];
 
 export interface ConsentRecord {
   id: string; // `${userId}|${docId}|${version}`

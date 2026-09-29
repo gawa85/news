@@ -451,3 +451,55 @@ export interface NewCorrection {
   outletId?: string;
   description: string;
 }
+
+// ---- Planes (plans:manage) ----
+export interface AdminPlanLimits {
+  analysesPerDay: number | null;
+  comparisonsPerMonth: number | null;
+  maxSourcesPerComparison: number | null;
+  maxIncludeUrls: number | null;
+  maxSavedRuleSets: number | null;
+  maxAlerts: number | null;
+  maxSourceConnections: number | null;
+  seats: number | null;
+}
+
+export interface AdminPlan {
+  id: string;
+  name: string;
+  description: string;
+  audience: "individual" | "organization";
+  price: { amount: number; currency: string; interval: "month" | "year" } | null;
+  yearlyPrice?: { amount: number; currency: string; interval: "year" };
+  features: string[];
+  limits: AdminPlanLimits;
+  tier: number;
+  customized?: { at: string; by: string };
+  liveSubscriptions: number;
+}
+
+export interface PlanCatalog {
+  plans: AdminPlan[];
+  features: { id: string; label: string }[];
+}
+
+/** Se manda el plan completo (lo editable). */
+export interface PlanPatch {
+  name: string;
+  description: string;
+  monthlyAmount?: number;
+  yearlyAmount: number | null;
+  features: string[];
+  limits: AdminPlanLimits;
+}
+
+// ---- Documentos legales (legal:publish) ----
+export interface NewLegalVersion {
+  title: string;
+  summary: string;
+  body: string;
+  /** Cambio importante: todas las personas vuelven a aceptar. */
+  material: boolean;
+  /** Todavía sin revisión legal (se muestra el aviso de borrador). */
+  draft: boolean;
+}

@@ -66,6 +66,8 @@ export interface Plan {
   limits: PlanLimits;
   /** Orden para sugerir upgrades (menor = más barato). */
   tier: number;
+  /** Editado desde el backoffice: el arranque ya no lo pisa con la versión del código. */
+  customized?: { at: Date; by: string };
 }
 
 /** `replaced`: la reemplazó otra (upgrade/downgrade). No cuenta como vigente. */

@@ -58,3 +58,20 @@ export function quote(plan: Plan, interval: BillingInterval, country: CountryCon
     yearlySavings: interval === "year" && monthly ? Math.max(0, monthly.amount * 12 - price.amount) : undefined,
   };
 }
+
+/**
+ * Qué le QUITA un cambio de plan a quien ya lo tiene: funciones o canales que desaparecen y
+ * límites que bajan (`null` es sin límite: pasar a un número también es bajar).
+ * Con suscripciones vigentes, esos cambios no se hacen sobre el plan (se crea otro).
+ */
+export function planReductions(before: Plan, after: Plan): string[] {
+  const out: string[] = [];
+  for (const f of before.features) if (!after.features.includes(f)) out.push(`deja de incluir ${f}`);
+  for (const c of before.channels) if (!after.channels.includes(c)) out.push(`deja de incluir el canal ${c}`);
+  for (const k of Object.keys(before.limits) as (keyof Plan["limits"])[]) {
+    const a = before.limits[k];
+    const b = after.limits[k];
+    if (b !== null && (a === null || b < a)) out.push(`baja ${k} de ${a ?? "sin límite"} a ${b}`);
+  }
+  return out;
+}

@@ -106,6 +106,9 @@ export interface LegalDocument {
   summary: string;
   material: boolean;
   draft: boolean;
+  publishedAt?: string;
+  /** Texto completo (Markdown simple). Sólo al pedir un documento. */
+  body?: string;
 }
 
 export interface PublicPlan {

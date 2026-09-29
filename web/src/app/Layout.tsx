@@ -71,6 +71,8 @@ export function Layout() {
             <Link to="/fe-de-erratas">Fe de erratas</Link>
             <Link to="/datos">Datos abiertos</Link>
             <Link to="/planes">Planes</Link>
+            <Link to="/legal/terminos">Términos</Link>
+            <Link to="/legal/privacidad">Privacidad</Link>
           </nav>
         </div>
       </footer>

@@ -33,6 +33,10 @@ import type {
   OutletFeed,
   OutletRecord,
   NewCorrection,
+  AdminPlan,
+  PlanCatalog,
+  PlanPatch,
+  NewLegalVersion,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -404,5 +408,43 @@ export class FakeBackoffice implements BackofficeApi {
   async publishCorrection(input: NewCorrection) {
     this.log("publishCorrection", input);
     return { id: "c9" };
+  }
+
+  planData: PlanCatalog = {
+    features: [
+      { id: "smoke_analysis", label: "Detector de humo" },
+      { id: "alerts", label: "Alertas" },
+      { id: "webhooks", label: "Webhooks" },
+    ],
+    plans: [
+      {
+        id: "personal", name: "Personal", description: "Para una persona", audience: "individual", tier: 1, liveSubscriptions: 12,
+        price: { amount: 4990, currency: "ARS", interval: "month" }, yearlyPrice: { amount: 49900, currency: "ARS", interval: "year" },
+        features: ["smoke_analysis", "alerts"],
+        limits: { analysesPerDay: 50, comparisonsPerMonth: 20, maxSourcesPerComparison: 5, maxIncludeUrls: 5, maxSavedRuleSets: 3, maxAlerts: 5, maxSourceConnections: 1, seats: 1 },
+      },
+    ],
+  };
+  async planCatalog() {
+    return this.planData;
+  }
+  async updatePlan(id: string, patch: PlanPatch) {
+    this.log("updatePlan", id, patch);
+    const p = this.planData.plans.find((x) => x.id === id)!;
+    const next: AdminPlan = {
+      ...p, name: patch.name, description: patch.description, features: patch.features, limits: patch.limits,
+      price: p.price && { ...p.price, amount: patch.monthlyAmount! }, customized: { at: "2026-09-28T10:00:00Z", by: "u1" },
+    };
+    this.planData = { ...this.planData, plans: this.planData.plans.map((x) => (x.id === id ? next : x)) };
+    return next;
+  }
+  async resetPlan(id: string) {
+    this.log("resetPlan", id);
+    return { ...this.planData.plans.find((x) => x.id === id)!, customized: undefined };
+  }
+
+  async publishLegal(docId: "terms" | "privacy", input: NewLegalVersion) {
+    this.log("publishLegal", docId, input);
+    return { version: "2026-09-29" };
   }
 }

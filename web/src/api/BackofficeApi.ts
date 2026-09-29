@@ -44,6 +44,10 @@ import type {
   OutletFeed,
   OutletRecord,
   NewCorrection,
+  AdminPlan,
+  PlanCatalog,
+  PlanPatch,
+  NewLegalVersion,
 } from "./backofficeTypes";
 
 /**
@@ -150,4 +154,12 @@ export interface BackofficeApi {
 
   // Fe de erratas (corrections:publish): corregir públicamente un error propio
   publishCorrection(input: NewCorrection): Promise<{ id: string }>;
+
+  // Planes (plans:manage): el precio nuevo vale para las suscripciones nuevas
+  planCatalog(): Promise<PlanCatalog>;
+  updatePlan(id: string, patch: PlanPatch): Promise<AdminPlan>;
+  resetPlan(id: string): Promise<AdminPlan>;
+
+  // Documentos legales (legal:publish): cada publicación es una versión nueva
+  publishLegal(docId: "terms" | "privacy", input: NewLegalVersion): Promise<{ version: string }>;
 }

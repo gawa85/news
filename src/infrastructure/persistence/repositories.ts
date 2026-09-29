@@ -180,6 +180,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
   const flags = f.collection(schemas.featureFlags);
   const media = f.collection(schemas.media);
   const consents = f.collection(schemas.consents);
+  const legalDocs = f.collection(schemas.legalDocuments);
   const evidence = f.collection(schemas.evidence);
   const evidenceBlobs = f.collection(schemas.evidenceBlobs);
   const digests = f.collection(schemas.digestDeliveries);
@@ -262,6 +263,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
         (await subs.find({ where: { subject: subjectKeyOf(subject), status: { in: ["trialing", "active", "past_due", "canceled"] } }, orderBy: { field: "createdAt", direction: "desc" }, limit: 1 }))[0],
       save: (s: Subscription) => subs.upsert(s),
       findAll: () => subs.find({ orderBy: { field: "createdAt", direction: "asc" } }),
+      countLive: (planId) => subs.count({ where: { planId, status: { in: ["active", "trialing", "past_due"] } } }),
       findDue: (now, limit) =>
         subs.find({ where: { status: { in: ["active", "trialing", "past_due"] }, currentPeriodEnd: { lte: new Date(now.getTime() - 1) } }, orderBy: { field: "currentPeriodEnd", direction: "asc" }, limit }),
     },
@@ -646,6 +648,10 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
       findById: (id) => tickets.get(id),
       findByRequester: (userId) => tickets.find({ where: { requesterId: userId }, orderBy: { field: "createdAt", direction: "desc" } }),
       findOpen: () => tickets.find({ where: { status: { in: ["open", "pending"] } }, orderBy: { field: "createdAt", direction: "asc" } }),
+    },
+    legalDocuments: {
+      findVersions: (docId) => legalDocs.find({ where: { docId }, orderBy: { field: "publishedAt", direction: "desc" } }),
+      save: (d) => legalDocs.upsert(d),
     },
     consents: {
       save: (c) => consents.upsert(c),

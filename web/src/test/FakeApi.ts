@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -200,6 +200,18 @@ export class FakeApi implements SinHumoApi {
   async resumeSubscription() {
     this.log("resumeSubscription");
     if (this.session?.subscription) this.session = { ...this.session, subscription: { ...this.session.subscription, cancelAtPeriodEnd: false } };
+  }
+  legalDocs: LegalDocument[] = [
+    { id: "terms", title: "Términos y condiciones", version: "2026-09-28", url: "/legal/terminos", summary: "Qué es y sus límites.", material: true, draft: false, publishedAt: "2026-09-28T10:00:00Z", body: "# Términos\n\nVersión nueva con **cambios**.\n\n- Uno\n- Dos\n\n<script>alert(1)</script>\n\nVer la [privacidad](/legal/privacidad) y no [esto](javascript:alert(1))." },
+    { id: "terms", title: "Términos y condiciones", version: "2026-09-borrador", url: "/legal/terminos", summary: "Borrador.", material: true, draft: true, publishedAt: "2026-09-24T00:00:00Z", body: "# Términos\n\n> BORRADOR\n\nTexto viejo." },
+  ];
+  async legalDocument(docId: string, version?: string) {
+    const d = this.legalDocs.find((x) => x.id === docId && (!version || x.version === version));
+    if (!d) throw new ApiError(404, "No existe ese documento.");
+    return d;
+  }
+  async legalVersions(docId: string) {
+    return this.legalDocs.filter((d) => d.id === docId).map(({ body: _b, ...d }) => d);
   }
   async acceptLegal(docId: string, version: string) {
     this.log("acceptLegal", docId, version);

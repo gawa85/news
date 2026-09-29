@@ -16,6 +16,8 @@ export interface ISubscriptionRepository {
   save(subscription: Subscription): Promise<void>;
   /** Todas (para métricas del negocio). Con muchos clientes conviene una vista materializada. */
   findAll(): Promise<Subscription[]>;
+  /** Cuántas vigentes (activas, en prueba o con pago atrasado) tiene un plan. */
+  countLive(planId: string): Promise<number>;
   /** Vigentes cuyo período ya terminó (para vencerlas). */
   findDue(now: Date, limit: number): Promise<Subscription[]>;
 }

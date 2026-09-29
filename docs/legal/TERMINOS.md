@@ -54,7 +54,7 @@ Hacemos lo razonable para que el servicio funcione de forma continua y respaldam
 
 ## 9. Datos personales
 
-Ver la [Política de privacidad](PRIVACIDAD.md).
+Ver la [Política de privacidad](/legal/privacidad).
 
 ## 10. Cambios en estos términos
 

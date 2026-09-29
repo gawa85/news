@@ -33,6 +33,8 @@ WORKDIR /app
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=dev /app/dist/src ./dist/src
 COPY package.json ./
+# Texto de términos y privacidad: se carga la primera vez (después se publican versiones desde el backoffice).
+COPY docs/legal ./docs/legal
 RUN mkdir -p /data /backups && chown node:node /data /backups
 USER node
 EXPOSE 8080

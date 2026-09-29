@@ -68,6 +68,8 @@ export const DOMAIN_EVENTS = [
   "campaign.reviewed",
   "catalog.imported",
   "outlet.saved",
+  "plan.changed",
+  "legal.published",
   "outlet.feed_changed",
   "model.promoted",
   "invoice.issued",

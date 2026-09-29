@@ -11,7 +11,7 @@ import type { IRawStore } from "./ops";
 import type { IReportScheduleRepository, IStatsRepository } from "./stats";
 import type { IBusinessRuleRepository, IPreferencesRepository, ITaxonomyRepository } from "./configuration";
 import type { IBrandingRepository, ICouponRepository, IReferralRepository } from "./commerce";
-import type { IConsentRepository, IFeatureFlagRepository, ILearningRepository, ITicketRepository } from "./inclusion";
+import type { IConsentRepository, ILegalDocumentRepository, IFeatureFlagRepository, ILearningRepository, ITicketRepository } from "./inclusion";
 import type { IJobRepository } from "./jobs";
 import type { IEvidenceRepository } from "./evidence";
 import type { IDigestDeliveryRepository } from "./digest";
@@ -139,6 +139,7 @@ export interface Repositories {
   featureFlags: IFeatureFlagRepository;
   media: IMediaRepository;
   consents: IConsentRepository;
+  legalDocuments: ILegalDocumentRepository;
   evidence: IEvidenceRepository;
   /** Copias archivadas guardadas en la base (cuando no hay disco ni S3 configurado). */
   evidenceBlobs: IEvidenceBlobRepository;

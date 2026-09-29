@@ -51,6 +51,7 @@ export const PERMISSIONS = [
   "support:handle", // atender tickets de soporte
   "learning:teach", // crear aulas y ver el progreso de sus estudiantes
   "ops:backup", // copias de seguridad (listar, crear, verificar)
+  "legal:publish", // publicar versiones nuevas de términos y privacidad
   "evidence:capture", // guardar copias de notas con huella y sello de tiempo
   "evidence:read_all", // ver todas las copias archivadas (verificadores)
   "abuse:manage", // bloquear o poner en observación personas, redes, números o mails

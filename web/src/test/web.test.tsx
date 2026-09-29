@@ -1052,6 +1052,78 @@ describe("Backoffice: personas", () => {
   });
 });
 
+describe("Backoffice: planes", () => {
+  test("cambiar precio y sumar una función; quitar una con suscripciones vigentes se avisa y no se manda", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["plans:manage"] })), "/admin/planes", bo);
+    const user = userEvent.setup();
+    const form = await screen.findByRole("form", { name: "Personal" });
+    expect(form).toHaveTextContent("12 suscripción(es) vigente(s)");
+
+    await user.click(within(form).getByRole("checkbox", { name: "Alertas" }));
+    expect(within(form).getByText(/quita Alertas: con suscripciones vigentes no se puede/)).toBeInTheDocument();
+    expect(within(form).getByRole("button", { name: "Guardar Personal" })).toBeDisabled();
+    await user.click(within(form).getByRole("checkbox", { name: "Alertas" }));
+
+    const price = within(form).getByLabelText(/^Precio mensual en ARS/);
+    await user.clear(price);
+    await user.type(price, "5990");
+    await user.click(within(form).getByRole("checkbox", { name: "Webhooks" }));
+    await user.click(within(form).getByRole("checkbox", { name: "Sin límite: Análisis por día (personal)" }));
+    await user.click(within(form).getByRole("button", { name: "Guardar Personal" }));
+    expect(await screen.findByText(/Quien ya estaba suscripto sigue pagando/)).toBeInTheDocument();
+    const [, patch] = bo.calls.find((c) => c.method === "updatePlan")!.args as [string, { monthlyAmount: number; yearlyAmount: number; features: string[]; limits: { analysesPerDay: number | null } }];
+    expect(patch.monthlyAmount).toBe(5990);
+    expect(patch.yearlyAmount).toBe(49900);
+    expect(patch.features).toEqual(["smoke_analysis", "alerts", "webhooks"]);
+    expect(patch.limits.analysesPerDay).toBeNull();
+    expect(await screen.findByRole("button", { name: "Volver a la versión del código" })).toBeInTheDocument();
+  });
+});
+
+describe("Documentos legales", () => {
+  test("página pública: el texto vigente como texto (el HTML no se ejecuta) y las versiones anteriores", async () => {
+    renderApp(new FakeApi(sampleMe()), "/legal/terminos");
+    const user = userEvent.setup();
+    expect(await screen.findByRole("heading", { level: 2, name: "Términos" })).toBeInTheDocument();
+    expect(screen.getByText("cambios", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("<script>alert(1)</script>")).toBeInTheDocument();
+    expect(document.querySelector("article script")).toBeNull();
+    expect(screen.getByRole("link", { name: "privacidad" })).toHaveAttribute("href", "/legal/privacidad");
+    expect(screen.queryByRole("link", { name: "esto" })).not.toBeInTheDocument();
+    expect(document.querySelector('article a[href^="javascript"]')).toBeNull();
+    await user.selectOptions(screen.getByLabelText("Otras versiones"), "2026-09-borrador");
+    expect(await screen.findByText("Estás viendo una versión anterior")).toBeInTheDocument();
+    expect(screen.getByText(/todavía no fue revisado/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Política de privacidad" })).toHaveAttribute("href", "/legal/privacidad");
+  });
+
+  test("una dirección que no es un documento: no encontrado", async () => {
+    renderApp(new FakeApi(sampleMe()), "/legal/otra-cosa");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(/no/i);
+  });
+
+  test("backoffice: sin revisión legal no se publica como definitivo; como borrador sí", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["legal:publish"] })), "/admin/legal", bo);
+    const user = userEvent.setup();
+    const text = await screen.findByLabelText(/^Texto completo/);
+    await user.clear(text);
+    await user.type(text, "# Términos\n\n" + "Texto nuevo de los términos. ".repeat(10));
+    await user.click(screen.getByRole("checkbox", { name: /^Cambio importante/ }));
+    await user.click(screen.getByRole("button", { name: "Publicar versión nueva" }));
+    expect(screen.getByText("Sin revisión legal, publicalo como borrador.")).toBeInTheDocument();
+    expect(bo.calls.some((c) => c.method === "publishLegal")).toBe(false);
+    await user.click(screen.getByRole("checkbox", { name: /^Es un borrador/ }));
+    await user.click(screen.getByRole("button", { name: "Publicar versión nueva" }));
+    expect(await screen.findByText(/Publicada la versión 2026-09-29. Se va a pedir aceptarla de nuevo./)).toBeInTheDocument();
+    const [docId, input] = bo.calls.find((c) => c.method === "publishLegal")!.args as [string, { material: boolean; draft: boolean; body: string }];
+    expect(docId).toBe("terms");
+    expect([input.material, input.draft]).toEqual([true, true]);
+    expect(input.body.startsWith("# Términos")).toBe(true);
+  });
+});
+
 describe("Backoffice: fe de erratas", () => {
   test("publicar: pide referencia y descripción; manda sólo lo de la corrección", async () => {
     const bo = new FakeBackoffice();

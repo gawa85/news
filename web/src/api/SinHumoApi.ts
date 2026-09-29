@@ -58,6 +58,7 @@ import type {
   ReplyDraft,
   Branding,
   ReferralSummary,
+  LegalDocument,
 } from "./types";
 
 /**
@@ -110,6 +111,9 @@ export interface SinHumoApi {
   cancelSubscription(): Promise<void>;
   resumeSubscription(): Promise<void>;
   acceptLegal(docId: string, version: string): Promise<void>;
+  /** Un documento legal completo: el vigente o una versión anterior. */
+  legalDocument(docId: string, version?: string): Promise<LegalDocument>;
+  legalVersions(docId: string): Promise<LegalDocument[]>;
   deleteAccount(confirmation: string): Promise<void>;
   /** Link para bajar todos mis datos (Ley 25.326). */
   myDataUrl(): string;
