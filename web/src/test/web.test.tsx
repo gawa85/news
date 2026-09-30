@@ -1211,6 +1211,35 @@ describe("Fuentes sugeridas (directorio de fuentes públicas)", () => {
   });
 });
 
+describe("Leer ahora", () => {
+  test("Mis fuentes: leer una fuente en el momento; otra vez enseguida, se explica que hay que esperar", async () => {
+    const api = new FakeApi(sampleMe({ plan: { ...sampleMe().plan, features: [...sampleMe().plan.features, "source_connections"] } }));
+    api.sourceList = [{ id: "s1", type: "rss", name: "Chequeado", config: { url: "https://chequeado.com/feed/" }, active: true, createdAt: "2026-09-28T12:00:00Z" }];
+    renderApp(api, "/fuentes");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Leer ahora Chequeado" }));
+    expect(await screen.findByText("Listo: 3 nota(s) nueva(s) analizada(s), 1 con humo. Están en tu historial.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Leer ahora Chequeado" }));
+    expect(await screen.findByText("Se leyó hace menos de un minuto. Probá de nuevo en un rato.")).toBeInTheDocument();
+  });
+
+  test("backoffice: leer un feed ahora y pedir la lectura de todos (una vez cada 5 minutos)", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["outlets:write"] })), "/admin/medios", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Leer todos los feeds ahora" }));
+    expect(await screen.findByText(/empezó la lectura de todos los feeds/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Leer todos los feeds ahora" }));
+    expect(await screen.findByText(/Ya se pidió hace poco/)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Nombre, id o sitio del medio"), "valle");
+    await user.click(await screen.findByRole("button", { name: "Editar Diario del Valle" }));
+    await user.click(await screen.findByRole("button", { name: "Leer ahora el feed https://ddv.example/rss" }));
+    expect(await screen.findByText("Listo: 4 nota(s) nueva(s).")).toBeInTheDocument();
+    expect(screen.queryByText(/Último error: HTTP 503/)).not.toBeInTheDocument();
+  });
+});
+
 describe("Ayuda en cada pantalla y glosario", () => {
   test("toda pantalla tiene ayuda (salvo las que ya son una explicación)", () => {
     // La portada, la bienvenida y el glosario ya son explicaciones; la invitación se explica sola.

@@ -74,6 +74,7 @@
  *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
  *  Webhooks (sólo con sesión web):  GET/POST /v1/webhooks { url, events }   POST /v1/webhooks/:id/(test|remove)
  *  Mis fuentes:  GET/POST /v1/sources { type: rss|email, name, config, secret? }   POST /v1/sources/:id/disconnect
+ *    POST /v1/sources/:id/sync (leer ahora; una vez por minuto)
  *    GET /v1/sources/directory (fuentes públicas conocidas)   POST /v1/sources/directory/add { ids }
  *    GET /v1/catalog/directory   POST /v1/catalog/directory/import { ids }   POST /v1/catalog/directory/verify   (outlets:write)
  *  Mis reglas de fuentes:  GET/POST /v1/rules { scope, name, urlRules }   POST /v1/rules/:id/deactivate
@@ -87,7 +88,7 @@
  *  Operación:  GET/POST /v1/ops/backups   POST /v1/ops/backups/verify { key }   (ops:backup, una operación por vez)   GET /health (con el ambiente)
  *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
  *    POST /v1/catalog/outlets { id?, name, url, kind, region, aliases }   GET /v1/catalog/outlets/:id (con feeds y propiedad)
- *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate)   (outlets:write)
+ *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate|read)   POST /v1/catalog/feeds/read-all   (outlets:write)
  *  Planes (plans:manage):  GET /v1/admin/plans   POST /v1/admin/plans { basedOn, name, description, monthlyAmount, yearlyAmount, tier }
  *    GET/POST /v1/admin/plan-migrations { fromPlanId, toPlanId, effectiveAt, message? }   GET /v1/admin/plan-migrations/notice?from=&to=   POST /v1/admin/plan-migrations/:id/cancel
  *    POST /v1/admin/plans/:id { name, description, monthlyAmount, yearlyAmount, features, limits }   POST /v1/admin/plans/:id/reset   POST /v1/admin/plans/:id/for-sale { forSale }
@@ -206,7 +207,7 @@ export interface HttpApiDeps {
   /** Webhooks salientes: ver, crear, probar y apagar. */
   webhooks?: WebhookService;
   /** Mis fuentes: ver, conectar (se prueba antes) y desconectar. */
-  sources?: { settings: SourceSettings; connect: ConnectSourceUseCase; directory: SourceDirectoryService };
+  sources?: { settings: SourceSettings; connect: ConnectSourceUseCase; directory: SourceDirectoryService; syncNow(input: { actorId: string; connectionId: string }): Promise<unknown> };
   /** Mis reglas de fuentes (personales y de la organización). */
   ruleSets?: { settings: RuleSetSettings; save: SaveRuleSetUseCase };
   /** Mi organización: equipo, invitaciones y roles. */
@@ -691,7 +692,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       return json(res, 200, r);
     }
     // ---- Medios del catálogo (outlets:write) ----
-    const om = path.match(/^\/v1\/catalog\/outlets(?:\/([^/]+)(?:\/feeds(?:\/([^/]+)\/(activate|deactivate))?)?)?$/);
+    if (req.method === "POST" && path === "/v1/catalog/feeds/read-all") return json(res, 202, await deps.catalog.editor.readAllNow(who.userId));
+    const om = path.match(/^\/v1\/catalog\/outlets(?:\/([^/]+)(?:\/feeds(?:\/([^/]+)\/(activate|deactivate|read))?)?)?$/);
     if (om) {
       const ed = deps.catalog.editor;
       const id = om[1] ? decodeURIComponent(om[1]) : undefined;
@@ -700,6 +702,7 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       }
       if (id && req.method === "GET" && !path.endsWith("/feeds")) return json(res, 200, await ed.get(who.userId, id));
       if (id && req.method === "POST" && path.endsWith("/feeds")) return json(res, 201, await ed.addFeed(who.userId, id, str(b.url, "url")));
+      if (id && req.method === "POST" && om[2] && om[3] === "read") return json(res, 200, await ed.readFeedNow(who.userId, id, decodeURIComponent(om[2])));
       if (id && req.method === "POST" && om[2]) return json(res, 200, await ed.setFeedActive(who.userId, id, decodeURIComponent(om[2]), om[3] === "activate"));
     }
     // ---- Personas de la plataforma (users:manage_all) ----
@@ -844,6 +847,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       const { secretRef: _s, userId: _u, cursor: _c, ...shown } = c;
       return json(res, 201, shown);
     }
+    const srcSync = path.match(/^\/v1\/sources\/([^/]+)\/sync$/);
+    if (req.method === "POST" && srcSync) return json(res, 200, await need(deps.sources).syncNow({ actorId: who.userId, connectionId: decodeURIComponent(srcSync[1]!) }));
     const srcOff = path.match(/^\/v1\/sources\/([^/]+)\/disconnect$/);
     if (req.method === "POST" && srcOff) {
       await need(deps.sources).settings.disconnect({ actorId: who.userId, connectionId: decodeURIComponent(srcOff[1]!) });

@@ -56,6 +56,7 @@ import type {
   FillLegalResult,
   CatalogDirectoryEntry,
   DirectoryCheck,
+  FeedReadResult,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -274,6 +275,12 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   addOutletFeed(outletId: string, url: string) {
     return this.request<OutletFeed>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds`, { url });
+  }
+  readOutletFeed(outletId: string, feedId: string) {
+    return this.request<FeedReadResult>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds/${enc(feedId)}/read`);
+  }
+  readAllFeeds() {
+    return this.request<{ queued: boolean }>("POST", "/v1/catalog/feeds/read-all");
   }
   setOutletFeedActive(outletId: string, feedId: string, active: boolean) {
     return this.request<OutletFeed>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds/${enc(feedId)}/${active ? "activate" : "deactivate"}`);

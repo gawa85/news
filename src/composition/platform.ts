@@ -670,6 +670,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     content: {
       connect: connectSource,
+      syncNow: (input: { actorId: string; connectionId: string }) => syncSources.syncNow(input),
       directory: new SourceDirectoryService(
         SOURCE_DIRECTORY,
         { list: (actorId) => sourceSettings.list(actorId), connect: (input) => connectSource.execute(input) },
@@ -730,7 +731,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     metrics,
     requestContext,
     participation: { narratives, campaigns, perspectives, rooms, events: eventRooms },
-    catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
+    catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries, { readFeed: (f) => ingestFeeds.readFeed(f), queue, clock }), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params },
     commerce: { service: commerce, referrals, branding, countries, plans: new PlanAdmin(repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, PLANS, FEATURE_LABELS, "gratis"), migrations: planMigrations },
@@ -785,7 +786,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     mediaCheck: p.mediaCheck,
     outletProfiles: p.outletProfiles,
     clock: p.core.clock,
-    sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect, directory: p.content.directory },
+    sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect, directory: p.content.directory, syncNow: p.content.syncNow },
     ruleSets: { settings: new RuleSetSettings(p.store.repos.ruleSets, p.authz, p.access), save: p.users.saveRules },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     users: { platform: p.users.platform, assignOutletRepresentative: p.users.assignOutletRepresentative, linkChannel: p.users.linkChannel },

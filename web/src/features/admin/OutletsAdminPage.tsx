@@ -42,6 +42,7 @@ export function OutletsAdminPage() {
         </section>
       )}
       <KnownOutlets onImported={() => void all.reload()} />
+      <ReadAllFeeds />
       <section className="card stack" aria-labelledby="buscar-medio">
         <h2 id="buscar-medio">Buscar</h2>
         <Field label="Nombre, id o sitio del medio">{(p) => <input {...p} className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} />}</Field>
@@ -196,6 +197,12 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
     const next = await bo.setOutletFeedActive(id, f.id, !f.active);
     onChange(record.feeds.map((x) => (x.id === next.id ? next : x)));
   });
+  const [readResult, setReadResult] = useState<{ url: string; articles: number; error?: string }>();
+  const read = useAction(async (f: OutletFeed) => {
+    const r = await bo.readOutletFeed(id, f.id);
+    onChange(record.feeds.map((x) => (x.id === r.feed.id ? r.feed : x)));
+    setReadResult({ url: f.url, articles: r.articles, error: r.error });
+  });
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (isWeb(url)) void add.run();
@@ -216,9 +223,16 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
                 <span style={{ wordBreak: "break-all" }}>
                   {f.url} {f.active ? <span className="badge badge--fact">Activo</span> : <span className="badge badge--neutral">Desactivado</span>}
                 </span>
-                <button className="btn btn--ghost btn--small" type="button" aria-label={`${f.active ? "Desactivar" : "Activar"} el feed ${f.url}`} disabled={toggle.pending} onClick={() => void toggle.run(f)}>
-                  {f.active ? "Desactivar" : "Activar"}
-                </button>
+                <span className="row">
+                  {f.active && (
+                    <button className="btn btn--ghost btn--small" type="button" aria-label={`Leer ahora el feed ${f.url}`} disabled={read.pending} onClick={() => void read.run(f)}>
+                      {read.pending ? "Leyendo…" : "Leer ahora"}
+                    </button>
+                  )}
+                  <button className="btn btn--ghost btn--small" type="button" aria-label={`${f.active ? "Desactivar" : "Activar"} el feed ${f.url}`} disabled={toggle.pending} onClick={() => void toggle.run(f)}>
+                    {f.active ? "Desactivar" : "Activar"}
+                  </button>
+                </span>
               </div>
               {(f.lastFetchedAt || f.lastError) && (
                 <span className="muted">
@@ -235,7 +249,12 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
           Agregar feed
         </button>
       </form>
-      <ErrorAlert error={add.error ?? toggle.error} />
+      <ErrorAlert error={add.error ?? toggle.error ?? read.error} />
+      {readResult && (
+        <p role="status" style={{ margin: 0 }}>
+          {readResult.error ? `No se pudo leer ${readResult.url}: ${readResult.error}` : readResult.articles ? `Listo: ${readResult.articles} nota(s) nueva(s).` : "Listo: no había notas nuevas."}
+        </p>
+      )}
     </div>
   );
 }
@@ -310,5 +329,31 @@ function KnownOutlets({ onImported }: { onImported: () => void }) {
         )}
       </div>
     </details>
+  );
+}
+
+/** Leer todos los feeds del catálogo ya (va a la cola: no hay que esperar en la pantalla). */
+function ReadAllFeeds() {
+  const bo = useBackoffice();
+  const run = useAction(() => bo.readAllFeeds());
+  return (
+    <div className="stack">
+      <div className="row" style={{ flexWrap: "wrap" }}>
+        <button className="btn btn--secondary btn--small" type="button" disabled={run.pending} onClick={() => void run.run()}>
+          Leer todos los feeds ahora
+        </button>
+        <span className="muted">Solos se leen cada 30 minutos.</span>
+      </div>
+      <ErrorAlert error={run.error} />
+      {run.result && (
+        <Notice tone="ok">
+          <p>
+            {run.result.queued
+              ? "Listo: empezó la lectura de todos los feeds. En unos minutos aparecen las notas nuevas."
+              : "Ya se pidió hace poco (se puede una vez cada 5 minutos): en unos minutos aparecen las notas nuevas."}
+          </p>
+        </Notice>
+      )}
+    </div>
   );
 }

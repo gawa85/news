@@ -589,3 +589,10 @@ export interface DirectoryCheck {
   items: number;
   error?: string;
 }
+
+/** Resultado de "Leer ahora" un feed del catálogo. */
+export interface FeedReadResult {
+  articles: number;
+  error?: string;
+  feed: OutletFeed;
+}

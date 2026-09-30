@@ -63,6 +63,7 @@ import type {
   ChannelLinkCode,
   UserDirectory,
   DirectoryAddResult,
+  SourceSyncResult,
 } from "./types";
 
 /**
@@ -115,6 +116,8 @@ export interface SinHumoApi {
   cancelSubscription(): Promise<void>;
   resumeSubscription(): Promise<void>;
   acceptLegal(docId: string, version: string): Promise<void>;
+  /** Leer una fuente conectada ahora (como mucho una vez por minuto). */
+  syncSource(connectionId: string): Promise<SourceSyncResult>;
   /** Fuentes públicas conocidas para agregar sin escribir la dirección. */
   sourceDirectory(): Promise<UserDirectory>;
   addFromDirectory(ids: string[]): Promise<DirectoryAddResult>;

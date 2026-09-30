@@ -45,6 +45,7 @@ import type {
   FillLegalResult,
   CatalogDirectoryEntry,
   DirectoryCheck,
+  FeedReadResult,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -405,6 +406,19 @@ export class FakeBackoffice implements BackofficeApi {
     const feed: OutletFeed = { id: `feed:${outletId}:2`, outletId, url, active: true };
     this.record(outletId).feeds.push(feed);
     return feed;
+  }
+  readAllCalls = 0;
+  async readOutletFeed(outletId: string, feedId: string): Promise<FeedReadResult> {
+    this.log("readOutletFeed", outletId, feedId);
+    const r = this.record(outletId);
+    const feed = { ...r.feeds.find((f) => f.id === feedId)!, lastFetchedAt: "2026-09-30T12:00:00Z", lastError: undefined };
+    r.feeds = r.feeds.map((f) => (f.id === feedId ? feed : f));
+    return { articles: 4, feed };
+  }
+  async readAllFeeds() {
+    this.log("readAllFeeds");
+    this.readAllCalls++;
+    return { queued: this.readAllCalls === 1 };
   }
   async setOutletFeedActive(outletId: string, feedId: string, active: boolean) {
     this.log("setOutletFeedActive", outletId, feedId, active);

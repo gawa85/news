@@ -5,7 +5,11 @@ import { SOURCE_DIRECTORY } from "../src/config/sourceDirectory";
 import { testPlatform } from "./helpers/platform";
 import { post, startWebApi } from "./helpers/webSession";
 
-const RSS = (title: string) => `<?xml version="1.0"?><rss version="2.0"><channel><title>${title}</title><item><title>Nota de ${title}</title><link>https://ejemplo.com/nota</link><pubDate>Tue, 29 Sep 2026 10:00:00 GMT</pubDate></item></channel></rss>`;
+// Dos notas: una con texto y otra que es sólo un video (sin texto: se saltea, no frena a la otra).
+const RSS = (title: string) =>
+  `<?xml version="1.0"?><rss version="2.0"><channel><title>${title}</title>` +
+  `<item><title>Nota de ${title}</title><link>https://ejemplo.com/nota-${encodeURIComponent(title)}</link><description>URGENTE!!! Reenviá a todos: mañana aumenta todo, lo dijo un funcionario.</description><pubDate>Tue, 29 Sep 2026 10:00:00 GMT</pubDate></item>` +
+  `<item><title>Sólo un video</title><link>https://ejemplo.com/video-${encodeURIComponent(title)}</link><pubDate>Tue, 29 Sep 2026 11:00:00 GMT</pubDate></item></channel></rss>`;
 // RSS 1.0 (como el de DW): <rdf:RDF> y la fecha en dc:date.
 const RDF = `<?xml version="1.0"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>DW</title></channel><item><title>Nota de DW</title><link>https://www.dw.com/es/nota</link><dc:date>2026-09-29T10:00:00Z</dc:date></item></rdf:RDF>`;
 const feedOf = (id: string) => SOURCE_DIRECTORY.find((e) => e.id === id)!.feedUrl;
@@ -90,6 +94,54 @@ describe("Directorio de fuentes públicas", () => {
 
     const checked = (await (await admin("/v1/catalog/directory/verify", post({}))).json()) as { id: string; ok: boolean; items: number }[];
     assert.equal(checked.length, SOURCE_DIRECTORY.length);
-    assert.ok(checked.every((c) => c.ok && c.items === 1), "todas responden en la prueba");
+    assert.ok(checked.every((c) => c.ok && c.items >= 1), "todas responden en la prueba");
+  });
+
+  test("leer ahora (persona): trae y analiza lo nuevo; como mucho una vez por minuto; sólo las propias", async () => {
+    const eva = await web.login("eva.leer@correo.example");
+    await plan(eva.userId, "profesional");
+    await eva("/v1/sources/directory/add", post({ ids: ["perfil"] }));
+    const conn = ((await (await eva("/v1/sources")).json()) as { connections: { id: string; name: string }[] }).connections.find((c) => c.name === "Perfil")!;
+    t.clock.advance(61_000);
+
+    const r = await eva(`/v1/sources/${conn.id}/sync`, post({}));
+    assert.equal(r.status, 200);
+    const res = (await r.json()) as { analyzed: number; withSmoke: number; error?: string };
+    assert.equal(res.error, undefined);
+    assert.equal(res.analyzed, 1);
+    assert.equal((await eva(`/v1/sources/${conn.id}/sync`, post({}))).status, 409, "hace menos de un minuto");
+
+    const other = await web.login("otra.leer@correo.example");
+    assert.equal((await other(`/v1/sources/${conn.id}/sync`, post({}))).status, 404, "no es suya");
+    t.clock.advance(61_000);
+    assert.equal((await eva(`/v1/sources/${conn.id}/sync`, post({}))).status, 200);
+  });
+
+  test("leer ahora (catálogo): un feed en el momento; si falla, no se pierde desde dónde buscar; todos van a la cola una vez cada 5 minutos", async () => {
+    const admin = await web.login("admin.leer@correo.example", ["platform_admin"]);
+    await admin("/v1/catalog/directory/import", post({ ids: ["ambito"] }));
+    const outlet = (await t.store.repos.outlets.findAll()).find((o) => o.id === "ambito")!;
+    const feed = (await t.store.repos.catalog.findFeeds(outlet.id))[0]!;
+    const url = `/v1/catalog/outlets/${outlet.id}/feeds/${encodeURIComponent(feed.id)}/read`;
+
+    const first = (await (await admin(url, post({}))).json()) as { articles: number; feed: { lastFetchedAt: string } };
+    assert.equal(first.articles, 2, "el catálogo guarda también la que sólo trae título");
+    assert.equal((await admin(url, post({}))).status, 409);
+
+    // El sitio se cae: el error queda, pero "desde cuándo buscar" no se mueve.
+    await t.store.repos.catalog.saveFeed({ ...(await t.store.repos.catalog.findFeeds(outlet.id))[0]!, url: "https://caido.example/rss" });
+    t.clock.advance(61_000);
+    const failed = (await (await admin(url, post({}))).json()) as { articles: number; error?: string; feed: { lastFetchedAt: string; lastError: string } };
+    assert.equal(failed.articles, 0);
+    assert.ok(failed.error);
+    assert.equal(failed.feed.lastFetchedAt, first.feed.lastFetchedAt, "no se saltean notas");
+    assert.equal((await admin(url, post({}))).status, 409, "la espera cuenta aunque haya fallado");
+
+    const reader = await web.login("lector.leer@correo.example");
+    assert.equal((await reader("/v1/catalog/feeds/read-all", post({}))).status, 403);
+    const all1 = await admin("/v1/catalog/feeds/read-all", post({}));
+    assert.equal(all1.status, 202);
+    assert.deepEqual(await all1.json(), { queued: true });
+    assert.deepEqual(await (await admin("/v1/catalog/feeds/read-all", post({}))).json(), { queued: false }, "ya está pedido");
   });
 });

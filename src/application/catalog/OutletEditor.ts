@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
 import { slugify, type FeedSource, type Outlet, type OutletKind, type Owner, type OwnershipRecord, type User } from "../../domain/model";
-import type { IAuthorizationService, ICatalogRepository, ICountryRegistry, IDomainEvents, IOutletReader, IOutletWriter, IUserRepository } from "../../domain/ports";
+import type { IAuthorizationService, ICatalogRepository, IClock, ICountryRegistry, IDomainEvents, IJobQueue, IOutletReader, IOutletWriter, IUserRepository } from "../../domain/ports";
 
 export const OUTLET_KINDS: OutletKind[] = ["newspaper", "digital", "tv", "radio", "wire_agency", "official"];
 
@@ -41,7 +41,32 @@ export class OutletEditor {
     private readonly authz: IAuthorizationService,
     private readonly events: IDomainEvents,
     private readonly countries?: ICountryRegistry,
+    /** Leer a mano: un feed en el momento, o todos en segundo plano (cola). */
+    private readonly reading?: { readFeed(feed: FeedSource): Promise<{ articles: number; error?: string }>; queue: IJobQueue; clock: IClock },
   ) {}
+
+  /** "Leer ahora" un feed. Como mucho una vez por minuto (haya salido bien o mal): no se castiga al sitio. */
+  async readFeedNow(actorId: string, outletId: string, feedId: string): Promise<{ articles: number; error?: string; feed: FeedSource }> {
+    await this.editor(actorId);
+    if (!this.reading) throw new ValidationError("La lectura de feeds no está configurada.");
+    const feed = (await this.catalog.findFeeds(outletId)).find((f) => f.id === feedId);
+    if (!feed) throw new NotFoundError("No existe ese feed.");
+    if (!feed.active) throw new ValidationError("El feed está desactivado: activalo primero.");
+    const last = feed.lastAttemptAt ?? feed.lastFetchedAt;
+    if (last && this.reading.clock.now().getTime() - last.getTime() < 60_000) throw new ConflictError("Se leyó hace menos de un minuto. Probá de nuevo en un rato.");
+    const r = await this.reading.readFeed(feed);
+    const updated = (await this.catalog.findFeeds(outletId)).find((f) => f.id === feedId) ?? feed;
+    return { ...r, feed: updated };
+  }
+
+  /** "Leer todos los feeds ahora": va a la cola (no deja la pantalla esperando). Una vez cada 5 minutos. */
+  async readAllNow(actorId: string): Promise<{ queued: boolean }> {
+    const actor = await this.editor(actorId);
+    if (!this.reading) throw new ValidationError("La lectura de feeds no está configurada.");
+    const window = Math.floor(this.reading.clock.now().getTime() / 300_000);
+    const job = await this.reading.queue.enqueue("ingest_feeds", { requestedBy: actor.id }, { dedupeKey: `ingest_feeds:manual:${window}`, maxAttempts: 1 });
+    return { queued: !!job };
+  }
 
   async get(actorId: string, outletId: string): Promise<OutletRecord> {
     await this.editor(actorId);

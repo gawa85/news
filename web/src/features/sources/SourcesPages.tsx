@@ -46,7 +46,7 @@ export function SourcesPage() {
           <h2 id="conectadas">Conectadas</h2>
           <ul className="plain-list stack">
             {d.connections.map((c) => (
-              <SourceItem key={c.id} c={c} onGone={() => list.setData({ ...d, connections: d.connections.filter((x) => x.id !== c.id) })} />
+              <SourceItem key={c.id} c={c} onGone={() => list.setData({ ...d, connections: d.connections.filter((x) => x.id !== c.id) })} onRead={() => void list.reload()} />
             ))}
           </ul>
         </section>
@@ -55,8 +55,13 @@ export function SourcesPage() {
   );
 }
 
-function SourceItem({ c, onGone }: { c: SourceConnection; onGone: () => void }) {
+function SourceItem({ c, onGone, onRead }: { c: SourceConnection; onGone: () => void; onRead: () => void }) {
   const api = useApi();
+  const read = useAction(async () => {
+    const r = await api.syncSource(c.id);
+    onRead();
+    return r;
+  });
   const off = useAction(async () => {
     await api.disconnectSource(c.id);
     onGone();
@@ -68,10 +73,25 @@ function SourceItem({ c, onGone }: { c: SourceConnection; onGone: () => void }) 
           <span className="badge badge--neutral">{c.type === "email" ? "Buzón" : "Feed"}</span> <strong>{c.name}</strong>{" "}
           <span className="muted mono">{c.type === "email" ? `${c.config.user ?? ""} @ ${c.config.host ?? ""}` : c.config.url}</span>
         </span>
-        <button className="btn btn--ghost btn--small" type="button" onClick={() => void off.run()} disabled={off.pending} aria-label={`Desconectar ${c.name}`}>
-          Desconectar
-        </button>
+        <span className="row">
+          <button className="btn btn--ghost btn--small" type="button" onClick={() => void read.run()} disabled={read.pending} aria-label={`Leer ahora ${c.name}`}>
+            {read.pending ? "Leyendo…" : "Leer ahora"}
+          </button>
+          <button className="btn btn--ghost btn--small" type="button" onClick={() => void off.run()} disabled={off.pending} aria-label={`Desconectar ${c.name}`}>
+            Desconectar
+          </button>
+        </span>
       </div>
+      <ErrorAlert error={read.error} title="No se pudo leer ahora" />
+      {read.result && (
+        <p role="status" style={{ margin: 0 }}>
+          {read.result.error
+            ? `No se pudo leer: ${read.result.error}`
+            : read.result.analyzed === 0
+              ? "Listo: no había nada nuevo."
+              : `Listo: ${read.result.analyzed} nota(s) nueva(s) analizada(s)${read.result.withSmoke ? `, ${read.result.withSmoke} con humo` : ", sin humo"}. Están en tu historial.`}
+        </p>
+      )}
       {c.lastError ? (
         <p role="status" style={{ margin: 0 }}>
           <span className="badge badge--danger">No anda</span> Desde el {formatDateTime(c.lastError.at)}: {c.lastError.message}

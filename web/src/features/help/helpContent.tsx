@@ -51,7 +51,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     steps: [
       "Lo más rápido: en «Fuentes sugeridas», filtrá por tipo o provincia, marcá las que quieras y tocá «Agregar las elegidas».",
       "Para otra fuente: elegí qué conectar (un feed o un buzón de mail) y pegá su dirección o los datos del buzón.",
-      "Listo: se revisa sola cada tanto y te avisamos si llega humo.",
+      "Listo: se revisa sola cada 15 minutos y te avisamos si llega humo. Si querés ver algo ya, tocá «Leer ahora» en la fuente (una vez por minuto).",
     ],
     example: "Feed de un medio: https://www.ejemplo.com.ar/rss",
     terms: ["feed", "imap"],
@@ -198,7 +198,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   },
   "/admin/documentos": { summary: "Resoluciones, informes y comunicados oficiales. Lo que cargás aparece como evidencia sugerida al verificar.", terms: ["verificacion"] },
   "/admin/medios": {
-    summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas). «Agregar medios conocidos» carga de una vez medios con su feed ya comprobado.",
+    summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas). «Agregar medios conocidos» carga de una vez medios con su feed ya comprobado. Los feeds se leen solos cada 30 minutos; «Leer ahora» lee uno en el momento y «Leer todos los feeds ahora», todos en segundo plano.",
     terms: ["feed"],
   },
   "/admin/catalogo": {

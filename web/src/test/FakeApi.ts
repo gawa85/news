@@ -213,6 +213,13 @@ export class FakeApi implements SinHumoApi {
       { id: "rionegro", name: "Diario Río Negro", site: "https://www.rionegro.com.ar", feedUrl: "https://www.rionegro.com.ar/feed/", category: "provincial", kind: "newspaper", country: "AR", province: "Río Negro", description: "Diario de Río Negro.", connected: false },
     ],
   };
+  syncCount = 0;
+  async syncSource(connectionId: string) {
+    this.log("syncSource", connectionId);
+    this.syncCount++;
+    if (this.syncCount > 1) throw new ApiError(409, "Se leyó hace menos de un minuto. Probá de nuevo en un rato.");
+    return { connectionId, analyzed: 3, withSmoke: 1 };
+  }
   async sourceDirectory() {
     return this.directory;
   }

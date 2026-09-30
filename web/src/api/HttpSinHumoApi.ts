@@ -66,6 +66,7 @@ import type {
   ChannelLinkCode,
   UserDirectory,
   DirectoryAddResult,
+  SourceSyncResult,
 } from "./types";
 
 
@@ -254,6 +255,9 @@ export class HttpSinHumoApi implements SinHumoApi {
     await this.request("POST", "/v1/subscription/resume");
   }
 
+  syncSource(connectionId: string) {
+    return this.request<SourceSyncResult>("POST", `/v1/sources/${encodeURIComponent(connectionId)}/sync`);
+  }
   sourceDirectory() {
     return this.request<UserDirectory>("GET", "/v1/sources/directory");
   }

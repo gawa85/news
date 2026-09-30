@@ -1,4 +1,4 @@
-import { AccessDeniedError, ValidationError } from "../../domain/errors";
+import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
 import { withinLimit, type ContentAnalysis, type ContentSourceType, type SourceConnection } from "../../domain/model";
 import type {
   IAuthorizationService,
@@ -66,6 +66,17 @@ export class ConnectSourceUseCase {
  * Tarea periódica: lee lo nuevo de cada fuente conectada, lo analiza y avisa.
  * Cada conexión es independiente: si una falla, las demás siguen.
  */
+const MANUAL_COOLDOWN_MS = 60_000;
+
+export interface SyncResult {
+  connectionId: string;
+  /** Notas o mails nuevos que se analizaron. */
+  analyzed: number;
+  /** Cuántos de esos tenían humo. */
+  withSmoke: number;
+  error?: string;
+}
+
 export class SyncSourcesUseCase {
   constructor(
     private readonly sources: IContentSource[],
@@ -76,29 +87,51 @@ export class SyncSourcesUseCase {
     private readonly logger: ILogger,
   ) {}
 
-  async execute(): Promise<{ connectionId: string; analyzed: number; error?: string }[]> {
-    const results = [];
-    for (const conn of await this.connections.findActive()) {
-      try {
-        const source = this.sources.find((s) => s.type === conn.type);
-        if (!source) throw new Error(`Sin integración para ${conn.type}`);
-        const secret = conn.secretRef ? await this.vault.get(conn.secretRef) : undefined;
-        const { items, cursor } = await source.pull(conn, secret);
-        let analyzed = 0;
-        for (const item of items) {
-          await this.gateway.analyzeContent({ userId: conn.userId, channel: "web" }, { ...item, connectionId: conn.id });
-          analyzed++;
-        }
-        await this.connections.save({ ...conn, cursor: cursor ?? conn.cursor, lastSyncAt: this.clock.now(), lastError: undefined });
-        results.push({ connectionId: conn.id, analyzed });
-      } catch (err) {
-        this.logger.warn("Falló la sincronización de una fuente", { connectionId: conn.id, error: String(err) });
-        const message = err instanceof Error ? err.message : String(err);
-        await this.connections.save({ ...conn, lastError: { at: this.clock.now(), message: message.slice(0, 300) } }).catch(() => undefined);
-        results.push({ connectionId: conn.id, analyzed: 0, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
+  /** Lo corre la cola cada 15 minutos: todas las fuentes activas. */
+  async execute(): Promise<SyncResult[]> {
+    const results: SyncResult[] = [];
+    for (const conn of await this.connections.findActive()) results.push(await this.syncOne(conn));
     return results;
+  }
+
+  /**
+   * "Leer ahora" desde la web: una fuente de la persona, en el momento. Como mucho una vez por
+   * minuto por fuente (cuenta también si falló): no se castiga al sitio ni al buzón.
+   */
+  async syncNow(input: { actorId: string; connectionId: string }): Promise<SyncResult> {
+    const conn = await this.connections.findById(input.connectionId);
+    if (!conn || conn.userId !== input.actorId || !conn.active) throw new NotFoundError("No existe esa fuente.");
+    const last = Math.max(conn.lastSyncAt?.getTime() ?? 0, conn.lastError?.at.getTime() ?? 0);
+    if (this.clock.now().getTime() - last < MANUAL_COOLDOWN_MS) throw new ConflictError("Se leyó hace menos de un minuto. Probá de nuevo en un rato.");
+    return this.syncOne(conn);
+  }
+
+  private async syncOne(conn: SourceConnection): Promise<SyncResult> {
+    try {
+      const source = this.sources.find((s) => s.type === conn.type);
+      if (!source) throw new Error(`Sin integración para ${conn.type}`);
+      const secret = conn.secretRef ? await this.vault.get(conn.secretRef) : undefined;
+      const { items, cursor } = await source.pull(conn, secret);
+      let analyzed = 0;
+      let withSmoke = 0;
+      for (const item of items) {
+        try {
+          const a = await this.gateway.analyzeContent({ userId: conn.userId, channel: "web" }, { ...item, connectionId: conn.id });
+          analyzed++;
+          if (a.smoke.findings.length > 0) withSmoke++;
+        } catch (err) {
+          // Una nota sin texto (sólo título o video) no frena a las demás; el cupo o el plan, sí.
+          if (!(err instanceof ValidationError)) throw err;
+        }
+      }
+      await this.connections.save({ ...conn, cursor: cursor ?? conn.cursor, lastSyncAt: this.clock.now(), lastError: undefined });
+      return { connectionId: conn.id, analyzed, withSmoke };
+    } catch (err) {
+      this.logger.warn("Falló la sincronización de una fuente", { connectionId: conn.id, error: String(err) });
+      const message = err instanceof Error ? err.message : String(err);
+      await this.connections.save({ ...conn, lastError: { at: this.clock.now(), message: message.slice(0, 300) } }).catch(() => undefined);
+      return { connectionId: conn.id, analyzed: 0, withSmoke: 0, error: message };
+    }
   }
 }
 

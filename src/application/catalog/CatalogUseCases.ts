@@ -1,5 +1,5 @@
 import { AccessDeniedError, NotFoundError } from "../../domain/errors";
-import { normalizeRegion, stableArticleId, type Article, type ImportReport } from "../../domain/model";
+import { normalizeRegion, stableArticleId, type Article, type FeedSource, type ImportReport } from "../../domain/model";
 import type {
   IArticleWriter,
   IAuthorizationService,
@@ -109,32 +109,42 @@ export class IngestFeedsUseCase {
     private readonly maxPerFeed = 50,
   ) {}
 
+  /** Lo corre la cola cada 30 minutos: todos los feeds activos. */
   async execute(): Promise<{ feeds: number; articles: number; errors: number }> {
     let total = 0;
     let errors = 0;
     const feeds = await this.catalog.findActiveFeeds();
     for (const feed of feeds) {
-      try {
-        const outlet = await this.outlets.findById(feed.outletId);
-        if (!outlet) throw new Error("medio inexistente");
-        const since = feed.lastFetchedAt ?? new Date(0);
-        const fresh: Article[] = [];
-        for (const e of (await this.reader.read(feed.url)).filter((x) => x.link && x.publishedAt > since).slice(0, this.maxPerFeed)) {
-          fresh.push({
-            id: stableArticleId(e.link!), outletId: outlet.id, url: e.link!, title: e.title, body: e.text,
-            publishedAt: e.publishedAt, region: outlet.region, topic: (await this.classifier.classify(`${e.title}. ${e.text}`)) ?? "otros",
-          });
-        }
-        await this.articles.saveMany(fresh);
-        for (const a of fresh) await this.claims.saveMany(await this.extractor.extract(a));
-        await this.catalog.saveFeed({ ...feed, lastFetchedAt: this.clock.now(), lastError: undefined });
-        total += fresh.length;
-      } catch (err) {
-        errors++;
-        await this.catalog.saveFeed({ ...feed, lastError: err instanceof Error ? err.message : String(err) });
-        this.logger.warn("Falló un feed", { feed: feed.url, error: String(err) });
-      }
+      const r = await this.readFeed(feed);
+      total += r.articles;
+      if (r.error) errors++;
     }
     return { feeds: feeds.length, articles: total, errors };
+  }
+
+  /** Lee UN feed: guarda las notas nuevas (sin duplicar) y sus afirmaciones. Un error queda en el feed. */
+  async readFeed(feed: FeedSource): Promise<{ articles: number; error?: string }> {
+    try {
+      const outlet = await this.outlets.findById(feed.outletId);
+      if (!outlet) throw new Error("medio inexistente");
+      const since = feed.lastFetchedAt ?? new Date(0);
+      const fresh: Article[] = [];
+      for (const e of (await this.reader.read(feed.url)).filter((x) => x.link && x.publishedAt > since).slice(0, this.maxPerFeed)) {
+        fresh.push({
+          id: stableArticleId(e.link!), outletId: outlet.id, url: e.link!, title: e.title, body: e.text,
+          publishedAt: e.publishedAt, region: outlet.region, topic: (await this.classifier.classify(`${e.title}. ${e.text}`)) ?? "otros",
+        });
+      }
+      await this.articles.saveMany(fresh);
+      for (const a of fresh) await this.claims.saveMany(await this.extractor.extract(a));
+      await this.catalog.saveFeed({ ...feed, lastFetchedAt: this.clock.now(), lastAttemptAt: this.clock.now(), lastError: undefined });
+      return { articles: fresh.length };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      // (lastFetchedAt no cambia: es desde cuándo buscar notas; si no, se saltearían las de mientras falló)
+      await this.catalog.saveFeed({ ...feed, lastAttemptAt: this.clock.now(), lastError: error });
+      this.logger.warn("Falló un feed", { feed: feed.url, error });
+      return { articles: 0, error };
+    }
   }
 }

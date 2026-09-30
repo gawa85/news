@@ -692,3 +692,11 @@ export interface UserDirectory {
 export interface DirectoryAddResult {
   results: { id: string; name: string; ok: boolean; error?: string }[];
 }
+
+/** Resultado de "Leer ahora" una fuente conectada. */
+export interface SourceSyncResult {
+  connectionId: string;
+  analyzed: number;
+  withSmoke: number;
+  error?: string;
+}

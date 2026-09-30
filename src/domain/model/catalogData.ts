@@ -7,7 +7,10 @@ export interface FeedSource {
   outletId: string;
   url: string;
   active: boolean;
+  /** Hasta cuándo se leyeron sus notas (la próxima lectura busca las posteriores). */
   lastFetchedAt?: Date;
+  /** Último intento de leerlo, haya salido bien o mal (para no leerlo a mano muchas veces seguidas). */
+  lastAttemptAt?: Date;
   lastError?: string;
 }
 
