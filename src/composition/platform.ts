@@ -448,7 +448,7 @@ export function buildPlatform(cfg: PlatformConfig) {
   const verification = new VerificationDesk(
     repos.verificationTasks, repos.verdicts, repos.officialDocuments,
     [new DocumentLibraryProvider(repos.officialDocuments), new DatosGobArSeriesProvider(cfg.http, cfg.statisticsCatalog ?? []), ...(cfg.primarySources ?? [])],
-    repos.users, authz, domainEvents, ids, clock, logger,
+    repos.users, authz, domainEvents, ids, clock, logger, { claims: repos.claims, articles: repos.articles },
   );
 
   // ---- Facturación ----

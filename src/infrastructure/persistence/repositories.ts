@@ -219,6 +219,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     },
     claims: {
       findByArticleIds: (ids) => claims.find({ where: { articleId: { in: ids } } }),
+      findByIds: async (ids) => (await Promise.all([...new Set(ids)].map((id) => claims.get(id)))).filter((c): c is Claim => !!c),
       saveMany: async (items: Claim[]) => {
         // Reprocesar un artículo reemplaza sus afirmaciones (no duplica).
         await claims.deleteWhere({ where: { articleId: { in: [...new Set(items.map((c) => c.articleId))] } } });

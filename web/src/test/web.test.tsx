@@ -370,6 +370,52 @@ describe("Herramientas del plan", () => {
     expect(screen.queryByRole("link", { name: "Ir a Verificación" })).not.toBeInTheDocument();
   });
 
+  test("dato repetido: qué dijo cada medio, dónde buscar, analizarlo y quién lo dijo primero (sin ser del equipo)", async () => {
+    renderApp(new FakeApi(proMe()), "/credibilidad/panorama");
+    const user = userEvent.setup();
+    const list = (await screen.findByRole("heading", { name: "Datos repetidos que nadie verificó" })).parentElement!;
+    const item = within(list).getByText("«El desempleo subió al 7,9 %»").closest("li")!;
+    await user.click(within(item).getByText("Qué dijo cada medio"));
+    await user.click(within(item).getByText("Buscar información"));
+    const note = within(item).getAllByRole("link").find((l) => l.getAttribute("href") === "https://nortehoy.example/empleo")!;
+    expect(note).toHaveTextContent(/^Ver la nota del .+ de Norte Hoy \(se abre en otra pestaña\)$/);
+    expect(item).toHaveTextContent("Norte Hoy: «El desempleo bajó al 6,4 % según el INDEC»");
+    expect(within(item).getAllByRole("link").find((l) => l.textContent?.startsWith("Google ("))!.getAttribute("href")).toMatch(/^https:\/\/www\.google\.com\/search\?q=El%20desempleo%20subi%C3%B3/);
+    expect(within(item).getAllByRole("link").find((l) => l.textContent?.startsWith("Chequeado"))).toHaveAttribute("href", expect.stringMatching(/^https:\/\/chequeado\.com\/\?s=/));
+    expect(within(item).getByRole("link", { name: "Analizar el texto" })).toHaveAttribute("href", "/analizar?texto=El%20desempleo%20subi%C3%B3%20al%207%2C9%20%25");
+    expect(within(item).getByRole("link", { name: "¿Quién lo dijo primero?" })).toHaveAttribute("href", "/origen?url=https%3A%2F%2Fddv.example%2Fdesempleo");
+    expect(within(item).queryByRole("button", { name: "Verificar acá" })).not.toBeInTheDocument();
+    // El que ya está en verificación lo dice.
+    expect(within(within(list).getByText("«La inflación de agosto fue del 2,1 %»").closest("li")!).getByText("En verificación")).toBeInTheDocument();
+  });
+
+  test("dato repetido: el equipo lo verifica ahí mismo (crea la tarea, la toma, carga evidencia y resuelve)", async () => {
+    const me = proMe();
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi({ ...me, permissions: [...(me.permissions ?? []), "verdicts:write"] }), "/credibilidad/panorama", bo);
+    const user = userEvent.setup();
+    const list = (await screen.findByRole("heading", { name: "Datos repetidos que nadie verificó" })).parentElement!;
+    const item = within(list).getByText("«El desempleo subió al 7,9 %»").closest("li")!;
+    await user.click(within(item).getByRole("button", { name: "Verificar acá" }));
+    expect(bo.calls.find((c) => c.method === "createVerificationTask")?.args).toEqual([["k2", "k3"], true]);
+    expect(await within(item).findByRole("heading", { name: "¿Es cierto? «El desempleo subió al 7,9 %»" })).toBeInTheDocument();
+    expect(within(item).getByText("En verificación")).toBeInTheDocument();
+
+    await user.click(within(item).getByRole("button", { name: "Buscar en fuentes oficiales" }));
+    expect(await within(item).findByText("Boletín Oficial")).toBeInTheDocument();
+    await user.click(within(item).getByLabelText("Falso"));
+    await user.type(within(item).getByLabelText(/^Nota/), "El INDEC informó 7,9 %: la cifra de 6,4 % es falsa.");
+    await user.click(within(item).getByRole("button", { name: "Resolver" }));
+    expect(await within(item).findByText(/Resuelta: el veredicto ya cuenta/)).toBeInTheDocument();
+    expect(within(item).getByText("Verificado")).toBeInTheDocument();
+    expect(within(item).queryByRole("button", { name: /verificación|Verificar/ })).not.toBeInTheDocument();
+  });
+
+  test("analizar y ¿quién lo dijo?: el texto o el link pueden venir en el enlace", async () => {
+    renderApp(new FakeApi(proMe()), "/analizar?texto=El%20desempleo%20subi%C3%B3%20al%207%2C9%20%25");
+    expect(await screen.findByDisplayValue("El desempleo subió al 7,9 %")).toBeInTheDocument();
+  });
+
   test("¿esto es humo?: responder y ver la explicación", async () => {
     const api = new FakeApi(sampleMe());
     renderApp(api, "/jugar");

@@ -45,7 +45,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   },
   "/credibilidad/panorama": {
     summary: "Todos los medios juntos: cuánto de lo que publica cada uno está corroborado, y los datos que más se repiten entre medios sin que nadie los haya verificado.",
-    steps: ["Elegí un tema (o dejalo vacío para ver todos) y el período.", "Compará los medios: el estado dice si hay con qué respaldar el puntaje.", "Mirá «Datos repetidos que nadie verificó»: por ahí conviene empezar a corroborar."],
+    steps: ["Elegí un tema (o dejalo vacío para ver todos) y el período.", "Compará los medios: el estado dice si hay con qué respaldar el puntaje.", "Mirá «Datos repetidos que nadie verificó»: por ahí conviene empezar a corroborar.", "En cada dato: «Qué dijo cada medio» (con la nota), «Buscar información» (Google, Chequeado, datos oficiales), «Analizar el texto» y «¿Quién lo dijo primero?».", "Si sos del equipo de verificación, «Verificar acá»: se crea la tarea, buscás en fuentes oficiales, cargás la evidencia con su link y marcás si es cierto, falso o está en disputa."],
     example: "Si cinco medios dicen «la inflación fue 2,1 %», no por eso es cierto: puede que todos hayan copiado el mismo cable. Hay que ir a la fuente (el INDEC).",
     terms: ["corroborar", "cotejo", "credibilidad"],
   },

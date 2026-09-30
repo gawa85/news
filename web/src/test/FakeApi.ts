@@ -80,8 +80,18 @@ export class FakeApi implements SinHumoApi {
         { outletId: "nortehoy", outletName: "Norte Hoy", articles: 12, overall: null, verification: { status: "unverified", note: "" }, dimensions: [dim("corroboration", "Cotejo con otros medios", null), dim("language", "Humo en el lenguaje", 1)] },
       ],
       toVerify: [
-        { text: "La inflación de agosto fue del 2,1 %", outlets: ["Diario del Valle", "Norte Hoy", "Ámbito"], conflicting: false, numbers: [2.1] },
-        { text: "El desempleo subió al 7,9 %", outlets: ["Diario del Valle", "Norte Hoy"], conflicting: true, numbers: [7.9, 6.4] },
+        {
+          text: "La inflación de agosto fue del 2,1 %", outlets: ["Diario del Valle", "Norte Hoy", "Ámbito"], conflicting: false, numbers: [2.1], topic: "inflación",
+          claims: [{ claimId: "k1", outletId: "ddv", outletName: "Diario del Valle", text: "La inflación de agosto fue del 2,1 %", articleTitle: "Inflación", articleUrl: "https://ddv.example/inflacion", publishedAt: "2026-09-15T12:00:00Z" }],
+          task: { id: "vt-otra", status: "assigned" as const, assigneeId: "u2" },
+        },
+        {
+          text: "El desempleo subió al 7,9 %", outlets: ["Diario del Valle", "Norte Hoy"], conflicting: true, numbers: [7.9, 6.4], topic: "empleo",
+          claims: [
+            { claimId: "k2", outletId: "ddv", outletName: "Diario del Valle", text: "El desempleo subió al 7,9 % según el INDEC", articleTitle: "Desempleo", articleUrl: "https://ddv.example/desempleo", publishedAt: "2026-09-16T12:00:00Z" },
+            { claimId: "k3", outletId: "nortehoy", outletName: "Norte Hoy", text: "El desempleo bajó al 6,4 % según el INDEC", articleTitle: "Empleo", articleUrl: "https://nortehoy.example/empleo", publishedAt: "2026-09-16T13:00:00Z" },
+          ],
+        },
       ],
       totals: { articles: 52, factClaims: 300, verifiedClaims: 4 },
     };

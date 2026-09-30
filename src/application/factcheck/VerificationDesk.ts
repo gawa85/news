@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
 import type { DomainEvent, EvidenceItem, OfficialDocument, User, VerdictStatus, VerificationTask } from "../../domain/model";
+import { figuresOf } from "../../domain/rules/figures";
 import type {
+  IArticleReader,
   IAuthorizationService,
+  IClaimReader,
   IClock,
   IDomainEvents,
   IEventBus,
@@ -90,7 +93,57 @@ export class VerificationDesk {
     private readonly ids: IIdGenerator,
     private readonly clock: IClock,
     private readonly logger: ILogger,
+    /** Para armar tareas a partir de afirmaciones del catálogo (los datos repetidos del panorama). */
+    private readonly catalog?: { claims: IClaimReader; articles: IArticleReader },
   ) {}
+
+  /**
+   * MANDAR A VERIFICAR afirmaciones que repiten varios medios (desde el panorama de credibilidad).
+   * Si ya hay una tarea abierta con alguna de ellas, se usa esa (no se duplica el trabajo).
+   * Con `take`, quien la pide la toma en el mismo paso.
+   */
+  async fromClaims(input: { actorId: string; claimIds: string[]; take?: boolean }): Promise<VerificationTask> {
+    const actor = await this.checker(input.actorId);
+    if (!this.catalog) throw new ValidationError("La verificación desde el panorama no está configurada.");
+    const ids = [...new Set(Array.isArray(input.claimIds) ? input.claimIds.filter((x): x is string => typeof x === "string") : [])];
+    if (ids.length === 0 || ids.length > 50) throw new ValidationError("Elegí entre 1 y 50 afirmaciones.");
+    const claims = (await this.catalog.claims.findByIds(ids)).filter((c) => c.kind === "fact");
+    if (claims.length !== ids.length) throw new NotFoundError("Alguna de esas afirmaciones no existe (o no es un dato).");
+
+    const open = [...(await this.tasks.findByStatus("assigned", 500)), ...(await this.tasks.findByStatus("open", 500))];
+    let task = open.find((t) => t.claimIds.some((id) => ids.includes(id)));
+    if (!task) {
+      const articles = await Promise.all([...new Set(claims.map((c) => c.articleId))].map((id) => this.catalog!.articles.findById(id)));
+      const topics = new Map<string, number>();
+      for (const a of articles) if (a) topics.set(a.topic, (topics.get(a.topic) ?? 0) + 1);
+      const topic = [...topics].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "otros";
+      const shortest = claims.reduce((a, b) => (b.text.length < a.text.length ? b : a));
+      const outletIds = [...new Set(claims.map((c) => c.outletId))];
+      const signature = createHash("sha256").update([...ids].sort().join("|")).digest("hex").slice(0, 24);
+      const fresh: VerificationTask = {
+        id: `vt_${signature}`,
+        topic,
+        question: `¿Es cierto? «${shortest.text.replace(/\s+/g, " ").trim()}»`,
+        claimIds: ids,
+        outletIds,
+        figures: [...new Set(claims.flatMap(figuresOf))],
+        priority: outletIds.length * 10 + ids.length,
+        status: "open",
+        evidence: [],
+        createdAt: this.clock.now(),
+      };
+      try {
+        await this.tasks.insert(fresh);
+        await this.events.emit("verification.task_created", { userId: actor.id }, { topic, outlets: outletIds.length, from: "panorama" }, { type: "verification_task", id: fresh.id });
+        task = fresh;
+      } catch (err) {
+        if (!(err instanceof ConflictError)) throw err;
+        task = await this.task(fresh.id);
+      }
+    }
+    if (input.take && task.status === "open") return this.take(actor.id, task.id);
+    return task;
+  }
 
   async queue(actorId: string, limit = 50): Promise<VerificationTask[]> {
     await this.checker(actorId);

@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Notice, Page } from "../../ui/components";
@@ -12,7 +12,9 @@ const EXAMPLE = "URGENTE!!! Reenviá a todos: mañana cortan el agua en todo el 
 export function AnalyzePage() {
   const api = useApi();
   const { me, refresh } = useSession();
-  const [text, setText] = useState("");
+  const [params] = useSearchParams();
+  // (desde el panorama de credibilidad: "Analizar el texto")
+  const [text, setText] = useState(() => params.get("texto")?.slice(0, 5000) ?? "");
   const [touched, setTouched] = useState(false);
   const result = useRef<HTMLDivElement>(null);
   const analyze = useAction(async (t: string) => {

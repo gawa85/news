@@ -104,6 +104,45 @@ describe("Credibilidad: corroborar, no sólo tener datos", () => {
 
     assert.equal((await u("/v1/credibility/overview", post({ from: period.to, to: period.from }))).status, 400);
   });
+
+  test("desde el panorama: qué dijo cada medio, mandar a verificar (sin duplicar), resolver y que cuente", async () => {
+    type Item = { text: string; topic: string; claims: { claimId: string; outletName: string; articleUrl: string }[]; task?: { id: string; status: string } };
+    const overview = async (who: Awaited<ReturnType<typeof web.login>>) =>
+      ((await (await who("/v1/credibility/overview", post({ topic: "inflación", ...period }))).json()) as { toVerify: Item[]; rows: { outletId: string; verification: { status: string } }[] });
+    const checker = await web.login("verifica.panorama@correo.example", ["platform_admin"]);
+    const cur = await t.store.repos.subscriptions.findCurrent({ type: "user", id: checker.userId });
+    if (cur) await t.store.repos.subscriptions.save({ ...cur, status: "replaced" });
+    await t.store.repos.subscriptions.save({ id: "sub-verifica", subject: { type: "user", id: checker.userId }, planId: "profesional", status: "active", currentPeriodEnd: new Date("2027-06-01"), createdAt: new Date(t.clock.now().getTime() + 1000) });
+
+    const jobs = (await overview(checker)).toVerify.find((x) => /desempleo/.test(x.text))!;
+    assert.equal(jobs.topic, "inflación");
+    assert.deepEqual(jobs.claims.map((c) => c.outletName).sort(), ["COR-A", "COR-B"]);
+    assert.ok(jobs.claims.every((c) => c.articleUrl.startsWith("https://")));
+    assert.equal(jobs.task, undefined);
+
+    // Quien no es del equipo de verificación no puede.
+    const reader = await web.login("lector.panorama@correo.example");
+    assert.equal((await reader("/v1/verification/tasks", post({ claimIds: jobs.claims.map((c) => c.claimId) }))).status, 403);
+
+    const ids = jobs.claims.map((c) => c.claimId);
+    const created = (await (await checker("/v1/verification/tasks", post({ claimIds: ids, take: true }))).json()) as { id: string; status: string; question: string; outletIds: string[] };
+    assert.equal(created.status, "assigned");
+    assert.match(created.question, /^¿Es cierto\? «/);
+    const again = (await (await checker("/v1/verification/tasks", post({ claimIds: [ids[0]] }))).json()) as { id: string };
+    assert.equal(again.id, created.id, "no se duplica: se usa la que ya está");
+    assert.equal((await overview(checker)).toVerify.find((x) => /desempleo/.test(x.text))!.task?.status, "assigned");
+    assert.equal((await checker("/v1/verification/tasks", post({ claimIds: ["no-existe"] }))).status, 404);
+    assert.equal((await checker("/v1/verification/tasks", post({ claimIds: [] }))).status, 400);
+
+    // Resolver: con evidencia y nota; cuenta para la credibilidad y sale de la lista.
+    const tid = encodeURIComponent(created.id);
+    await checker(`/v1/verification/tasks/${tid}/evidence`, post({ source: "INDEC", description: "EPH segundo trimestre: 7,9 %", url: "https://www.indec.gob.ar/eph" }));
+    const done = await checker(`/v1/verification/tasks/${tid}/resolve`, post({ verdicts: { [ids.find((i) => i.includes("cor-a"))!]: "confirmed", [ids.find((i) => i.includes("cor-b"))!]: "refuted" }, note: "El INDEC informó 7,9 % para el segundo trimestre." }));
+    assert.equal(done.status, 200, await done.text());
+    const after = await overview(checker);
+    assert.ok(!after.toVerify.some((x) => /desempleo/.test(x.text)), "ya verificado: sale de la lista");
+    assert.equal(after.rows.find((r) => r.outletId === "cor-b")!.verification.status, "verified");
+  });
 });
 
 describe("Cifras comparables", () => {

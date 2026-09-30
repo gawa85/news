@@ -86,6 +86,9 @@ export class HttpBackofficeApi implements BackofficeApi {
   verificationTasks() {
     return this.request<VerificationTask[]>("GET", "/v1/verification/tasks");
   }
+  createVerificationTask(claimIds: string[], take: boolean) {
+    return this.request<VerificationTask>("POST", "/v1/verification/tasks", { claimIds, take });
+  }
   takeTask(id: string) {
     return this.request<VerificationTask>("POST", `/v1/verification/tasks/${enc(id)}/take`);
   }

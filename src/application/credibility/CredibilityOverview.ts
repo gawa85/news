@@ -1,7 +1,7 @@
 import { ValidationError } from "../../domain/errors";
-import type { Claim, DimensionScore, Period } from "../../domain/model";
+import type { Article, Claim, DimensionScore, Period, VerificationTaskStatus } from "../../domain/model";
 import type { VerificationState } from "../../domain/rules/credibilityVerification";
-import type { IArticleReader, IClaimIndexer, IClaimReader, ICredibilityEvaluator, IOutletReader, IVerdictReader } from "../../domain/ports";
+import type { IArticleReader, IClaimIndexer, IClaimReader, ICredibilityEvaluator, IOutletReader, IVerdictReader, IVerificationTaskRepository } from "../../domain/ports";
 import { figuresDisagree, figuresOf, isCheckable } from "../../domain/rules/figures";
 
 export interface OverviewQuery {
@@ -27,6 +27,12 @@ export interface ClaimToVerify {
   /** Los medios no dan la misma cifra. */
   conflicting: boolean;
   numbers: number[];
+  /** Tema de las notas (el más común). */
+  topic: string;
+  /** Qué dijo cada medio, con la nota de donde sale. */
+  claims: { claimId: string; outletId: string; outletName: string; text: string; articleTitle: string; articleUrl: string; publishedAt: Date }[];
+  /** Si ya lo está verificando alguien del equipo. */
+  task?: { id: string; status: VerificationTaskStatus; assigneeId?: string };
 }
 
 export interface CredibilityOverview {
@@ -51,6 +57,8 @@ export class CredibilityOverviewUseCase {
     private readonly verdicts: IVerdictReader,
     private readonly evaluator: ICredibilityEvaluator,
     private readonly indexer: IClaimIndexer,
+    /** Para mostrar qué datos ya están en verificación. */
+    private readonly tasks?: Pick<IVerificationTaskRepository, "findByStatus">,
     private readonly maxOutlets = 60,
   ) {}
 
@@ -79,19 +87,29 @@ export class CredibilityOverviewUseCase {
     const facts = all.filter((c) => c.kind === "fact");
     const verdicts = facts.length ? await this.verdicts.findByClaimIds(facts.map((c) => c.id)) : [];
     const verified = new Set(verdicts.filter((v) => v.status === "confirmed" || v.status === "refuted").map((v) => v.claimId));
+    // Lo que ya se revisó (también "en disputa") no vuelve a la lista.
+    const reviewed = new Set(verdicts.map((v) => v.claimId));
     const names = new Map((await this.outlets.findAll()).map((o) => [o.id, o.name]));
+    const byArticle = new Map(articles.map((a) => [a.id, a]));
+    const inProgress = this.tasks ? [...(await this.tasks.findByStatus("assigned", 500)), ...(await this.tasks.findByStatus("open", 500))] : [];
 
     return {
       query: { topic, period: query.period },
       rows,
-      toVerify: this.mostRepeated(facts.filter((c) => isCheckable(c) && !verified.has(c.id)), names),
+      toVerify: this.mostRepeated(facts.filter((c) => isCheckable(c) && !reviewed.has(c.id)), names, byArticle, inProgress),
       totals: { articles: articles.length, factClaims: facts.length, verifiedClaims: verified.size },
       generatedAt: new Date(),
     };
   }
 
   /** Agrupa los datos que hablan de lo mismo y se queda con los que publicaron más medios distintos. */
-  private mostRepeated(claims: Claim[], names: Map<string, string>, limit = 10): ClaimToVerify[] {
+  private mostRepeated(
+    claims: Claim[],
+    names: Map<string, string>,
+    byArticle: Map<string, Article>,
+    inProgress: { id: string; status: VerificationTaskStatus; assigneeId?: string; claimIds: string[] }[],
+    limit = 10,
+  ): ClaimToVerify[] {
     // Grupos por "habla de lo mismo" (unión de pares relacionados).
     const parent = new Map(claims.map((c) => [c.id, c.id]));
     const root = (id: string): string => {
@@ -116,7 +134,24 @@ export class CredibilityOverviewUseCase {
         const conflicting = g.some((a) => g.some((b) => a.outletId !== b.outletId && figuresDisagree(a, b)));
         // Un texto representativo: el más corto que tenga sentido solo.
         const shortest = g.reduce((a, b) => (b.text.length < a.text.length ? b : a));
-        return { text: shortest.text.replace(/\s+/g, " ").trim(), outlets: outlets.map((id) => names.get(id) ?? id), conflicting, numbers: [...main] };
+        const topics = new Map<string, number>();
+        for (const c of g) {
+          const t = byArticle.get(c.articleId)?.topic;
+          if (t) topics.set(t, (topics.get(t) ?? 0) + 1);
+        }
+        const task = inProgress.find((t) => t.claimIds.some((id) => g.some((c) => c.id === id)));
+        return {
+          text: shortest.text.replace(/\s+/g, " ").trim(),
+          outlets: outlets.map((id) => names.get(id) ?? id),
+          conflicting,
+          numbers: [...main],
+          topic: [...topics].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "otros",
+          claims: g.map((c) => {
+            const a = byArticle.get(c.articleId);
+            return { claimId: c.id, outletId: c.outletId, outletName: names.get(c.outletId) ?? c.outletId, text: c.text.replace(/\s+/g, " ").trim(), articleTitle: a?.title ?? "", articleUrl: a?.url ?? "", publishedAt: a?.publishedAt ?? new Date(0) };
+          }),
+          ...(task ? { task: { id: task.id, status: task.status, assigneeId: task.assigneeId } } : {}),
+        };
       });
   }
 }

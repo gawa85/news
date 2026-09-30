@@ -73,6 +73,8 @@ export interface BackofficeApi {
   // Verificación (verdicts:write)
   verificationTasks(): Promise<VerificationTask[]>;
   takeTask(id: string): Promise<VerificationTask>;
+  /** Mandar a verificar afirmaciones (desde el panorama); si ya hay una tarea con ellas, devuelve esa. */
+  createVerificationTask(claimIds: string[], take: boolean): Promise<VerificationTask>;
   suggestEvidence(id: string): Promise<VerificationTask>;
   addEvidence(id: string, evidence: NewEvidence): Promise<VerificationTask>;
   resolveTask(id: string, verdicts: Record<string, VerdictStatus>, note: string): Promise<VerificationTask>;

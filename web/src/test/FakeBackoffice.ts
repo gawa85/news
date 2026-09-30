@@ -87,6 +87,12 @@ export class FakeBackoffice implements BackofficeApi {
   async verificationTasks() {
     return this.tasks;
   }
+  async createVerificationTask(claimIds: string[], take: boolean) {
+    this.log("createVerificationTask", claimIds, take);
+    const t: VerificationTask = { id: "vt-panorama", topic: "inflación", question: "¿Es cierto? «El desempleo subió al 7,9 %»", claimIds, outletIds: ["ddv", "nortehoy"], figures: [7.9], priority: 22, status: take ? "assigned" : "open", assigneeId: take ? "u1" : undefined, evidence: [], createdAt: "2026-09-30T10:00:00Z" };
+    this.tasks = [...this.tasks.filter((x) => x.id !== t.id), t];
+    return t;
+  }
   async takeTask(id: string) {
     this.log("takeTask", id);
     return this.task(id, { status: "assigned", assigneeId: "u1" });

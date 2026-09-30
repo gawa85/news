@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type Ref } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { ApiError } from "../../api/ApiError";
 import { useApi } from "../../api/ApiContext";
 import type { OriginTrace } from "../../api/types";
@@ -14,7 +14,8 @@ export function OriginPage() {
   const api = useApi();
   const { can } = useSession();
   const topics = useTopics();
-  const [url, setUrl] = useState("");
+  const [params] = useSearchParams();
+  const [url, setUrl] = useState(() => params.get("url")?.slice(0, 2000) ?? "");
   const [topic, setTopic] = useState("");
   const [askTopic, setAskTopic] = useState(false);
   const result = useRef<HTMLElement>(null);

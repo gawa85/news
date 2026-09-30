@@ -179,7 +179,7 @@ export function buildApp(config: AppConfig) {
   const evaluateCredibility = new EvaluateCredibilityUseCase(outlets, articles, claims, dimensions, aggregation, clock);
 
   const traceOrigin = new TraceOriginUseCase(articles, outlets, similarity);
-  const credibilityOverview = new CredibilityOverviewUseCase(outlets, articles, claims, verdicts, evaluateCredibility, claimIndexer);
+  const credibilityOverview = new CredibilityOverviewUseCase(outlets, articles, claims, verdicts, evaluateCredibility, claimIndexer, config.store.repos.verificationTasks);
   return {
     analyzeSmoke: new AnalyzeSmokeUseCase(smokeDetector, logger),
     compareSources: new CompareSourcesUseCase(sourceCollector, extractor, clusterer, classifier, articles, claims, logger),

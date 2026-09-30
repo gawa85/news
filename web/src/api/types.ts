@@ -735,6 +735,19 @@ export interface CredibilityOverview {
     verification: VerificationState;
     dimensions: { dimensionId: string; label: string; score: number | null; confidence: number; summary: string }[];
   }[];
-  toVerify: { text: string; outlets: string[]; conflicting: boolean; numbers: number[] }[];
+  toVerify: RepeatedClaim[];
   totals: { articles: number; factClaims: number; verifiedClaims: number };
+}
+
+/** Un dato que publicaron varios medios y nadie verificó todavía. */
+export interface RepeatedClaim {
+  text: string;
+  outlets: string[];
+  conflicting: boolean;
+  numbers: number[];
+  topic: string;
+  /** Qué dijo cada medio, con la nota de donde sale. */
+  claims: { claimId: string; outletId: string; outletName: string; text: string; articleTitle: string; articleUrl: string; publishedAt: string }[];
+  /** Si ya lo está verificando alguien del equipo. */
+  task?: { id: string; status: "open" | "assigned" | "resolved" | "discarded"; assigneeId?: string };
 }

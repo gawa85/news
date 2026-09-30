@@ -47,7 +47,7 @@ export function VerificationPage() {
   );
 }
 
-function TaskDetail({ t, onChange }: { t: VerificationTask; onChange: (t: VerificationTask) => void }) {
+export function TaskDetail({ t, onChange }: { t: VerificationTask; onChange: (t: VerificationTask) => void }) {
   const api = useBackoffice();
   const { me } = useSession();
   const { nameOf } = useOutlets();

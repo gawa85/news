@@ -8,6 +8,7 @@ import { useAction } from "../../ui/useAsync";
 import { isoDay, TopicSuggestions, useTopics } from "../shared/catalog";
 import { VERIFICATION_LABELS } from "./CredibilityPage";
 import { CredibilityTabs } from "./CredibilityTabs";
+import { RepeatedClaimItem } from "./RepeatedClaimItem";
 
 /** Las columnas que se comparan de un vistazo (el detalle está en la ficha de cada medio). */
 const COLUMNS = [
@@ -91,6 +92,8 @@ export function CredibilityOverviewPage() {
 }
 
 function OverviewView({ o, canVerify }: { o: CredibilityOverview; canVerify: boolean }) {
+  // Una sola verificación abierta a la vez (el panel es largo).
+  const [openItem, setOpenItem] = useState<number>();
   const topicParam = o.query.topic ? `&tema=${encodeURIComponent(o.query.topic)}` : "";
   const unverified = o.rows.filter((r) => r.verification.status === "unverified").length;
   return (
@@ -170,24 +173,17 @@ function OverviewView({ o, canVerify }: { o: CredibilityOverview; canVerify: boo
         ) : (
           <ul className="plain-list stack">
             {o.toVerify.map((c, i) => (
-              <li key={i} className="card card--flat stack">
-                <p style={{ margin: 0 }}>«{c.text}»</p>
-                <p className="muted" style={{ margin: 0 }}>
-                  Lo publican {c.outlets.length} medios: {c.outlets.join(", ")}.
-                  {c.conflicting && (
-                    <>
-                      {" "}
-                      <span className="badge badge--smoke">No dan la misma cifra</span>
-                    </>
-                  )}
-                </p>
-              </li>
+              <RepeatedClaimItem key={c.claims[0]?.claimId ?? i} c={c} index={i} canVerify={canVerify} open={openItem === i} onToggle={() => setOpenItem(openItem === i ? undefined : i)} />
             ))}
           </ul>
         )}
-        {canVerify && (
-          <p style={{ margin: 0 }}>
-            <Link to="/admin/verificacion">Ir a Verificación</Link> para cargar lo que se compruebe.
+        {canVerify ? (
+          <p className="muted" style={{ margin: 0 }}>
+            «Verificar acá» crea la tarea y la toma: buscás en fuentes oficiales, cargás la evidencia y marcás si es cierto. Lo que resuelvas cuenta enseguida para la credibilidad de cada medio. También está todo en <Link to="/admin/verificacion">Verificación</Link>.
+          </p>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>
+            Verificar lo hace el equipo de verificación. Vos podés buscar información, analizar el texto o ver quién lo dijo primero.
           </p>
         )}
       </section>

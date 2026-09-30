@@ -32,6 +32,7 @@
  *  Costos (administración):  GET /v1/costs?from=&to=   (hasta 366 días)
  *  Verificación:  GET /v1/verification/tasks
  *    POST /v1/verification/tasks/:id/(take|suggest|evidence|resolve|discard)
+ *    POST /v1/verification/tasks { claimIds, take? }   mandar a verificar afirmaciones (desde el panorama)
  *    POST /v1/verification/documents
  *  Guía de bienvenida:  GET /v1/me/onboarding   POST /v1/me/onboarding/step { step, how: done|skipped }   POST /v1/me/onboarding/dismiss
  *  Vincular un chat:  POST /v1/me/channels/link-code → { code, expiresAt, whatsappUrl?, telegramUrl? } (la persona lo manda desde el chat: "VINCULAR <código>")
@@ -1101,6 +1102,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
           outletId: b.outletId === undefined || b.outletId === "" ? undefined : (b.outletId as string),
         }));
       }
+      case "POST /v1/verification/tasks":
+        return json(res, 201, await deps.verification.fromClaims({ actorId: who.userId, claimIds: b.claimIds as never, take: b.take === true }));
       case "POST /v1/verification/documents":
         return json(res, 201, await deps.verification.uploadDocument(who.userId, { ...pick(b, ["title", "issuer", "url", "text", "topics"]), publishedAt: date(b.publishedAt, "publishedAt") } as never));
       // ---- Datos reales y calidad ----

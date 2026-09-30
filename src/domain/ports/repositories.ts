@@ -27,6 +27,7 @@ export interface IArticleWriter {
 
 export interface IClaimReader {
   findByArticleIds(articleIds: string[]): Promise<Claim[]>;
+  findByIds(ids: string[]): Promise<Claim[]>;
 }
 
 export interface IClaimWriter {
