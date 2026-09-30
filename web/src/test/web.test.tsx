@@ -335,6 +335,20 @@ describe("Herramientas del plan", () => {
     expect(await screen.findByText(/Verificado por personas\. Hay afirmaciones verificadas/)).toBeInTheDocument();
   });
 
+  test("credibilidad: el menú lleva a todos los medios juntos (que se ve sin tocar nada) y las pestañas pasan a un medio", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/analizar");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("link", { name: "Credibilidad" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Credibilidad: todos los medios" })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: /Credibilidad de cada medio/ })).toBeInTheDocument();
+    const tabs = screen.getByRole("navigation", { name: "Vistas de credibilidad" });
+    expect(within(tabs).getByRole("link", { name: "Todos los medios" })).toHaveAttribute("aria-current", "page");
+    await user.click(within(tabs).getByRole("link", { name: "Un medio" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Credibilidad de los medios" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Credibilidad" })).toHaveAttribute("aria-current", "page");
+  });
+
   test("panorama: todos los medios juntos, con enlace a cada ficha, y los datos repetidos sin verificar", async () => {
     const api = new FakeApi(proMe());
     renderApp(api, "/credibilidad/panorama");
@@ -351,7 +365,8 @@ describe("Herramientas del plan", () => {
     expect(screen.getByText(/1 de 2 medios no tienen puntaje general/)).toBeInTheDocument();
     expect(screen.getByText("«El desempleo subió al 7,9 %»")).toBeInTheDocument();
     expect(screen.getByText("No dan la misma cifra")).toBeInTheDocument();
-    expect(api.calls.find((c) => c.method === "credibilityOverview")?.args[0]).toMatchObject({ topic: "inflación" });
+    const asked = api.calls.filter((c) => c.method === "credibilityOverview").map((c) => (c.args[0] as { topic?: string }).topic);
+    expect(asked).toEqual([undefined, "inflación"]); // al entrar, todos los temas; después, el elegido
     expect(screen.queryByRole("link", { name: "Ir a Verificación" })).not.toBeInTheDocument();
   });
 

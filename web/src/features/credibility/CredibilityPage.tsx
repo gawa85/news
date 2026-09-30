@@ -7,6 +7,7 @@ import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Notice, Page, ScoreBar } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 import { isoDay, TopicSuggestions, useOutlets, useTopics } from "../shared/catalog";
+import { CredibilityTabs } from "./CredibilityTabs";
 import { CredibilityTimeline } from "./CredibilityTimeline";
 
 /** CREDIBILIDAD de un medio en un tema: por dimensiones (precisión, fuentes, conflictos de interés, pauta…). */
@@ -28,6 +29,7 @@ export function CredibilityPage() {
   if (!can("credibility_meter")) {
     return (
       <Page title="Credibilidad de los medios" lead="Cuánto confiar en un medio en un tema: precisión, fuentes, conflictos de interés y pauta oficial.">
+        <CredibilityTabs />
         <div className="card">
           <p>El medidor de credibilidad viene con el plan Personal o superior.</p>
           <Link className="btn" to="/planes">
@@ -48,9 +50,7 @@ export function CredibilityPage() {
 
   return (
     <Page title="Credibilidad de los medios" lead="Elegí un medio y un tema. La credibilidad cambia según el tema: un diario puede ser preciso en deportes y no en economía.">
-      <p style={{ margin: 0 }}>
-        <Link to="/credibilidad/panorama">Ver todos los medios juntos</Link>
-      </p>
+      <CredibilityTabs />
       <form className="card stack" onSubmit={submit} noValidate>
         <div className="grid-2">
           <Field label="Medio">

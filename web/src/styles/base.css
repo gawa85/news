@@ -454,7 +454,8 @@ legend {
   border-bottom: 1px solid var(--border);
   margin-bottom: var(--space-4);
 }
-.tabs button {
+.tabs button,
+.tabs a {
   font: inherit;
   font-weight: 600;
   background: none;
@@ -465,9 +466,19 @@ legend {
   cursor: pointer;
   color: var(--text-muted);
 }
-.tabs button[aria-selected="true"] {
+.tabs button[aria-selected="true"],
+.tabs a[aria-current="page"] {
   color: var(--brand-ink);
   border-color: var(--brand);
+}
+/* Pestañas que son enlaces entre páginas (no paneles): mismo aspecto. */
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.tabs a:hover {
+  color: var(--brand-ink);
 }
 
 .hero {
@@ -768,10 +779,12 @@ code {
  * distinguía sólo por un fondo de color necesita un borde, un subrayado o conservar su relleno.
  */
 @media (forced-colors: active) {
-  .tabs button {
+  .tabs button,
+  .tabs a {
     border-bottom-color: Canvas;
   }
-  .tabs button[aria-selected="true"] {
+  .tabs button[aria-selected="true"],
+  .tabs a[aria-current="page"] {
     border-bottom-color: Highlight;
     text-decoration: underline;
   }

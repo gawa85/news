@@ -40,7 +40,10 @@ export function Layout() {
                 <NavLink to="/analizar">Analizar</NavLink>
                 <NavLink to="/comparar">Comparar fuentes</NavLink>
                 <NavLink to="/origen">¿Quién lo dijo?</NavLink>
-                <NavLink to="/credibilidad">Credibilidad</NavLink>
+                {/* Entra por todos los medios juntos; sigue marcada en la vista de un medio. */}
+                <Link to="/credibilidad/panorama" aria-current={where.pathname.startsWith("/credibilidad") ? "page" : undefined}>
+                  Credibilidad
+                </Link>
                 <NavLink to="/historial">Historial</NavLink>
                 {can("team_rooms") && <NavLink to="/salas">Salas</NavLink>}
                 <NavLink to="/eventos">Eventos</NavLink>

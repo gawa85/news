@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import type { CredibilityOverview } from "../../api/types";
@@ -7,6 +7,7 @@ import { ErrorAlert, Field, Page } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 import { isoDay, TopicSuggestions, useTopics } from "../shared/catalog";
 import { VERIFICATION_LABELS } from "./CredibilityPage";
+import { CredibilityTabs } from "./CredibilityTabs";
 
 /** Las columnas que se comparan de un vistazo (el detalle está en la ficha de cada medio). */
 const COLUMNS = [
@@ -40,9 +41,16 @@ export function CredibilityOverviewPage() {
     }),
   );
 
-  if (!can("credibility_meter")) {
+  const allowed = can("credibility_meter");
+  // Al entrar ya se ve el panorama (últimos 30 días, todos los temas): no hace falta tocar nada.
+  useEffect(() => {
+    if (allowed) void run.run();
+  }, [allowed]);
+
+  if (!allowed) {
     return (
-      <Page title="Panorama de credibilidad" lead="Todos los medios juntos: cuánto de lo que publican está corroborado.">
+      <Page title="Credibilidad: todos los medios" lead="Todos los medios juntos: cuánto de lo que publican está corroborado.">
+        <CredibilityTabs />
         <div className="card">
           <p>El medidor de credibilidad viene con el plan Personal o superior.</p>
           <Link className="btn" to="/planes">
@@ -59,10 +67,8 @@ export function CredibilityOverviewPage() {
   };
 
   return (
-    <Page title="Panorama de credibilidad" lead="Todos los medios juntos. Que una nota traiga cifras no quiere decir que sean ciertas: acá ves cuánto de lo que publica cada medio está corroborado.">
-      <p style={{ margin: 0 }}>
-        <Link to="/credibilidad">← Ver un medio en detalle</Link>
-      </p>
+    <Page title="Credibilidad: todos los medios" lead="Todos los medios juntos. Que una nota traiga cifras no quiere decir que sean ciertas: acá ves cuánto de lo que publica cada medio está corroborado.">
+      <CredibilityTabs />
       <form className="card stack" onSubmit={submit} noValidate>
         <Field label="Tema (opcional)" hint="Vacío: todos los temas.">
           {(p) => <input {...p} className="input" list="temas-panorama" value={topic} onChange={(e) => setTopic(e.target.value)} />}
