@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ContentItem, SourceConnection } from "../../domain/model";
 import type { IContentSource, IHttpClient, PullResult } from "../../domain/ports";
 import { htmlToText } from "../mail/MailparserMimeParser";
+import { decodeEntities } from "../text/HtmlText";
 
 /**
  * Feeds RSS y Atom (blogs, medios, organismos). Config: { url }.
@@ -58,16 +59,26 @@ interface FeedEntry {
   guid?: string;
 }
 
+/**
+ * Contenido de una etiqueta. Fuera de un CDATA, el texto viene escapado para XML ("&quot;",
+ * "&lt;p&gt;"): se traduce. Dentro de un CDATA va tal cual.
+ */
 function tag(xml: string, name: string): string | undefined {
   const m = xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, "i"));
-  return m?.[1]?.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1").trim();
+  if (m?.[1] === undefined) return undefined;
+  const raw = m[1].trim();
+  const cdata = raw.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/);
+  return (cdata ? cdata[1]! : decodeEntities(raw)).trim();
 }
+
+/** Un título es texto: sin etiquetas ni entidades de HTML ("Newell&#039;s" → "Newell's"). */
+const plainTitle = (t: string | undefined) => (t ? htmlToText(t).replace(/\s+/g, " ").trim() : "");
 
 export function parseFeed(xml: string): FeedEntry[] {
   const rss = [...xml.matchAll(/<item[\s>][\s\S]*?<\/item>/gi)].map((m) => m[0]);
   if (rss.length) {
     return rss.map((it) => ({
-      title: tag(it, "title") ?? "",
+      title: plainTitle(tag(it, "title")),
       link: tag(it, "link"),
       body: tag(it, "content:encoded") ?? tag(it, "description") ?? "",
       date: new Date(tag(it, "pubDate") ?? tag(it, "dc:date") ?? 0), // (RSS 1.0 usa dc:date)
@@ -77,7 +88,7 @@ export function parseFeed(xml: string): FeedEntry[] {
   return [...xml.matchAll(/<entry[\s>][\s\S]*?<\/entry>/gi)].map((m) => {
     const it = m[0];
     return {
-      title: tag(it, "title") ?? "",
+      title: plainTitle(tag(it, "title")),
       link: it.match(/<link[^>]*href="([^"]+)"/i)?.[1],
       body: tag(it, "content") ?? tag(it, "summary") ?? "",
       date: new Date(tag(it, "updated") ?? tag(it, "published") ?? 0),

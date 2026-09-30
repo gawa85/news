@@ -10,10 +10,19 @@ const SKIP = new Set(["script", "style", "noscript", "template", "svg", "iframe"
 /** Etiquetas que cortan línea. */
 const BLOCK = new Set(["br", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "blockquote", "article", "section", "header", "footer", "ul", "ol", "table", "hr"]);
 
-const ENTITIES: Record<string, string> = { nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", "#39": "'" };
+const ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", "#39": "'",
+  // Las que usan los medios en español (tildes, eñe, comillas, rayas): sin esto quedaba "inflaci&oacute;n".
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", ntilde: "ñ", uuml: "ü",
+  agrave: "à", egrave: "è", igrave: "ì", ograve: "ò", ugrave: "ù", acirc: "â", ecirc: "ê", ocirc: "ô", ccedil: "ç",
+  iexcl: "¡", iquest: "¿", laquo: "«", raquo: "»", ordm: "º", ordf: "ª", deg: "°", middot: "·", bull: "•",
+  ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", hellip: "…", euro: "€", copy: "©", reg: "®", trade: "™",
+};
+const UPPER: Record<string, string> = { Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", Ntilde: "Ñ", Uuml: "Ü", Ccedil: "Ç" };
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (all, e: string) => {
+    if (UPPER[e] !== undefined) return UPPER[e]!;
     const k = e.toLowerCase();
     if (ENTITIES[k] !== undefined) return ENTITIES[k]!;
     const code = k.startsWith("#x") ? parseInt(k.slice(2), 16) : k.startsWith("#") ? parseInt(k.slice(1), 10) : NaN;

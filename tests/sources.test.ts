@@ -4,9 +4,10 @@ import { before, describe, test } from "node:test";
 import { httpApiDeps } from "../src/composition/platform";
 import { ValidationError } from "../src/domain/errors";
 import type { SourceConnection } from "../src/domain/model";
-import { RssFeedSource } from "../src/infrastructure/content/RssSource";
+import { parseFeed, RssFeedSource } from "../src/infrastructure/content/RssSource";
 import { PublicDestinationHttpClient } from "../src/infrastructure/integrations/PublicDestinationHttpClient";
 import { ImapMailboxSource } from "../src/infrastructure/mail/MailAdapters";
+import { htmlToText } from "../src/infrastructure/mail/MailparserMimeParser";
 import { StubHttpClient } from "../src/infrastructure/system/EventsAndHttp";
 import { testPlatform, userWithPlan, withRoles, type Handler } from "./helpers/platform";
 
@@ -44,6 +45,24 @@ describe("Fuentes: no se pueden usar para llegar a la red interna", () => {
 });
 
 const feeds: Handler = (_m, url) => (url === "https://feeds.example/rss.xml" ? { status: 200, text: FEED } : { status: 404 });
+
+describe("Lector de feeds: el texto sale limpio", () => {
+  test("entidades de XML y de HTML en títulos y textos (como los de A24); el CDATA va tal cual", () => {
+    const xml =
+      `<rss><channel>` +
+      `<item><title>El posteo de Ghione: &quot;El daño no tiene límites&quot;</title><link>https://a.example/1?x=1&amp;y=2</link>` +
+      `<description>&lt;p&gt;La inflaci&amp;oacute;n de agosto&lt;/p&gt;</description><pubDate>Tue, 29 Sep 2026 10:00:00 GMT</pubDate></item>` +
+      `<item><title><![CDATA[Newell&#039;s y <b>Central</b>]]></title><link>https://a.example/2</link>` +
+      `<description><![CDATA[<p>Canci&oacute;n &laquo;nueva&raquo; &Ntilde;u&ntilde;oa</p>]]></description><pubDate>Tue, 29 Sep 2026 11:00:00 GMT</pubDate></item>` +
+      `</channel></rss>`;
+    const [a, b] = parseFeed(xml);
+    assert.equal(a!.title, 'El posteo de Ghione: "El daño no tiene límites"');
+    assert.equal(a!.link, "https://a.example/1?x=1&y=2");
+    assert.equal(htmlToText(a!.body).trim(), "La inflación de agosto");
+    assert.equal(b!.title, "Newell's y Central");
+    assert.equal(htmlToText(b!.body).trim(), "Canción «nueva» Ñuñoa");
+  });
+});
 
 describe("Mis fuentes, reglas y réplicas", () => {
   let t: Awaited<ReturnType<typeof testPlatform>>;
