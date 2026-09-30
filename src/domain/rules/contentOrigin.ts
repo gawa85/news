@@ -46,7 +46,7 @@ export function originLabel(o: Omit<AnalysisOrigin, "label">): string {
     case "whatsapp": text = "WhatsApp"; break;
     case "telegram": text = "Telegram"; break;
     case "web_text": text = "Texto pegado en la web"; break;
-    case "web_link": text = o.domain ? `Link a ${o.domain}` : "Link"; break;
+    case "web_link": text = o.author ? `Nota de ${o.author}${at}` : o.domain ? `Link a ${o.domain}` : "Link"; break;
     case "social": text = `Publicación en ${PLATFORMS[o.platform ?? ""] ?? "una red social"}${o.author ? ` de ${o.author}` : ""}`; break;
     case "document": text = `Documento${quoted(o.source)}`; break;
   }
@@ -85,7 +85,8 @@ function describe(item: ContentItem, connectionName?: string): Omit<AnalysisOrig
     case "social":
       return { ...base, kind: "social", platform: item.metadata.platform, author: who(item.origin), domain: item.origin.domain, url: firstUrl(item) };
     case "web":
-      return { ...base, kind: "web_link", domain: item.origin.domain, url: item.origin.address ?? firstUrl(item) };
+      // (si se leyó la nota desde su link, el nombre es el del medio)
+      return { ...base, kind: "web_link", author: item.origin.name, domain: item.origin.domain, url: item.origin.address ?? firstUrl(item) };
     case "document":
       return { ...base, kind: "document", source: connectionName };
     default: {

@@ -85,3 +85,19 @@ export interface IHttpClient {
   get(url: string, headers?: Record<string, string>): Promise<HttpResponse>;
   send(method: "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: unknown, headers?: Record<string, string>): Promise<HttpResponse>;
 }
+
+/** Una nota leída desde su link: sólo el cuerpo (sin menús, publicidad ni "notas relacionadas"). */
+export interface NewsArticleRead {
+  url: string;
+  title?: string;
+  text: string;
+  /** Nombre del sitio, como lo declara la página. */
+  siteName?: string;
+  author?: string;
+  publishedAt?: Date;
+}
+
+/** Lee una nota a partir de su link. Rechaza direcciones internas y páginas que no son notas. */
+export interface INewsArticleReader {
+  read(url: URL): Promise<NewsArticleRead>;
+}

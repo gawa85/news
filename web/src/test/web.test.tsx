@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { ApiError } from "../api/ApiError";
 import { HttpSinHumoApi } from "../api/HttpSinHumoApi";
-import { FakeApi, sampleMe, sampleOrg } from "./FakeApi";
+import { FakeApi, sampleAnalysis, sampleMe, sampleOrg } from "./FakeApi";
 import { renderApp } from "./render";
 import { FakeBackoffice } from "./FakeBackoffice";
 import { ADMIN_SECTIONS } from "../features/admin/sections";
@@ -378,15 +378,21 @@ describe("Herramientas del plan", () => {
     await user.click(within(item).getByText("Qué dijo cada medio"));
     await user.click(within(item).getByText("Buscar información"));
     const note = within(item).getAllByRole("link").find((l) => l.getAttribute("href") === "https://nortehoy.example/empleo")!;
-    expect(note).toHaveTextContent(/^Ver la nota del .+ de Norte Hoy \(se abre en otra pestaña\)$/);
-    expect(item).toHaveTextContent("Norte Hoy: «El desempleo bajó al 6,4 % según el INDEC»");
+    expect(note).toHaveTextContent(/^Ver la nota de Norte Hoy \(se abre en otra pestaña\)$/);
+    expect(item).toHaveTextContent(/Norte Hoy · «Empleo» · 16 de sept de 2026\s*«El desempleo bajó al 6,4 % según el INDEC»/);
+    // Dos frases de la misma nota: la nota aparece una vez, con sus dos frases.
+    expect(within(item).getAllByRole("link").filter((l) => l.textContent === "Analizar la nota de Diario del Valle")).toHaveLength(1);
+    expect(item).toHaveTextContent(/«El desempleo subió al 7,9 % según el INDEC»\s*«Es la tasa más alta en tres años/);
     expect(within(item).getAllByRole("link").find((l) => l.textContent?.startsWith("Google ("))!.getAttribute("href")).toMatch(/^https:\/\/www\.google\.com\/search\?q=El%20desempleo%20subi%C3%B3/);
     expect(within(item).getAllByRole("link").find((l) => l.textContent?.startsWith("Chequeado"))).toHaveAttribute("href", expect.stringMatching(/^https:\/\/chequeado\.com\/\?s=/));
-    expect(within(item).getByRole("link", { name: "Analizar el texto" })).toHaveAttribute("href", "/analizar?texto=El%20desempleo%20subi%C3%B3%20al%207%2C9%20%25");
+    // Se analiza cada nota completa, no la frase suelta.
+    const analyzeNote = within(item).getAllByRole("link").find((l) => l.textContent === "Analizar la nota de Norte Hoy")!;
+    expect(analyzeNote).toHaveAttribute("href", "/analizar?url=https%3A%2F%2Fnortehoy.example%2Fempleo");
+    expect(within(item).queryByText("Analizar el texto")).not.toBeInTheDocument();
     expect(within(item).getByRole("link", { name: "¿Quién lo dijo primero?" })).toHaveAttribute("href", "/origen?url=https%3A%2F%2Fddv.example%2Fdesempleo");
     expect(within(item).queryByRole("button", { name: "Verificar acá" })).not.toBeInTheDocument();
     // El que ya está en verificación lo dice.
-    expect(within(within(list).getByText("«La inflación de agosto fue del 2,1 %»").closest("li")!).getByText("En verificación")).toBeInTheDocument();
+    expect(within(within(list).getAllByText("«La inflación de agosto fue del 2,1 %»")[0]!.closest("li")!).getByText("En verificación")).toBeInTheDocument();
   });
 
   test("dato repetido: el equipo lo verifica ahí mismo (crea la tarea, la toma, carga evidencia y resuelve)", async () => {
@@ -397,7 +403,7 @@ describe("Herramientas del plan", () => {
     const list = (await screen.findByRole("heading", { name: "Datos repetidos que nadie verificó" })).parentElement!;
     const item = within(list).getByText("«El desempleo subió al 7,9 %»").closest("li")!;
     await user.click(within(item).getByRole("button", { name: "Verificar acá" }));
-    expect(bo.calls.find((c) => c.method === "createVerificationTask")?.args).toEqual([["k2", "k3"], true]);
+    expect(bo.calls.find((c) => c.method === "createVerificationTask")?.args).toEqual([["k2", "k4", "k3"], true]);
     expect(await within(item).findByRole("heading", { name: "¿Es cierto? «El desempleo subió al 7,9 %»" })).toBeInTheDocument();
     expect(within(item).getByText("En verificación")).toBeInTheDocument();
 
@@ -411,9 +417,22 @@ describe("Herramientas del plan", () => {
     expect(within(item).queryByRole("button", { name: /verificación|Verificar/ })).not.toBeInTheDocument();
   });
 
-  test("analizar y ¿quién lo dijo?: el texto o el link pueden venir en el enlace", async () => {
-    renderApp(new FakeApi(proMe()), "/analizar?texto=El%20desempleo%20subi%C3%B3%20al%207%2C9%20%25");
-    expect(await screen.findByDisplayValue("El desempleo subió al 7,9 %")).toBeInTheDocument();
+  test("analizar la nota: con el link en el enlace se analiza al entrar y se dice qué nota se leyó", async () => {
+    const api = new FakeApi(proMe());
+    api.analyzeResult = { ...sampleAnalysis(), article: { url: "https://nortehoy.example/empleo", title: "El desempleo bajó al 6,4 %", outletName: "Norte Hoy", author: "Ana Periodista", publishedAt: "2026-09-16T13:00:00Z", chars: 3200 } };
+    renderApp(api, "/analizar?url=https%3A%2F%2Fnortehoy.example%2Fempleo");
+    expect(await screen.findByRole("heading", { name: "📰 Nota de Norte Hoy" })).toBeInTheDocument();
+    expect(screen.getByText(/Se analizó la nota completa \(3\.200 caracteres\)/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Ver la nota original/ })).toHaveAttribute("href", "https://nortehoy.example/empleo");
+    expect(api.calls.filter((c) => c.method === "analyze").map((c) => c.args[0])).toEqual(["https://nortehoy.example/empleo"]);
+    expect(screen.getByLabelText("Texto o link")).toHaveValue("https://nortehoy.example/empleo");
+  });
+
+  test("analizar: si la nota no se pudo leer, se avisa", async () => {
+    const api = new FakeApi(proMe());
+    api.analyzeResult = { ...sampleAnalysis(), articleError: "No se pudo leer la nota (tiene muro de pago): se analizó sólo el link." };
+    renderApp(api, "/analizar?url=https%3A%2F%2Fpago.example%2Fnota");
+    expect(await screen.findByText(/No se pudo leer la nota \(tiene muro de pago\)/)).toBeInTheDocument();
   });
 
   test("¿esto es humo?: responder y ver la explicación", async () => {

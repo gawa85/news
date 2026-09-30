@@ -37,6 +37,7 @@ import type { DigestService } from "../digest/Digests";
 import type { IAbusePolicy } from "../abuse/AbuseGuard";
 import type { ResponseLocalizer } from "../language/Translation";
 import type { SocialReader } from "../social/SocialReader";
+import type { NewsLinkReader } from "../content/NewsLinkReader";
 import type { EventRoomService } from "../participation/EventRooms";
 import type { LinkChannelUseCase } from "../users/UserSettingsUseCases";
 import type { ILanguageDetector } from "../../domain/ports";
@@ -77,6 +78,8 @@ export interface InboundExtras {
   languageDetector?: ILanguageDetector;
   /** Links a redes: se lee la publicación. */
   social?: SocialReader;
+  /** Links a notas: se lee la nota. */
+  newsLinks?: NewsLinkReader;
   /** Eventos en vivo: suscribirse a sus chequeos. */
   events?: EventRoomService;
   /** Fotos y videos: si ya circularon y qué dicen sus datos (el archivo se baja una sola vez). */
@@ -386,7 +389,14 @@ ${read.text}` : read.text, extractedFrom: "image" });
           const r = this.composer.content(await this.gateway.analyzeContent(caller, social.contentFor(shared.post, this.toContent(cmd.text, msg))));
           return { ...r, sections: [social.describe(shared.post), ...r.sections] };
         }
+        // Un link a una nota: se analiza la nota, no el link.
+        const news = !shared && this.extras.newsLinks ? await this.extras.newsLinks.readShared(cmd.text) : undefined;
+        if (news?.article && this.extras.newsLinks) {
+          const r = this.composer.content(await this.gateway.analyzeContent(caller, this.extras.newsLinks.contentFor(news.article, this.toContent(cmd.text, msg))));
+          return { ...r, sections: [this.extras.newsLinks.describe(news.article), ...r.sections] };
+        }
         const r = this.composer.content(await this.gateway.analyzeContent(caller, this.toContent(cmd.text, msg)));
+        if (news?.failed) return { ...r, sections: [{ heading: "📰 No pude leer la nota", lines: [`${news.failed} Analicé sólo tu mensaje: si podés, pegá el texto de la nota.`] }, ...r.sections] };
         return shared?.failed ? { ...r, sections: [{ heading: "📱 No pude leer la publicación", lines: ["Analicé sólo tu mensaje. Si podés, copiá el texto del posteo."] }, ...r.sections] } : r;
       }
       case "compare_sources": {

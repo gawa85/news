@@ -18,7 +18,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   "/analizar": {
     summary: "Pegás un texto (un mensaje que te llegó, una cadena, una nota) o el link de una nota o una publicación, y Sin Humo marca qué partes son datos y cuáles son humo.",
     steps: [
-      "Copiá el mensaje o el link y pegalo en el cuadro.",
+      "Copiá el mensaje o el link y pegalo en el cuadro. Si es el link de una nota, se lee la nota entera (sin menús ni publicidad) y se analiza eso.",
       "Tocá «Analizar».",
       "Mirá el índice de humo, qué humo encontró (con la frase exacta) y «Lo que queda sin humo»: el mismo texto sólo con los datos.",
     ],
@@ -45,7 +45,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   },
   "/credibilidad/panorama": {
     summary: "Todos los medios juntos: cuánto de lo que publica cada uno está corroborado, y los datos que más se repiten entre medios sin que nadie los haya verificado.",
-    steps: ["Elegí un tema (o dejalo vacío para ver todos) y el período.", "Compará los medios: el estado dice si hay con qué respaldar el puntaje.", "Mirá «Datos repetidos que nadie verificó»: por ahí conviene empezar a corroborar.", "En cada dato: «Qué dijo cada medio» (con la nota), «Buscar información» (Google, Chequeado, datos oficiales), «Analizar el texto» y «¿Quién lo dijo primero?».", "Si sos del equipo de verificación, «Verificar acá»: se crea la tarea, buscás en fuentes oficiales, cargás la evidencia con su link y marcás si es cierto, falso o está en disputa."],
+    steps: ["Elegí un tema (o dejalo vacío para ver todos) y el período.", "Compará los medios: el estado dice si hay con qué respaldar el puntaje.", "Mirá «Datos repetidos que nadie verificó»: por ahí conviene empezar a corroborar.", "En cada dato: «Qué dijo cada medio» (con la nota), «Buscar información» (Google, Chequeado, datos oficiales), «Analizar la nota» (cada nota completa, con su contexto) y «¿Quién lo dijo primero?».", "Si sos del equipo de verificación, «Verificar acá»: se crea la tarea, buscás en fuentes oficiales, cargás la evidencia con su link y marcás si es cierto, falso o está en disputa."],
     example: "Si cinco medios dicen «la inflación fue 2,1 %», no por eso es cierto: puede que todos hayan copiado el mismo cable. Hay que ir a la fuente (el INDEC).",
     terms: ["corroborar", "cotejo", "credibilidad"],
   },

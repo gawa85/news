@@ -69,6 +69,9 @@ export interface Analysis {
     metrics?: { views?: number; likes?: number; comments?: number };
   };
   postError?: string;
+  /** Si se pegó el link de una nota: la nota que se leyó y se analizó. */
+  article?: { url: string; title?: string; siteName?: string; outletId?: string; outletName?: string; author?: string; publishedAt?: string; chars: number };
+  articleError?: string;
 }
 
 export interface AnalysisSummary {

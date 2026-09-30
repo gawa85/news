@@ -33,8 +33,20 @@ export function searchLinks(c: Pick<RepeatedClaim, "text" | "topic">): { label: 
   ];
 }
 
+/** Las frases agrupadas por nota: cada nota aparece una vez (con su título), y debajo lo que dice. */
+function notesOf(c: RepeatedClaim) {
+  const notes = new Map<string, { url: string; title: string; outletName: string; publishedAt: string; claims: RepeatedClaim["claims"] }>();
+  for (const x of c.claims) {
+    const key = x.articleUrl || x.claimId;
+    const n = notes.get(key) ?? { url: x.articleUrl, title: x.articleTitle, outletName: x.outletName, publishedAt: x.publishedAt, claims: [] };
+    n.claims.push(x);
+    notes.set(key, n);
+  }
+  return [...notes.values()];
+}
+
 /**
- * Un dato repetido entre medios: qué dijo cada uno, dónde buscar información, analizarlo,
+ * Un dato repetido entre medios: qué dijo cada uno (y analizar cada nota completa), dónde buscar información,
  * rastrear quién lo dijo primero y, para el equipo de verificación, verificarlo ahí mismo.
  */
 export function RepeatedClaimItem({ c, index, canVerify, open, onToggle }: { c: RepeatedClaim; index: number; canVerify: boolean; open: boolean; onToggle: () => void }) {
@@ -77,14 +89,27 @@ export function RepeatedClaimItem({ c, index, canVerify, open, onToggle }: { c: 
       <details>
         <summary>Qué dijo cada medio</summary>
         <ul className="stack" style={{ marginTop: "var(--space-2)" }}>
-          {c.claims.map((x) => (
-            <li key={x.claimId}>
-              <strong>{x.outletName}</strong>: «{x.text}»{" "}
-              {x.articleUrl && (
-                <a href={x.articleUrl} target="_blank" rel="noopener noreferrer">
-                  Ver la nota{x.publishedAt ? ` del ${formatDate(x.publishedAt)}` : ""}
-                  <span className="visually-hidden"> de {x.outletName} (se abre en otra pestaña)</span>
-                </a>
+          {notesOf(c).map((n) => (
+            <li key={n.url || n.claims[0]!.claimId} className="stack" style={{ gap: "var(--space-1)" }}>
+              <p style={{ margin: 0 }}>
+                <strong>{n.outletName}</strong>
+                {n.title && <> · «{n.title}»</>}
+                {n.publishedAt && <span className="muted"> · {formatDate(n.publishedAt)}</span>}
+              </p>
+              <ul style={{ margin: 0 }}>
+                {n.claims.map((x) => (
+                  <li key={x.claimId}>«{x.text}»</li>
+                ))}
+              </ul>
+              {n.url && (
+                <p className="row" style={{ flexWrap: "wrap", margin: 0 }}>
+                  <a href={n.url} target="_blank" rel="noopener noreferrer">
+                    Ver la nota<span className="visually-hidden"> de {n.outletName} (se abre en otra pestaña)</span>
+                  </a>
+                  <Link to={`/analizar?url=${encodeURIComponent(n.url)}`}>
+                    Analizar la nota<span className="visually-hidden"> de {n.outletName}</span>
+                  </Link>
+                </p>
               )}
             </li>
           ))}
@@ -106,9 +131,6 @@ export function RepeatedClaimItem({ c, index, canVerify, open, onToggle }: { c: 
       </details>
 
       <div className="row" style={{ flexWrap: "wrap" }}>
-        <Link className="btn btn--ghost btn--small" to={`/analizar?texto=${encodeURIComponent(c.text)}`}>
-          Analizar el texto
-        </Link>
         {firstUrl && (
           <Link className="btn btn--ghost btn--small" to={`/origen?url=${encodeURIComponent(firstUrl)}`}>
             ¿Quién lo dijo primero?

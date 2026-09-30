@@ -118,6 +118,7 @@ import type { IAbusePolicy, RestrictionAdmin } from "../../application/abuse/Abu
 import type { IInboundHandler } from "../../application/abuse/ThrottledInbound";
 import { clientIp } from "./clientIp";
 import type { SocialReader } from "../../application/social/SocialReader";
+import type { NewsLinkReader } from "../../application/content/NewsLinkReader";
 import { AccountQueries } from "../../application/web/AccountQueries";
 import type { AlertSettings } from "../../application/alerts/AlertSettings";
 import type { OrganizationService } from "../../application/organizations/Organizations";
@@ -201,6 +202,8 @@ export interface HttpApiDeps {
   inbound: IInboundHandler;
   /** Lector de publicaciones de redes. */
   social?: SocialReader;
+  /** Links a notas: se analiza la nota, no el link. */
+  newsLinks?: NewsLinkReader;
   /** Consultas de la web de personas (quién soy, historial, planes, medios). */
   account?: AccountQueries;
   /** Reloj de la plataforma (por defecto, el del sistema). */
@@ -1156,9 +1159,17 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         };
         // Un link a una red: se analiza lo que dice la publicación (igual que por el chat).
         const shared = deps.social ? await deps.social.readShared(text, { userId: who.userId }) : undefined;
-        const item = shared?.post && deps.social ? deps.social.contentFor(shared.post, base) : base;
+        // Un link a una nota: se analiza la nota (título y cuerpo), no el link.
+        const news = !shared?.post && deps.newsLinks ? await deps.newsLinks.readShared(text) : undefined;
+        const item = shared?.post && deps.social ? deps.social.contentFor(shared.post, base) : news?.article && deps.newsLinks ? deps.newsLinks.contentFor(news.article, base) : base;
         const a = await deps.gateway.analyzeContent(who, item);
-        return json(res, 200, { ...AccountQueries.view(a, shared?.post), ...(shared?.failed ? { postError: "No se pudo leer la publicación: se analizó el texto." } : {}) });
+        const article = news?.article && { url: news.article.url, title: news.article.title, siteName: news.article.siteName, outletId: news.article.outletId, outletName: news.article.outletName, author: news.article.author, publishedAt: news.article.publishedAt, chars: news.article.text.length };
+        return json(res, 200, {
+          ...AccountQueries.view(a, shared?.post),
+          ...(shared?.failed ? { postError: "No se pudo leer la publicación: se analizó el texto." } : {}),
+          ...(article ? { article } : {}),
+          ...(news?.failed ? { articleError: `No se pudo leer la nota (${news.failed}): se analizó sólo el link.` } : {}),
+        });
       }
       case "POST /v1/subscription/cancel":
         return json(res, 200, await need(deps.lifecycle).cancel({ actorId: who.userId }));

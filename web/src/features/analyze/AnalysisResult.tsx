@@ -5,6 +5,14 @@ import { formatDate, formatNumber, PLATFORM_NAMES, SMOKE_LABELS } from "../../do
 import { ErrorAlert, Notice, SmokeMeter } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 
+const hostOf = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return u;
+  }
+};
+
 const SIGNAL_BADGE = { ok: "badge--fact", info: "badge--neutral", warning: "badge--smoke", danger: "badge--danger" } as const;
 const SIGNAL_WORD = { ok: "Bien", info: "Dato", warning: "Atención", danger: "Peligro" } as const;
 
@@ -30,6 +38,21 @@ export function AnalysisResult({ analysis }: { analysis: Analysis }) {
         </div>
       )}
       {a.postError && <Notice>{a.postError}</Notice>}
+      {a.article && (
+        <div className="card card--flat stack">
+          <h3 className="card__title">📰 Nota de {a.article.outletName ?? a.article.siteName ?? hostOf(a.article.url)}</h3>
+          {a.article.title && <p style={{ margin: 0 }}><strong>{a.article.title}</strong></p>}
+          <p className="muted" style={{ margin: 0 }}>
+            {[a.article.author, a.article.publishedAt && formatDate(a.article.publishedAt)].filter(Boolean).join(" · ")}
+            {(a.article.author || a.article.publishedAt) && " · "}
+            Se analizó la nota completa ({formatNumber(a.article.chars)} caracteres), sin menús ni publicidad.
+          </p>
+          <a href={a.article.url} target="_blank" rel="noopener noreferrer">
+            Ver la nota original{" "}<span className="visually-hidden">(se abre en otra pestaña)</span>
+          </a>
+        </div>
+      )}
+      {a.articleError && <Notice>{a.articleError}</Notice>}
 
       <div className="grid-2">
         <div className="card">

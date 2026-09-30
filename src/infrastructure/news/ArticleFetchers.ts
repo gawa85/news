@@ -1,3 +1,4 @@
+import { extractArticle } from "../content/ArticleExtractor";
 import { canonicalUrl, urlMatches, type Article, type Outlet } from "../../domain/model";
 import type { IArticleFetcher, IIdGenerator, IOutletReader, IPageCapturer } from "../../domain/ports";
 import { HttpPageCapturer } from "../evidence/HttpPageCapturer";
@@ -41,33 +42,19 @@ export class HttpArticleFetcher implements IArticleFetcher {
   async fetch(url: string, topic: string): Promise<Article> {
     const page = await this.capturer.capture(url, this.maxBytes);
     if (page.status >= 400) throw new Error(`La página respondió ${page.status}.`);
-    const html = page.body.toString("utf8");
-
-    const title = decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? url);
-    const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => decode(m[1] ?? "")).filter((p) => p.length > 40);
-    const published = html.match(/"datePublished"\s*:\s*"([^"]+)"/)?.[1];
-    if (paragraphs.length === 0) throw new Error("No se encontró texto de nota en la página.");
+    // El cuerpo de la nota (sin menús ni "notas relacionadas"): el mismo extractor que Analizar.
+    const art = extractArticle(page.body.toString("utf8"));
+    if (!art.text) throw new Error("No se encontró texto de nota en la página.");
 
     return {
       id: this.ids.next("article"),
       outletId: await resolveOutletId(url, this.outlets),
       url,
-      title,
-      body: paragraphs.join(" "),
-      publishedAt: published ? new Date(published) : new Date(),
+      title: art.title ?? url,
+      body: art.text,
+      publishedAt: art.publishedAt ?? new Date(),
       region: { country: "AR" }, // se refina con un IRegionDetector si hace falta
       topic,
     };
   }
-}
-
-function decode(s: string): string {
-  return s
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/\s+/g, " ")
-    .trim();
 }

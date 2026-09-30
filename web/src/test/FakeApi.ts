@@ -89,6 +89,7 @@ export class FakeApi implements SinHumoApi {
           text: "El desempleo subió al 7,9 %", outlets: ["Diario del Valle", "Norte Hoy"], conflicting: true, numbers: [7.9, 6.4], topic: "empleo",
           claims: [
             { claimId: "k2", outletId: "ddv", outletName: "Diario del Valle", text: "El desempleo subió al 7,9 % según el INDEC", articleTitle: "Desempleo", articleUrl: "https://ddv.example/desempleo", publishedAt: "2026-09-16T12:00:00Z" },
+            { claimId: "k4", outletId: "ddv", outletName: "Diario del Valle", text: "Es la tasa más alta en tres años, con 7,9 % de desocupados", articleTitle: "Desempleo", articleUrl: "https://ddv.example/desempleo", publishedAt: "2026-09-16T12:00:00Z" },
             { claimId: "k3", outletId: "nortehoy", outletName: "Norte Hoy", text: "El desempleo bajó al 6,4 % según el INDEC", articleTitle: "Empleo", articleUrl: "https://nortehoy.example/empleo", publishedAt: "2026-09-16T13:00:00Z" },
           ],
         },

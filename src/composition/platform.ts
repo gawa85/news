@@ -131,6 +131,8 @@ import type { IAbuseSignalProvider, ICaptchaVerifier, IDigestSource, IInboundMed
 import type { RateRule } from "../domain/model";
 import type { ILanguageDetector, ISocialSource, ITranslator } from "../domain/ports";
 import { SocialReader } from "../application/social/SocialReader";
+import { NewsLinkReader } from "../application/content/NewsLinkReader";
+import { HttpNewsArticleReader } from "../infrastructure/content/HttpNewsArticleReader";
 import { AccountQueries } from "../application/web/AccountQueries";
 import { SubscriptionLifecycle } from "../application/billing/SubscriptionLifecycle";
 import type { IRecurringCharges } from "../domain/ports";
@@ -558,10 +560,12 @@ export function buildPlatform(cfg: PlatformConfig) {
   const legal = new LegalService(repos.legalDocuments, repos.consents, clock, cfg.publicBaseUrl);
   const legalPublisher = new LegalPublisher(repos.legalDocuments, repos.users, authz, domainEvents, clock);
   const support = new SupportService(repos.tickets, repos.users, authz, access, params, domainEvents, ids, clock, logger, tell("soporte_respuesta"), cfg.supportDesk);
+  // Baja páginas públicas (nunca direcciones internas): lo usan el archivo de notas y la lectura de links a notas.
+  const pageCapturer = cfg.evidence?.capturer ?? new HttpPageCapturer();
   const evidence = new EvidenceService(
     repos.evidence,
     {
-      capturer: cfg.evidence?.capturer ?? new HttpPageCapturer(),
+      capturer: pageCapturer,
       blobs: cfg.evidence?.blobs ?? new DatabaseEvidenceBlobStore(repos.evidenceBlobs),
       timestamp: cfg.evidence?.timestamp,
       archives: cfg.evidence?.archives,
@@ -602,6 +606,8 @@ export function buildPlatform(cfg: PlatformConfig) {
 
   // ---- Redes: cadena de lectores (del más rico al más básico) con caché ----
   const social = cfg.social?.sources.length ? new SocialReader(new CachedSocialSource(new FallbackSocialSource(cfg.social.sources), cache), flags) : undefined;
+  // ---- Links a notas: se analiza la nota (título y cuerpo), no el link ----
+  const newsLinks = new NewsLinkReader(new HttpNewsArticleReader(pageCapturer), repos.outlets);
 
   const linkChannel = new LinkChannelUseCase(repos.users, codes, notifications, cfg.store, clock, {
     codes: new HashedChannelLinkCodes(repos.verificationCodes, clock), events: domainEvents, ...cfg.chatLinks,
@@ -617,6 +623,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       localizer: translator ? new ResponseLocalizer(translator) : undefined,
       languageDetector,
       social,
+      newsLinks,
       events: eventRooms,
       media: { check: mediaCheck, downloader: mediaDownloader },
       linkChannel,
@@ -666,6 +673,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     },
     inbound,
     social,
+    newsLinks,
     abuse: {
       guard: abuseGuard,
       admin: restrictionAdmin,
@@ -786,7 +794,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
   return {
     gateway: p.gateway, access: p.access, authz: p.authz, apiKeys: p.integrations.apiKeys, composer: p.composer,
     replies: p.replies, reviews: p.reviews, impactReport: p.impact.report, trackedLinks: p.trackedLinks,
-    inbound: p.abuse.inbound, social: p.social, abuse: p.abuse.guard,
+    inbound: p.abuse.inbound, social: p.social, newsLinks: p.newsLinks, abuse: p.abuse.guard,
     account: new AccountQueries(p.access, p.legal, p.store.repos.contentAnalyses, p.store.repos.plans, p.store.repos.outlets, FEATURE_LABELS, p.store.repos.subscriptions, p.authz, p.commerce.migrations, p.store.repos.sourceConnections),
     alerts: { settings: p.alerts.settings, create: p.users.createAlert },
     organizations: p.organizations,

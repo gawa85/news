@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import { useSession } from "../../session/SessionContext";
@@ -13,8 +13,9 @@ export function AnalyzePage() {
   const api = useApi();
   const { me, refresh } = useSession();
   const [params] = useSearchParams();
-  // (desde el panorama de credibilidad: "Analizar el texto")
-  const [text, setText] = useState(() => params.get("texto")?.slice(0, 5000) ?? "");
+  // Desde el panorama de credibilidad, "Analizar la nota": viene el link y se analiza al entrar.
+  const linked = params.get("url")?.slice(0, 2000);
+  const [text, setText] = useState(() => linked ?? "");
   const [touched, setTouched] = useState(false);
   const result = useRef<HTMLDivElement>(null);
   const analyze = useAction(async (t: string) => {
@@ -24,6 +25,14 @@ export function AnalyzePage() {
     setTimeout(() => result.current?.focus(), 0);
     return a;
   });
+
+  // Una sola vez por link (cada análisis cuenta para el límite del día).
+  const ranFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!linked || !/^https?:\/\//i.test(linked) || ranFor.current === linked) return;
+    ranFor.current = linked;
+    void analyze.run(linked);
+  }, [linked]);
 
   const limit = me?.plan.limits.analysesPerDay;
   const left = limit === null || limit === undefined ? undefined : Math.max(0, limit - (me?.usage.analyses ?? 0));
