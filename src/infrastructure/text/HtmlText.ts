@@ -12,17 +12,32 @@ const BLOCK = new Set(["br", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li
 
 const ENTITIES: Record<string, string> = {
   nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", "#39": "'",
-  // Las que usan los medios en español (tildes, eñe, comillas, rayas): sin esto quedaba "inflaci&oacute;n".
-  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", ntilde: "ñ", uuml: "ü",
-  agrave: "à", egrave: "è", igrave: "ì", ograve: "ò", ugrave: "ù", acirc: "â", ecirc: "ê", ocirc: "ô", ccedil: "ç",
-  iexcl: "¡", iquest: "¿", laquo: "«", raquo: "»", ordm: "º", ordf: "ª", deg: "°", middot: "·", bull: "•",
+  ntilde: "ñ", iexcl: "¡", iquest: "¿", laquo: "«", raquo: "»", ordm: "º", ordf: "ª", deg: "°", middot: "·", bull: "•",
   ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", hellip: "…", euro: "€", copy: "©", reg: "®", trade: "™",
+  sect: "§", para: "¶", times: "×", divide: "÷", plusmn: "±", sup2: "²", sup3: "³", frac12: "½", frac14: "¼", frac34: "¾",
+  cent: "¢", pound: "£", yen: "¥", micro: "µ", szlig: "ß", aelig: "æ", oslash: "ø",
 };
-const UPPER: Record<string, string> = { Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", Ntilde: "Ñ", Uuml: "Ü", Ccedil: "Ç" };
+
+/**
+ * Letras con tilde, diéresis, circunflejo…: "&aacute;", "&Ouml;", "&atilde;", "&ccedil;".
+ * Se arman todas (en mayúscula y minúscula) en vez de listarlas: sin esto quedaba "inflaci&oacute;n"
+ * o "L&ouml;wy" en las notas.
+ */
+const LETTERS: Record<string, string> = (() => {
+  const marks: Record<string, string> = { acute: "\u0301", grave: "\u0300", circ: "\u0302", uml: "\u0308", tilde: "\u0303", cedil: "\u0327", ring: "\u030a" };
+  const out: Record<string, string> = {};
+  for (const base of "aeiouyncAEIOUYNC") {
+    for (const [name, mark] of Object.entries(marks)) {
+      const ch = (base + mark).normalize("NFC");
+      if (ch.length === 1) out[base + name] = ch;
+    }
+  }
+  return out;
+})();
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (all, e: string) => {
-    if (UPPER[e] !== undefined) return UPPER[e]!;
+    if (LETTERS[e] !== undefined) return LETTERS[e]!;
     const k = e.toLowerCase();
     if (ENTITIES[k] !== undefined) return ENTITIES[k]!;
     const code = k.startsWith("#x") ? parseInt(k.slice(2), 16) : k.startsWith("#") ? parseInt(k.slice(1), 10) : NaN;

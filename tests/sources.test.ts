@@ -61,6 +61,8 @@ describe("Lector de feeds: el texto sale limpio", () => {
     assert.equal(htmlToText(a!.body).trim(), "La inflación de agosto");
     assert.equal(b!.title, "Newell's y Central");
     assert.equal(htmlToText(b!.body).trim(), "Canción «nueva» Ñuñoa");
+    assert.equal(htmlToText("S&atilde;o Bernardo, canon 1395 &sect; 2").trim(), "São Bernardo, canon 1395 § 2");
+    assert.equal(htmlToText("Rapha&euml;l, St&ouml;guer, L&Ouml;WY, &Aacute;ngel, &Ntilde;u&ntilde;oa, Fran&ccedil;ois").trim(), "Raphaël, Stöguer, LÖWY, Ángel, Ñuñoa, François");
   });
 });
 
