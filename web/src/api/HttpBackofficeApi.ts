@@ -57,6 +57,7 @@ import type {
   CatalogDirectoryEntry,
   DirectoryCheck,
   FeedReadResult,
+  ReclassifyReport,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -188,6 +189,9 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   async saveCategory(draft: CategoryDraft) {
     await this.request("POST", "/v1/taxonomy/categories", draft);
+  }
+  reclassifyArticles(scope: "otros" | "todas") {
+    return this.request<ReclassifyReport>("POST", "/v1/taxonomy/reclassify", { scope });
   }
 
   quality() {

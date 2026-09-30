@@ -76,6 +76,7 @@ export const DOMAIN_EVENTS = [
   "legal.published",
   "platform.profile_changed",
   "outlet.feed_changed",
+  "articles.reclassified",
   "model.promoted",
   "invoice.issued",
   "personal_data.exported",

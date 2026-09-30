@@ -57,6 +57,7 @@ import type {
   CatalogDirectoryEntry,
   DirectoryCheck,
   FeedReadResult,
+  ReclassifyReport,
 } from "./backofficeTypes";
 
 /**
@@ -118,6 +119,8 @@ export interface BackofficeApi {
   taxonomy(): Promise<AdminCategory[]>;
   saveTopic(draft: TopicDraft): Promise<void>;
   saveCategory(draft: CategoryDraft): Promise<void>;
+  /** Volver a clasificar las notas del catálogo: las que quedaron en "otros" o todas. */
+  reclassifyArticles(scope: "otros" | "todas"): Promise<ReclassifyReport>;
 
   // Calidad del algoritmo (quality:manage)
   quality(): Promise<QualityOverview>;

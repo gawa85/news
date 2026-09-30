@@ -153,8 +153,14 @@ export async function seedTaxonomy(
 ): Promise<void> {
   const cats = new Set((await repo.findCategories()).map((c) => c.id));
   for (const c of seed.categories) if (!cats.has(c.id)) await repo.saveCategory({ ...c, active: true });
-  const topics = new Set((await repo.findTopics()).map((t) => t.id));
+  const topics = new Map((await repo.findTopics()).map((t) => [t.id, t]));
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
   for (const t of seed.topics) {
-    if (!topics.has(t.id)) await repo.saveTopic({ ...t, sensitive: t.sensitive ?? false, countries: [], active: true, updatedAt: now, updatedBy: "sistema" });
+    const cur = topics.get(t.id);
+    if (!cur) await repo.saveTopic({ ...t, sensitive: t.sensitive ?? false, countries: [], active: true, updatedAt: now, updatedBy: "sistema" });
+    // Nunca lo tocó el equipo: recibe las palabras clave nuevas de la semilla (lo editado a mano no se pisa).
+    else if (cur.updatedBy === "sistema" && (!same(cur.keywords, t.keywords) || !same(cur.synonyms, t.synonyms))) {
+      await repo.saveTopic({ ...cur, keywords: t.keywords, synonyms: t.synonyms, updatedAt: now });
+    }
   }
 }

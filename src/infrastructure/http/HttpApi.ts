@@ -51,6 +51,7 @@
  *  Configuración del negocio:
  *    GET /public/topics                     árbol de categorías y temas
  *    GET /v1/taxonomy (con lo desactivado)   POST /v1/taxonomy/categories  POST /v1/taxonomy/topics   (taxonomy:manage)
+ *    POST /v1/taxonomy/reclassify { scope: "otros"|"todas" }   volver a clasificar las notas del catálogo
  *    GET/PATCH /v1/me/preferences   POST /v1/me/preferences/(follow|unfollow) { topic }
  *    PUT /v1/organization/preferences { values, locked }
  *    GET/POST /v1/business-rules   POST /v1/business-rules/:id/(test|approve|archive)   GET /v1/business-rules/:id/history
@@ -128,6 +129,7 @@ import type { LinkChannelUseCase } from "../../application/users/UserSettingsUse
 import type { OnboardingService } from "../../application/onboarding/Onboarding";
 import type { SetupService } from "../../application/ops/Setup";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
+import type { ReclassifyArticlesUseCase } from "../../application/catalog/ReclassifyArticles";
 import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
 import type { PlanMigrations } from "../../application/commerce/PlanMigrations";
 import type { SourceDirectoryService } from "../../application/content/SourceDirectory";
@@ -244,7 +246,7 @@ export interface HttpApiDeps {
   /** `csvSource`: arma una fuente con un CSV subido desde la web (medios, propiedad o pauta). */
   catalog: { import: ImportCatalogUseCase; editor: OutletEditor; csvSource?: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => IOutletCatalogSource };
   stats: { service: StatsService; openData: OpenDataService; biFeed: BiFeedService; scheduledReports: ScheduledReportService };
-  config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService };
+  config: { taxonomy: TaxonomyService; preferences: PreferencesService; businessRules: BusinessRulesService; params: ParameterService; reclassify?: ReclassifyArticlesUseCase };
   commerce: { service: CommerceService; referrals: ReferralService; branding: BrandingService; countries: ICountryRegistry; plans: PlanAdmin; migrations: PlanMigrations };
   inclusion: { learning: LearningService; media: IMediaStore };
   flags: FeatureFlagService;
@@ -945,6 +947,9 @@ export function createHttpApi(deps: HttpApiDeps): Server {
         return json(res, 200, await deps.config.taxonomy.saveCategory({ ...pick(b, ["id", "name", "parentId", "description", "order", "active"]), actorId: who.userId } as never));
       case "POST /v1/taxonomy/topics":
         return json(res, 200, await deps.config.taxonomy.saveTopic({ ...pick(b, ["id", "name", "categoryId", "keywords", "synonyms", "sensitive", "countries", "active"]), actorId: who.userId } as never));
+      case "POST /v1/taxonomy/reclassify":
+        if (!deps.config.reclassify) return json(res, 404, { error: "not_found" });
+        return json(res, 200, await deps.config.reclassify.execute(who.userId, (b.scope ?? "otros") as never));
       case "GET /v1/taxonomy":
         return json(res, 200, await deps.config.taxonomy.adminTree(who.userId));
       case "GET /v1/me/preferences":

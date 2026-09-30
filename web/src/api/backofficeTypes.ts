@@ -596,3 +596,10 @@ export interface FeedReadResult {
   error?: string;
   feed: OutletFeed;
 }
+
+/** Resultado de volver a clasificar las notas por tema. */
+export interface ReclassifyReport {
+  checked: number;
+  changed: number;
+  byTopic: { topic: string; articles: number }[];
+}

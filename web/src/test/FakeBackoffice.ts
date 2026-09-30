@@ -46,6 +46,7 @@ import type {
   CatalogDirectoryEntry,
   DirectoryCheck,
   FeedReadResult,
+  ReclassifyReport,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -234,6 +235,10 @@ export class FakeBackoffice implements BackofficeApi {
   ];
   async taxonomy() {
     return this.tree;
+  }
+  async reclassifyArticles(scope: "otros" | "todas"): Promise<ReclassifyReport> {
+    this.log("reclassifyArticles", scope);
+    return { checked: 10, changed: 7, byTopic: [{ topic: "deportes", articles: 4 }, { topic: "otros", articles: 3 }, { topic: "justicia", articles: 3 }] };
   }
   async saveTopic(draft: TopicDraft) {
     this.log("saveTopic", draft);

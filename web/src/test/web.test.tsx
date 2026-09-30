@@ -903,6 +903,18 @@ describe("Backoffice: temas, calidad, datos y operación", () => {
     expect(await screen.findByText("Tema creado.")).toBeInTheDocument();
   });
 
+  test("temas: volver a clasificar las notas (sólo 'otros' o todas) y ver cómo quedaron", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(staff("taxonomy:manage"), "/admin/temas", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Volver a clasificar" }));
+    expect(await screen.findByText("Listo: se revisaron 10 nota(s) y 7 cambiaron de tema.")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "otros (sin tema)" })).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/^Todas/));
+    await user.click(screen.getByRole("button", { name: "Volver a clasificar" }));
+    await waitFor(() => expect(bo.calls.filter((c) => c.method === "reclassifyArticles").map((c) => c.args[0])).toEqual(["otros", "todas"]));
+  });
+
   test("calidad: revisar un ejemplo, medir y poner en uso una candidata", async () => {
     const bo = new FakeBackoffice();
     renderApp(staff("quality:manage"), "/admin/calidad", bo);

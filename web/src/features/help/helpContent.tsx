@@ -183,7 +183,12 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["funcion_prueba", "despliegue"],
   },
   "/admin/temas": {
-    summary: "Los temas con los que se ordenan las notas y las palabras que los identifican. Nada se borra: se desactiva.",
+    summary: "Los temas con los que se ordenan las notas y las palabras que los identifican. Nada se borra: se desactiva. Una nota va al tema con más palabras clave en su título y texto; si no tiene ninguna, queda en «otros».",
+    steps: [
+      "Si ves muchas notas en «otros», sumá el tema que falta o palabras clave a uno que ya existe.",
+      "Evitá palabras cortas que son el comienzo de otras: «gol» también encuentra «golpe».",
+      "Después tocá «Volver a clasificar»: las notas que ya estaban se revisan con los temas nuevos.",
+    ],
     example: "Tema «tarifas de luz»: palabras clave «tarifa de luz, EDENOR, EDESUR, ENRE»; sinónimo «electricidad».",
     terms: ["tema", "palabra_clave"],
   },

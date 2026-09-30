@@ -139,6 +139,7 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   "outlet_representative.removed": "Se quitó a un representante de medio",
   "outlet.saved": "Se guardó un medio",
   "outlet.feed_changed": "Se cambió un feed de un medio",
+  "articles.reclassified": "Se volvieron a clasificar notas por tema",
   "catalog.imported": "Se importó el catálogo de medios",
   "model.promoted": "Se puso en uso otra versión del algoritmo",
   "user.registered": "Se creó una cuenta",

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useBackoffice } from "../../api/BackofficeContext";
-import type { AdminCategory, AdminTopic, TopicDraft } from "../../api/backofficeTypes";
+import type { AdminCategory, AdminTopic, ReclassifyReport, TopicDraft } from "../../api/backofficeTypes";
 import { formatDateTime } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
@@ -35,6 +35,7 @@ export function TaxonomyPage() {
             <h2 id="nueva-categoria">Nueva categoría</h2>
             <CategoryForm categories={cats.filter((c) => c.active)} onSaved={reload} />
           </section>
+          <Reclassify />
           <section className="stack" aria-labelledby="todos-los-temas">
             <h2 id="todos-los-temas">Temas por categoría</h2>
             <div className="grid-2">
@@ -251,5 +252,66 @@ function CategoryToggle({ c, onSaved }: { c: AdminCategory; onSaved: () => void 
       </div>
       <ErrorAlert error={toggle.error} />
     </div>
+  );
+}
+
+/** Volver a clasificar las notas ya guardadas con los temas de hoy (las viejas no se enteran solas). */
+function Reclassify() {
+  const api = useBackoffice();
+  const [scope, setScope] = useState<"otros" | "todas">("otros");
+  const run = useAction((s: "otros" | "todas") => api.reclassifyArticles(s));
+  const r: ReclassifyReport | undefined = run.result;
+  return (
+    <section className="card stack" aria-labelledby="reclasificar">
+      <h2 id="reclasificar">Volver a clasificar las notas</h2>
+      <p className="muted" style={{ margin: 0 }}>
+        Cada nota recibe su tema cuando se lee. Si sumaste temas o palabras clave, las notas que ya estaban no se enteran: este botón las revisa de nuevo con los temas de hoy.
+      </p>
+      <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="field__label">¿Qué notas revisar?</legend>
+        <label className="row">
+          <input type="radio" name="reclasificar-alcance" checked={scope === "otros"} onChange={() => setScope("otros")} />
+          Sólo las que quedaron sin tema ("otros"). Lo que ya tenía tema no se mueve.
+        </label>
+        <label className="row">
+          <input type="radio" name="reclasificar-alcance" checked={scope === "todas"} onChange={() => setScope("todas")} />
+          Todas (por ejemplo, después de corregir palabras clave que clasificaban mal).
+        </label>
+      </fieldset>
+      <div>
+        <button className="btn btn--secondary" type="button" disabled={run.pending} onClick={() => void run.run(scope)}>
+          {run.pending ? "Clasificando…" : "Volver a clasificar"}
+        </button>
+      </div>
+      <ErrorAlert error={run.error} title="No se pudo volver a clasificar" />
+      {r && (
+        <div role="status" className="stack">
+          <p style={{ margin: 0 }}>
+            {r.changed === 0 ? `Listo: se revisaron ${r.checked} nota(s) y ninguna cambió de tema.` : `Listo: se revisaron ${r.checked} nota(s) y ${r.changed} cambiaron de tema.`}
+          </p>
+          {r.byTopic.length > 0 && (
+            <div className="table-wrap">
+              <table className="table">
+                <caption className="visually-hidden">Cómo quedaron las notas revisadas, por tema</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Tema</th>
+                    <th scope="col">Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.byTopic.map((x) => (
+                    <tr key={x.topic}>
+                      <td>{x.topic === "otros" ? "otros (sin tema)" : x.topic}</td>
+                      <td>{x.articles}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
