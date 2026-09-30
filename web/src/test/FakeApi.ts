@@ -46,7 +46,10 @@ export class FakeApi implements SinHumoApi {
     return this.analyzeResult;
   }
   async history() {
-    return [{ id: "a1", at: "2026-09-28T12:00:00Z", sourceType: "message", excerpt: "Una cadena", smokeIndex: 80, findings: 3 }];
+    return [
+      { id: "a1", at: "2026-09-28T12:00:00Z", sourceType: "message", origin: { kind: "whatsapp" as const, label: "WhatsApp, reenviado muchas veces", forwarded: true, forwardedManyTimes: true }, excerpt: "Una cadena", smokeIndex: 80, findings: 3 },
+      { id: "a2", at: "2026-09-28T11:00:00Z", sourceType: "rss", origin: { kind: "feed" as const, label: "Feed «Clarín» (clarin.com)", source: "Clarín", domain: "clarin.com", url: "https://clarin.com/nota", forwarded: false, forwardedManyTimes: false }, title: "Suben las tarifas", excerpt: "Suben las tarifas", smokeIndex: 10, findings: 0 },
+    ];
   }
   async analysis() {
     return sampleAnalysis();
@@ -626,6 +629,7 @@ export function sampleAnalysis(): Analysis {
     cleanVersion: "",
     signals: [{ id: "s1", level: "warning", label: "Reenviado muchas veces", detail: "WhatsApp lo marca como cadena." }],
     links: [],
+    origin: { kind: "feed", label: "Feed «Clarín» (clarin.com)", source: "Clarín", domain: "clarin.com", url: "https://clarin.com/nota", forwarded: false, forwardedManyTimes: false },
   };
 }
 

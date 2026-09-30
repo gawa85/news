@@ -1,3 +1,4 @@
+import { originOf } from "../../domain/rules/contentOrigin";
 import { AccessDeniedError, ValidationError } from "../../domain/errors";
 import {
   SMOKE_LABELS,
@@ -114,7 +115,7 @@ export class ExportService {
             name: "Análisis",
             columns: ["Fecha", "Origen", "Título", "Índice de humo", "Humo detectado", "Señales"],
             rows: items.map((a) => [
-              a.analyzedAt.toISOString(), a.item.sourceType, a.item.title ?? "", a.smoke.smokeIndex,
+              a.analyzedAt.toISOString(), originOf(a.item).label, a.item.title ?? "", a.smoke.smokeIndex,
               [...new Set(a.smoke.findings.map((f) => SMOKE_LABELS[f.type]))].join("; "),
               a.signals.map((s) => s.label).join("; "),
             ]),

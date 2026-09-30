@@ -3,6 +3,7 @@ import { useApi } from "../../api/ApiContext";
 import { formatDateTime, smokeVerdict } from "../../domain/labels";
 import { ErrorAlert, Page, Spinner } from "../../ui/components";
 import { useAsync } from "../../ui/useAsync";
+import type { AnalysisOrigin } from "../../api/types";
 import { AnalysisResult } from "./AnalysisResult";
 
 /** HISTORIAL: lo que analicé, del más nuevo al más viejo. */
@@ -33,6 +34,11 @@ export function HistoryPage() {
                 <p style={{ marginTop: "var(--space-2)" }}>
                   <Link to={`/historial/${encodeURIComponent(a.id)}`}>{a.title ?? a.excerpt}</Link>
                 </p>
+                {a.origin && (
+                  <p className="muted" style={{ margin: 0 }}>
+                    De dónde vino: {a.origin.label}
+                  </p>
+                )}
               </li>
             );
           })}
@@ -55,6 +61,7 @@ export function HistoryDetailPage() {
       <ErrorAlert error={a.error} />
       {a.data && (
         <>
+          {a.data.origin && <OriginCard origin={a.data.origin} />}
           <div className="card card--flat">
             <h2>Lo que analizaste</h2>
             <p style={{ whiteSpace: "pre-wrap" }}>{a.data.text}</p>
@@ -63,5 +70,28 @@ export function HistoryDetailPage() {
         </>
       )}
     </Page>
+  );
+}
+
+/** De dónde vino lo analizado: la fuente, quién lo mandó o publicó y el link al original. */
+function OriginCard({ origin }: { origin: AnalysisOrigin }) {
+  return (
+    <section className="card card--flat stack" aria-labelledby="de-donde-vino">
+      <h2 id="de-donde-vino">De dónde vino</h2>
+      <p style={{ margin: 0 }}>{origin.label}</p>
+      {origin.url && (
+        <p style={{ margin: 0 }}>
+          <a href={origin.url} target="_blank" rel="noopener noreferrer">
+            Ver el original{origin.domain ? ` en ${origin.domain}` : ""}
+            <span className="visually-hidden"> (se abre en otra pestaña)</span>
+          </a>
+        </p>
+      )}
+      {(origin.kind === "feed" || origin.kind === "mailbox") && (
+        <p className="muted" style={{ margin: 0 }}>
+          Llegó por una fuente que conectaste. La podés ver o desconectar en <Link to="/fuentes">Mis fuentes</Link>.
+        </p>
+      )}
+    </section>
   );
 }

@@ -1271,6 +1271,17 @@ describe("Leer ahora", () => {
     expect(await screen.findByText(/Todavía no se leyó ninguna nota de este medio/)).toBeInTheDocument();
   });
 
+  test("historial: cada análisis dice de dónde vino; el detalle lleva al original", async () => {
+    renderApp(new FakeApi(sampleMe()), "/historial");
+    expect(await screen.findByText("De dónde vino: WhatsApp, reenviado muchas veces")).toBeInTheDocument();
+    expect(screen.getByText("De dónde vino: Feed «Clarín» (clarin.com)")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("link", { name: "Suben las tarifas" }));
+    const card = await screen.findByRole("region", { name: "De dónde vino" });
+    expect(within(card).getByText("Feed «Clarín» (clarin.com)")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: /^Ver el original en clarin\.com/ })).toHaveAttribute("href", "https://clarin.com/nota");
+    expect(within(card).getByRole("link", { name: "Mis fuentes" })).toHaveAttribute("href", "/fuentes");
+  });
+
   test("comparar: el tema puede venir en el enlace", async () => {
     renderApp(new FakeApi(sampleMe()), "/comparar?tema=deportes");
     expect(await screen.findByLabelText(/^Tema/)).toHaveValue("deportes");

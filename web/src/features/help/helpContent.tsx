@@ -25,7 +25,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     example: "«URGENTE!!! Reenviá a todos: mañana cortan el agua en todo el país» → índice alto: alarma sin fuente y pedido de reenvío.",
     terms: ["humo", "indice_humo"],
   },
-  "/historial": { summary: "Todo lo que analizaste, por la web, WhatsApp, Telegram o mail. Tocá uno para ver el resultado completo." },
+  "/historial": { summary: "Todo lo que analizaste, por la web, WhatsApp, Telegram o mail, y lo que trajeron tus fuentes conectadas. Debajo de cada uno dice de dónde vino. Tocá uno para ver el resultado completo y el link al original." },
   "/comparar": {
     summary: "Elegís un tema y unas fechas, y ves qué dijeron distintos medios: en qué coinciden, en qué se contradicen y qué deja afuera cada uno.",
     steps: ["Escribí un tema (te sugerimos los que existen).", "Elegí desde y hasta cuándo.", "Tocá «Comparar»."],
@@ -129,7 +129,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   "/ayuda": {
     summary: "Escribinos y te responde una persona del equipo. Ves tus consultas y sus respuestas acá; también podés escribir /soporte por WhatsApp o Telegram.",
   },
-  "/historial/*": { summary: "El resultado completo de un análisis que hiciste: el texto, el índice de humo, qué humo encontró y lo que queda sin humo.", terms: ["humo", "indice_humo"] },
+  "/historial/*": { summary: "El resultado completo de un análisis: de dónde vino (y el link al original), el texto, el índice de humo, qué humo encontró y lo que queda sin humo.", terms: ["humo", "indice_humo"] },
 
   // ---- Backoffice ----
   "/admin/puesta-en-marcha": { summary: "La lista de lo que falta para abrir Sin Humo al público. Cada punto tiene su guía paso a paso.", terms: ["https", "smtp", "cuit", "arca", "copia_seguridad"] },

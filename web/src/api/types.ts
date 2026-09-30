@@ -34,10 +34,25 @@ export interface AnalyzedLink {
 
 export type SocialPlatform = "youtube" | "x" | "facebook" | "instagram" | "tiktok" | "telegram" | "threads" | "web";
 
+/** De dónde vino algo que se analizó (el servidor ya lo describe en castellano en `label`). */
+export interface AnalysisOrigin {
+  kind: "feed" | "mailbox" | "email" | "whatsapp" | "telegram" | "web_text" | "web_link" | "social" | "document";
+  label: string;
+  source?: string;
+  author?: string;
+  domain?: string;
+  url?: string;
+  forwarded: boolean;
+  forwardedManyTimes: boolean;
+  platform?: string;
+  extractedFrom?: string;
+}
+
 export interface Analysis {
   id: string;
   at: string;
   sourceType: string;
+  origin?: AnalysisOrigin;
   title?: string;
   text: string;
   smokeIndex: number;
@@ -60,6 +75,7 @@ export interface AnalysisSummary {
   id: string;
   at: string;
   sourceType: string;
+  origin?: AnalysisOrigin;
   title?: string;
   excerpt: string;
   smokeIndex: number;

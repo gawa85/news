@@ -1,6 +1,7 @@
 import { NotFoundError } from "../../domain/errors";
 import { onSale, type ContentAnalysis, type Feature, type Plan, type SocialPost, type Subscription } from "../../domain/model";
-import type { IAuthorizationService, IContentAnalysisRepository, IOutletReader, IPlanRepository, ISubscriptionRepository } from "../../domain/ports";
+import type { IAuthorizationService, IContentAnalysisRepository, IOutletReader, IPlanRepository, ISourceConnectionRepository, ISubscriptionRepository } from "../../domain/ports";
+import { originOf, type AnalysisOrigin } from "../../domain/rules/contentOrigin";
 import type { AccessControl } from "../access/AccessControl";
 import type { LegalService } from "../legal/Legal";
 
@@ -17,6 +18,8 @@ export interface AnalysisView {
   cleanVersion: string;
   signals: ContentAnalysis["signals"];
   links: ContentAnalysis["links"];
+  /** De dónde vino: por dónde llegó, quién lo mandó o publicó y el link al original. */
+  origin: AnalysisOrigin;
   /** Si el texto salió de una publicación de una red. */
   post?: Pick<SocialPost, "platform" | "url" | "author" | "publishedAt" | "metrics">;
 }
@@ -25,6 +28,7 @@ export interface AnalysisSummary {
   id: string;
   at: Date;
   sourceType: string;
+  origin: AnalysisOrigin;
   title?: string;
   excerpt: string;
   smokeIndex: number;
@@ -59,7 +63,20 @@ export class AccountQueries {
     private readonly authz?: IAuthorizationService,
     /** Mudanza de plan programada (si hay). */
     private readonly planChanges?: { pendingFor(sub: Subscription): Promise<unknown> },
+    /** Para decir de qué fuente conectada vino cada análisis (con el nombre que le puso la persona). */
+    private readonly connections?: Pick<ISourceConnectionRepository, "findById">,
   ) {}
+
+  /** Nombre de la fuente conectada que trajo cada análisis (sólo si es de la misma persona). */
+  private async connectionNames(userId: string, list: ContentAnalysis[]): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    if (!this.connections) return names;
+    for (const id of new Set(list.map((a) => a.item.connectionId).filter((x): x is string => !!x))) {
+      const c = await this.connections.findById(id);
+      if (c && c.userId === userId) names.set(id, c.name);
+    }
+    return names;
+  }
 
   /** Quién soy: datos de la cuenta, plan, uso de hoy y documentos legales por aceptar. */
   async me(userId: string) {
@@ -93,10 +110,12 @@ export class AccountQueries {
 
   async history(userId: string, limit = 30): Promise<AnalysisSummary[]> {
     const list = await this.analyses.findByUser(userId, Math.min(Math.max(1, limit), 100));
+    const names = await this.connectionNames(userId, list);
     return list.map((a) => ({
       id: a.id,
       at: a.analyzedAt,
       sourceType: a.item.sourceType,
+      origin: originOf(a.item, a.item.connectionId ? names.get(a.item.connectionId) : undefined),
       title: a.item.title,
       excerpt: a.item.text.length > 160 ? `${a.item.text.slice(0, 159)}…` : a.item.text,
       smokeIndex: a.smoke.smokeIndex,
@@ -108,10 +127,11 @@ export class AccountQueries {
   async analysis(userId: string, id: string): Promise<AnalysisView> {
     const a = await this.analyses.findById(id);
     if (!a || a.userId !== userId) throw new NotFoundError("No existe ese análisis.");
-    return AccountQueries.view(a);
+    const names = await this.connectionNames(userId, [a]);
+    return AccountQueries.view(a, undefined, a.item.connectionId ? names.get(a.item.connectionId) : undefined);
   }
 
-  static view(a: ContentAnalysis, post?: SocialPost): AnalysisView {
+  static view(a: ContentAnalysis, post?: SocialPost, connectionName?: string): AnalysisView {
     return {
       id: a.id,
       at: a.analyzedAt,
@@ -124,6 +144,7 @@ export class AccountQueries {
       cleanVersion: a.smoke.cleanVersion,
       signals: a.signals,
       links: a.links,
+      origin: originOf(a.item, connectionName),
       ...(post ? { post: { platform: post.platform, url: post.url, author: post.author, publishedAt: post.publishedAt, metrics: post.metrics } } : {}),
     };
   }

@@ -111,6 +111,16 @@ describe("Directorio de fuentes públicas", () => {
     assert.equal(res.analyzed, 1);
     assert.equal((await eva(`/v1/sources/${conn.id}/sync`, post({}))).status, 409, "hace menos de un minuto");
 
+    // En el historial se ve de qué fuente vino, con el link a la nota original.
+    type Origin = { kind: string; label: string; source?: string; url?: string };
+    const hist = (await (await eva("/v1/me/analyses")).json()) as { id: string; origin: Origin }[];
+    const fromFeed = hist.find((h) => h.origin.kind === "feed")!;
+    assert.equal(fromFeed.origin.source, "Perfil");
+    assert.match(fromFeed.origin.label, /^Feed «Perfil»/);
+    assert.equal(fromFeed.origin.url, "https://ejemplo.com/nota-Perfil");
+    const detail = (await (await eva(`/v1/me/analyses/${encodeURIComponent(fromFeed.id)}`)).json()) as { origin: Origin };
+    assert.equal(detail.origin.label, fromFeed.origin.label);
+
     const other = await web.login("otra.leer@correo.example");
     assert.equal((await other(`/v1/sources/${conn.id}/sync`, post({}))).status, 404, "no es suya");
     t.clock.advance(61_000);
