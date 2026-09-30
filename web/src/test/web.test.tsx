@@ -319,6 +319,42 @@ describe("Herramientas del plan", () => {
     expect(screen.getByRole("img", { name: /Gráfico de la credibilidad/ })).toBeInTheDocument();
   });
 
+  test("credibilidad sin datos corroborados: no hay puntaje general y se explica por qué", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/credibilidad?medio=ddv&tema=inflaci%C3%B3n");
+    const user = userEvent.setup();
+    await screen.findByRole("option", { name: "Diario del Valle" });
+    expect(screen.getByLabelText("Medio")).toHaveValue("ddv");
+    expect(screen.getByLabelText("Tema")).toHaveValue("inflación");
+    await user.click(screen.getByRole("button", { name: "Ver credibilidad" }));
+    expect(await screen.findByText("Sin puntaje general: todavía no hay datos corroborados")).toBeInTheDocument();
+    expect(screen.queryByText(/Credibilidad general:/)).not.toBeInTheDocument();
+
+    api.credibilityResult = { ...api.credibilityResult, overall: 0.7, verification: { status: "verified", note: "Hay afirmaciones verificadas por personas." } };
+    await user.click(screen.getByRole("button", { name: "Ver credibilidad" }));
+    expect(await screen.findByText(/Verificado por personas\. Hay afirmaciones verificadas/)).toBeInTheDocument();
+  });
+
+  test("panorama: todos los medios juntos, con enlace a cada ficha, y los datos repetidos sin verificar", async () => {
+    const api = new FakeApi(proMe());
+    renderApp(api, "/credibilidad/panorama");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/^Tema/), "inflación");
+    await user.click(screen.getByRole("button", { name: "Ver panorama" }));
+    const table = await screen.findByRole("table", { name: /Credibilidad de cada medio/ });
+    const [, first, second] = within(table).getAllByRole("row");
+    expect(within(first!).getByRole("link", { name: "Diario del Valle" })).toHaveAttribute("href", "/credibilidad?medio=ddv&tema=inflaci%C3%B3n");
+    expect(within(first!).getByText("Verificado por personas")).toBeInTheDocument();
+    expect(within(first!).getByText("(pocos datos)")).toBeInTheDocument();
+    expect(within(second!).getByText("Sin corroborar")).toBeInTheDocument();
+    expect(within(second!).getByText("sin puntaje")).toBeInTheDocument();
+    expect(screen.getByText(/1 de 2 medios no tienen puntaje general/)).toBeInTheDocument();
+    expect(screen.getByText("«El desempleo subió al 7,9 %»")).toBeInTheDocument();
+    expect(screen.getByText("No dan la misma cifra")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "credibilityOverview")?.args[0]).toMatchObject({ topic: "inflación" });
+    expect(screen.queryByRole("link", { name: "Ir a Verificación" })).not.toBeInTheDocument();
+  });
+
   test("¿esto es humo?: responder y ver la explicación", async () => {
     const api = new FakeApi(sampleMe());
     renderApp(api, "/jugar");

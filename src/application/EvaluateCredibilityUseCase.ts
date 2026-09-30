@@ -1,5 +1,6 @@
 import { NotFoundError, ValidationError } from "../domain/errors";
 import type { CredibilityQuery, CredibilityReport } from "../domain/model";
+import { verificationState } from "../domain/rules/credibilityVerification";
 import type {
   EvaluationContext,
   IAggregationPolicy,
@@ -14,7 +15,8 @@ import type {
 const DISCLAIMER =
   "La credibilidad se mide por tema y período, no es una nota fija del medio. " +
   "Tener una línea editorial clara no es lo mismo que ser inexacto. " +
-  "Los indicadores de contexto (dueños, pauta, cambios de postura) señalan riesgos, no prueban mala fe.";
+  "Los indicadores de contexto (dueños, pauta, cambios de postura) señalan riesgos, no prueban mala fe. " +
+  "Que una nota traiga datos no quiere decir que sean ciertos: el puntaje general sólo aparece cuando hay datos corroborados.";
 
 /**
  * Caso de uso 4: medidor de credibilidad.
@@ -41,12 +43,15 @@ export class EvaluateCredibilityUseCase implements ICredibilityEvaluator {
     const ctx: EvaluationContext = { query, outlet, articles, claims };
 
     const dimensions = await Promise.all(this.dimensions.map((d) => d.evaluate(ctx)));
+    // Que las notas tengan cifras y citen fuentes no las hace ciertas: sin corroborar, no hay puntaje general.
+    const verification = verificationState(dimensions);
 
     return {
       query,
       outletName: outlet.name,
       dimensions,
-      overall: this.aggregation.aggregate(dimensions),
+      overall: verification.status === "unverified" ? null : this.aggregation.aggregate(dimensions),
+      verification,
       sampleSize: articles.length,
       generatedAt: this.clock.now(),
       disclaimer: DISCLAIMER,

@@ -37,6 +37,9 @@ import { ConflictOfInterestDimension } from "../infrastructure/credibility/Confl
 import { ConsistencyDimension } from "../infrastructure/credibility/ConsistencyDimension";
 import { OfficialAdvertisingDimension } from "../infrastructure/credibility/OfficialAdvertisingDimension";
 import { LanguageSmokeDimension } from "../infrastructure/credibility/LanguageSmokeDimension";
+import { CorroborationDimension } from "../infrastructure/credibility/CorroborationDimension";
+import { WordClaimIndexer } from "../infrastructure/heuristics/WordClaimIndexer";
+import { CredibilityOverviewUseCase } from "../application/credibility/CredibilityOverview";
 import { SourcingQualityDimension } from "../infrastructure/credibility/SourcingQualityDimension";
 import { WeightedAveragePolicy } from "../infrastructure/credibility/WeightedAveragePolicy";
 import { JaccardSimilarity } from "../infrastructure/heuristics/JaccardSimilarity";
@@ -117,6 +120,7 @@ export function buildApp(config: AppConfig) {
 
   // --- Análisis de texto: reglas o IA, según configuración ---
   const similarity = new JaccardSimilarity();
+  const claimIndexer = new WordClaimIndexer();
   let smokeDetector: ISmokeDetector;
   let extractor: IClaimExtractor;
   let classifier: IDisagreementClassifier;
@@ -164,16 +168,18 @@ export function buildApp(config: AppConfig) {
   // --- Credibilidad: la lista de dimensiones se arma acá (OCP) ---
   const dimensions = [
     new AccuracyDimension(verdicts),
+    new CorroborationDimension(articles, claims, claimIndexer, async (id) => (await outlets.findById(id))?.name ?? id),
     new SourcingQualityDimension(),
     new ConflictOfInterestDimension(ownership, sectors),
     new OfficialAdvertisingDimension(advertising, politics, { highMonthlyAmount: 10_000_000, currency: "ARS" }),
     new ConsistencyDimension(politics, new LexiconStanceDetector()),
     new LanguageSmokeDimension(),
   ];
-  const aggregation = new WeightedAveragePolicy({ accuracy: 3, sourcing: 2, conflict_of_interest: 1, official_advertising: 1, consistency: 1, language: 1 });
+  const aggregation = new WeightedAveragePolicy({ accuracy: 3, sourcing: 2, conflict_of_interest: 1, official_advertising: 1, consistency: 1, language: 1, corroboration: 2 });
   const evaluateCredibility = new EvaluateCredibilityUseCase(outlets, articles, claims, dimensions, aggregation, clock);
 
   const traceOrigin = new TraceOriginUseCase(articles, outlets, similarity);
+  const credibilityOverview = new CredibilityOverviewUseCase(outlets, articles, claims, verdicts, evaluateCredibility, claimIndexer);
   return {
     analyzeSmoke: new AnalyzeSmokeUseCase(smokeDetector, logger),
     compareSources: new CompareSourcesUseCase(sourceCollector, extractor, clusterer, classifier, articles, claims, logger),
@@ -182,6 +188,7 @@ export function buildApp(config: AppConfig) {
     traceOriginByUrl: new TraceOriginByUrlUseCase(articles, fetcher, traceOrigin),
     evaluateCredibility,
     credibilityTimeline: new CredibilityTimelineUseCase(evaluateCredibility),
+    credibilityOverview,
     /** Acceso de administración (carga de verificaciones). En producción sería otro caso de uso. */
     admin: { verdicts, claims, outlets, articles },
     smokeDetector,

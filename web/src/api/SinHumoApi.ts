@@ -6,6 +6,7 @@ import type {
   Checkout,
   Comparison,
   CredibilityReport,
+  CredibilityOverview,
   Me,
   Outlet,
   Preferences,
@@ -87,6 +88,8 @@ export interface SinHumoApi {
   feedback(analysisId: string, useful: boolean, reason?: string, comment?: string): Promise<void>;
   compare(input: { topic: string; from: string; to: string; include?: string[] }): Promise<Comparison>;
   credibility(input: { outletId: string; topic: string; from: string; to: string }): Promise<CredibilityReport>;
+  /** Todos los medios juntos (tema opcional). */
+  credibilityOverview(input: { topic?: string; from: string; to: string }): Promise<CredibilityOverview>;
   /** La credibilidad partida en `windows` períodos iguales (plan Profesional). */
   credibilityTimeline(input: { outletId: string; topic: string; from: string; to: string; windows: number }): Promise<TimelinePoint[]>;
   /** "¿Quién lo dijo primero?": el tema hace falta si la nota todavía no está guardada. */

@@ -44,11 +44,12 @@ export class OfficialAdvertisingDimension implements ICredibilityDimension {
     return {
       dimensionId: this.id,
       label: this.label,
-      score: spends.length === 0 ? 1 : round(score),
-      confidence: spends.length === 0 ? 0.3 : 0.8,
+      // Sin datos no se sabe: no es lo mismo que "no recibe pauta" (antes contaba como perfecto).
+      score: spends.length === 0 ? null : round(score),
+      confidence: spends.length === 0 ? 0 : 0.8,
       summary:
         spends.length === 0
-          ? "No se registró pauta oficial en el período (o no hay datos publicados)."
+          ? "No hay datos de pauta oficial para el período: no se puede evaluar."
           : `Promedio mensual de ${Math.round(monthly).toLocaleString("es-AR")} ${this.thresholds.currency}. ` +
             `Pagan: ${payers.join(", ")}. Gobiernan en la zona: ${governing.join(", ") || "sin datos"}.`,
       evidence: spends.map((s) => ({

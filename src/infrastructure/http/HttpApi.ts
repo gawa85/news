@@ -5,6 +5,7 @@
  *    POST /v1/analyze        { text, url? }
  *    POST /v1/compare        { topic, from, to, urlRules? }
  *    POST /v1/credibility    { outletId, topic, from, to }
+ *    POST /v1/credibility/overview { topic?, from, to }   todos los medios juntos y los datos más repetidos sin verificar
  *    GET  /v1/plan
  *    POST /v1/reviews        { target: {type,id}, rating, text? }
  *    GET  /v1/reviews/summary?type=&id=
@@ -1171,6 +1172,10 @@ export function createHttpApi(deps: HttpApiDeps): Server {
       case "POST /v1/credibility": {
         const r = await deps.gateway.evaluateCredibility(who, { outletId: str(b.outletId, "outletId"), topic: str(b.topic, "topic"), period: { from: date(b.from, "from"), to: date(b.to, "to") } });
         return json(res, 200, r);
+      }
+      case "POST /v1/credibility/overview": {
+        const topic = typeof b.topic === "string" ? b.topic.trim().slice(0, 120) : "";
+        return json(res, 200, await deps.gateway.credibilityOverview(who, { topic: topic || undefined, period: { from: date(b.from, "from"), to: date(b.to, "to") } }));
       }
       case "GET /v1/organization":
         return json(res, 200, await need(deps.organizations).overview(who.userId));

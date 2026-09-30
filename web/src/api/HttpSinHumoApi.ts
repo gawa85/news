@@ -9,6 +9,7 @@ import type {
   Checkout,
   Comparison,
   CredibilityReport,
+  CredibilityOverview,
   Me,
   Outlet,
   Preferences,
@@ -138,6 +139,9 @@ export class HttpSinHumoApi implements SinHumoApi {
     return this.request<CredibilityReport>("POST", "/v1/credibility", input);
   }
 
+  credibilityOverview(input: { topic?: string; from: string; to: string }) {
+    return this.request<CredibilityOverview>("POST", "/v1/credibility/overview", input);
+  }
   credibilityTimeline(input: { outletId: string; topic: string; from: string; to: string; windows: number }) {
     return this.request<TimelinePoint[]>("POST", "/v1/credibility/timeline", input);
   }

@@ -39,7 +39,7 @@ describe("Alertas", () => {
     assert.equal(second!.notified, false, "no repite el mismo aviso");
   });
 
-  test("cambio de credibilidad: la primera vez sólo registra; cuando cambia ≥ 10 puntos, avisa", async () => {
+  test("cambio de credibilidad: la primera vez sólo registra; avisa cuando ya se puede medir (se verificaron datos)", async () => {
     const t = await testPlatform();
     const u = await userWithPlan(t, "personal");
     await assert.rejects(t.p.users.createAlert.execute({ actorId: u.id, topic: "tarifas de gas", trigger: "credibility_change", channel: "whatsapp" }), ValidationError);
@@ -54,7 +54,7 @@ describe("Alertas", () => {
     t.clock.advance(3600_000);
     const [r] = await t.p.alerts.evaluate.execute();
     assert.equal(r!.notified, true, r!.reason);
-    assert.match(t.whatsapp.outbox.at(-1)!.template!.params[1]!, /subió/);
+    assert.match(t.whatsapp.outbox.at(-1)!.template!.params[1]!, /ya se puede medir/);
   });
 
   test("el plan gratuito no incluye alertas", async () => {

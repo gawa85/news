@@ -32,3 +32,21 @@ export interface IStanceDetector {
 export interface ITextSimilarity {
   similarity(a: string, b: string): number;
 }
+
+/** Una afirmación que habla de lo mismo que otra. */
+export interface RelatedClaim {
+  claim: Claim;
+  /** 0 a 1: cuánto del texto más corto está en el otro. */
+  overlap: number;
+  /** Es el mismo texto (copiado de la misma fuente, por ejemplo un cable de agencia). */
+  copy: boolean;
+}
+
+/** Índice para encontrar rápido las afirmaciones que hablan de lo mismo, sin comparar todas contra todas. */
+export interface IClaimIndex {
+  related(claim: Claim): RelatedClaim[];
+}
+
+export interface IClaimIndexer {
+  index(claims: Claim[]): IClaimIndex;
+}

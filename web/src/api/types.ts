@@ -225,9 +225,16 @@ export interface Comparison {
   blockedIncludes: string[];
 }
 
+/** Si hay con qué respaldar el puntaje: verificado por personas, cotejado entre medios o sin corroborar. */
+export interface VerificationState {
+  status: "verified" | "corroborated" | "unverified";
+  note: string;
+}
+
 export interface CredibilityReport {
   outletName: string;
   overall: number | null;
+  verification?: VerificationState;
   sampleSize: number;
   disclaimer: string;
   dimensions: { dimensionId: string; label: string; score: number | null; confidence: number; summary: string; evidence: { description: string; url?: string }[] }[];
@@ -715,4 +722,19 @@ export interface SourceSyncResult {
   analyzed: number;
   withSmoke: number;
   error?: string;
+}
+
+/** Todos los medios juntos, y los datos más repetidos que nadie verificó. */
+export interface CredibilityOverview {
+  query: { topic?: string; period: { from: string; to: string } };
+  rows: {
+    outletId: string;
+    outletName: string;
+    articles: number;
+    overall: number | null;
+    verification: VerificationState;
+    dimensions: { dimensionId: string; label: string; score: number | null; confidence: number; summary: string }[];
+  }[];
+  toVerify: { text: string; outlets: string[]; conflicting: boolean; numbers: number[] }[];
+  totals: { articles: number; factClaims: number; verifiedClaims: number };
 }

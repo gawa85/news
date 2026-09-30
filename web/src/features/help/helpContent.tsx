@@ -38,9 +38,16 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["gacetilla"],
   },
   "/credibilidad": {
-    summary: "Cuánto confiar en un medio sobre un tema: si fue preciso, si cita fuentes, cuánto humo hay en sus notas, si tiene conflictos de interés y cuánta pauta oficial recibe.",
-    steps: ["Elegí un medio.", "Elegí un tema.", "Mirá el puntaje y, sobre todo, por qué: cada dimensión dice de dónde sale."],
-    terms: ["credibilidad", "indice_humo", "pauta_oficial", "replica"],
+    summary: "Cuánto confiar en un medio sobre un tema: si lo que publicó se comprobó, si otros medios dan las mismas cifras, si cita fuentes, cuánto humo tiene, sus dueños y la pauta oficial. Que una nota traiga datos no quiere decir que sean ciertos: sin datos corroborados no hay puntaje general.",
+    steps: ["Elegí un medio.", "Elegí un tema.", "Mirá el estado (verificado, cotejado o sin corroborar) y, sobre todo, por qué: cada dimensión dice de dónde sale."],
+    example: "«Sin corroborar» no quiere decir que el medio mienta: quiere decir que todavía nadie comprobó sus datos.",
+    terms: ["credibilidad", "corroborar", "cotejo", "indice_humo", "pauta_oficial", "replica"],
+  },
+  "/credibilidad/panorama": {
+    summary: "Todos los medios juntos: cuánto de lo que publica cada uno está corroborado, y los datos que más se repiten entre medios sin que nadie los haya verificado.",
+    steps: ["Elegí un tema (o dejalo vacío para ver todos) y el período.", "Compará los medios: el estado dice si hay con qué respaldar el puntaje.", "Mirá «Datos repetidos que nadie verificó»: por ahí conviene empezar a corroborar."],
+    example: "Si cinco medios dicen «la inflación fue 2,1 %», no por eso es cierto: puede que todos hayan copiado el mismo cable. Hay que ir a la fuente (el INDEC).",
+    terms: ["corroborar", "cotejo", "credibilidad"],
   },
   "/revisar": {
     summary: "Subís una foto o un video y te decimos si ya circuló antes (y cuándo) y qué dicen sus datos internos: fecha, programa con que se editó, marcas de inteligencia artificial. Un video se reconoce aunque lo hayan reenviado por WhatsApp (que lo recomprime) o le hayan cortado una parte, y una foto que es una captura de un video también.",

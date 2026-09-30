@@ -95,8 +95,12 @@ export class ResponseComposer {
     return {
       kind: "result",
       title: `Credibilidad de ${r.outletName} en "${r.query.topic}"`,
-      summary: `Resumen: ${pct(r.overall)} · ${r.sampleSize} notas analizadas.`,
+      summary:
+        r.overall === null && r.verification?.status === "unverified"
+          ? `Sin puntaje general: todavía no hay datos corroborados · ${r.sampleSize} notas analizadas.`
+          : `Resumen: ${pct(r.overall)} · ${r.sampleSize} notas analizadas.`,
       sections: [
+        ...(r.verification ? [{ lines: [r.verification.note] }] : []),
         { lines: r.dimensions.map((d) => `${d.label}: ${pct(d.score)} — ${d.summary}`) },
         ...(rebuttals.length ? [{ heading: "Réplica del medio", lines: rebuttals }] : []),
         ...(corrections.length ? [{ heading: "Correcciones de Sin Humo", lines: corrections }] : []),

@@ -109,7 +109,7 @@ export function buildMcpServer(deps: McpDeps, caller: Caller): McpServer {
         const outlet = all.find((o) => o.id === a.medio || o.name.toLowerCase().includes(a.medio.toLowerCase()));
         if (!outlet) throw new DomainError(`No encontré el medio "${a.medio}".`);
         const r = await gateway.evaluateCredibility(caller, { outletId: outlet.id, topic: a.tema, period: { from: day(a.desde), to: day(a.hasta, true) } });
-        return { markdown: toMarkdown(composer.credibility(r)), data: { overall: r.overall, dimensions: r.dimensions.map((d) => ({ id: d.dimensionId, score: d.score, confidence: d.confidence, summary: d.summary })) } };
+        return { markdown: toMarkdown(composer.credibility(r)), data: { overall: r.overall, verification: r.verification, dimensions: r.dimensions.map((d) => ({ id: d.dimensionId, score: d.score, confidence: d.confidence, summary: d.summary })) } };
       }),
   );
 

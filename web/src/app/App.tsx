@@ -7,6 +7,7 @@ import { HistoryDetailPage, HistoryPage } from "../features/analyze/HistoryPage"
 import { LoginPage } from "../features/auth/LoginPage";
 import { ComparePage } from "../features/compare/ComparePage";
 import { CredibilityPage } from "../features/credibility/CredibilityPage";
+import { CredibilityOverviewPage } from "../features/credibility/CredibilityOverviewPage";
 import { HomePage } from "../features/home/HomePage";
 import { EvidencePage } from "../features/evidence/EvidencePage";
 import { EventPage, EventsPage } from "../features/events/EventsPages";
@@ -63,6 +64,7 @@ export const routes: RouteObject[] = [
       { path: "/historial/:id", element: guard(<HistoryDetailPage />) },
       { path: "/comparar", element: guard(<ComparePage />) },
       { path: "/credibilidad", element: guard(<CredibilityPage />) },
+      { path: "/credibilidad/panorama", element: guard(<CredibilityOverviewPage />) },
       { path: "/origen", element: guard(<OriginPage />) },
       { path: "/revisar", element: guard(<MediaCheckPage />) },
       { path: "/fuentes", element: guard(<SourcesPage />) },

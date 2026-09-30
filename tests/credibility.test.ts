@@ -19,6 +19,15 @@ class CorrectionsDimension implements ICredibilityDimension {
   }
 }
 
+/** Exactitud verificada por personas (lo que habilita el puntaje general). */
+class VerifiedDimension implements ICredibilityDimension {
+  readonly id = "accuracy";
+  readonly label = "Exactitud verificable";
+  async evaluate(): Promise<DimensionScore> {
+    return { dimensionId: this.id, label: this.label, score: 0.9, confidence: 1, summary: "9 confirmadas y 1 desmentida de 10 verificadas.", evidence: [] };
+  }
+}
+
 class NoDataDimension implements ICredibilityDimension {
   readonly id = "nodata";
   readonly label = "Sin datos";
@@ -34,11 +43,22 @@ test("el motor acepta dimensiones nuevas sin cambios y las que no tienen datos n
     repos.outlets,
     repos.articles,
     repos.claims,
-    [new CorrectionsDimension(), new NoDataDimension()],
+    [new CorrectionsDimension(), new NoDataDimension(), new VerifiedDimension()],
     new WeightedAveragePolicy({}),
     new FixedClock(new Date("2026-09-23")),
   );
   const r = await uc.evaluate({ outletId: "m", topic: "gas", period: { from: new Date("2026-01-01"), to: new Date("2026-02-01") } });
-  assert.equal(r.dimensions.length, 2);
+  assert.equal(r.dimensions.length, 3);
   assert.equal(r.overall, 0.9);
+  assert.equal(r.verification.status, "verified");
+});
+
+test("sin nada corroborado no hay puntaje general, aunque las demás dimensiones den bien", async () => {
+  const { repos } = createMemoryStore();
+  await repos.outlets.save({ id: "m", name: "Medio", url: "https://m.example", kind: "digital", region: { country: "AR" } });
+  const uc = new EvaluateCredibilityUseCase(repos.outlets, repos.articles, repos.claims, [new CorrectionsDimension(), new NoDataDimension()], new WeightedAveragePolicy({}), new FixedClock(new Date("2026-09-23")));
+  const r = await uc.evaluate({ outletId: "m", topic: "gas", period: { from: new Date("2026-01-01"), to: new Date("2026-02-01") } });
+  assert.equal(r.overall, null);
+  assert.equal(r.verification.status, "unverified");
+  assert.match(r.verification.note, /no si lo que dicen es cierto/);
 });

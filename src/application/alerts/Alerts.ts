@@ -90,10 +90,21 @@ export class CredibilityChangeEvaluator implements IAlertEvaluator {
     const report = await this.credibility.evaluate({ outletId: rule.outletId, topic: rule.topic, period: { from: new Date(now.getTime() - this.windowDays * 86_400_000), to: now } });
     const previous = rule.lastState?.score as number | null | undefined;
     const state = { score: report.overall };
-    if (report.overall === null || previous === undefined || previous === null) return { state };
+    const pct = (n: number) => `${Math.round(n * 100)}/100`;
+    if (report.overall === null || previous === undefined) return { state };
+    // Antes no había puntaje (nada corroborado) y ahora sí: vale avisar, aunque no haya con qué comparar.
+    if (previous === null) {
+      return {
+        state,
+        hit: {
+          title: `La credibilidad de ${report.outletName} en "${rule.topic}" ya se puede medir`,
+          lines: [report.verification.note, `Ahora: ${pct(report.overall)}`, ...report.dimensions.filter((d) => d.score !== null).map((d) => `${d.label}: ${pct(d.score!)}`)],
+          links: [],
+        },
+      };
+    }
     const delta = report.overall - previous;
     if (Math.abs(delta) < this.threshold) return { state };
-    const pct = (n: number) => `${Math.round(n * 100)}/100`;
     return {
       state,
       hit: {

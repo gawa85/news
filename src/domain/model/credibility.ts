@@ -1,4 +1,5 @@
 import type { Period, Region } from "./common";
+import type { VerificationState } from "../rules/credibilityVerification";
 
 /**
  * La credibilidad NO es una nota fija del medio:
@@ -32,8 +33,10 @@ export interface CredibilityReport {
   query: CredibilityQuery;
   outletName: string;
   dimensions: DimensionScore[];
-  /** Resumen opcional. El desglose por dimensión es lo principal. */
+  /** Resumen opcional. El desglose por dimensión es lo principal. Sin datos corroborados, no hay. */
   overall: number | null;
+  /** Si hay con qué respaldar el puntaje: verificado, cotejado entre medios o sin corroborar. */
+  verification: VerificationState;
   sampleSize: number;
   generatedAt: Date;
   disclaimer: string;

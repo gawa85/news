@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import type { CredibilityReport } from "../../api/types";
 import { credibilityVerdict, formatDate } from "../../domain/labels";
 import { useSession } from "../../session/SessionContext";
-import { ErrorAlert, Field, Page, ScoreBar } from "../../ui/components";
+import { ErrorAlert, Field, Notice, Page, ScoreBar } from "../../ui/components";
 import { useAction } from "../../ui/useAsync";
 import { isoDay, TopicSuggestions, useOutlets, useTopics } from "../shared/catalog";
 import { CredibilityTimeline } from "./CredibilityTimeline";
@@ -15,8 +15,9 @@ export function CredibilityPage() {
   const { can } = useSession();
   const { list } = useOutlets();
   const topics = useTopics();
-  const [outletId, setOutletId] = useState("");
-  const [topic, setTopic] = useState("");
+  const [params] = useSearchParams();
+  const [outletId, setOutletId] = useState(() => params.get("medio")?.slice(0, 100) ?? "");
+  const [topic, setTopic] = useState(() => params.get("tema")?.slice(0, 100) ?? "");
   const [from, setFrom] = useState(isoDay(365));
   const [to, setTo] = useState(isoDay(0));
   const query = { outletId, topic: topic.trim(), from: new Date(`${from}T00:00:00-03:00`).toISOString(), to: new Date(`${to}T23:59:59-03:00`).toISOString() };
@@ -47,6 +48,9 @@ export function CredibilityPage() {
 
   return (
     <Page title="Credibilidad de los medios" lead="Elegí un medio y un tema. La credibilidad cambia según el tema: un diario puede ser preciso en deportes y no en economía.">
+      <p style={{ margin: 0 }}>
+        <Link to="/credibilidad/panorama">Ver todos los medios juntos</Link>
+      </p>
       <form className="card stack" onSubmit={submit} noValidate>
         <div className="grid-2">
           <Field label="Medio">
@@ -81,13 +85,28 @@ export function CredibilityPage() {
   );
 }
 
+export const VERIFICATION_LABELS: Record<"verified" | "corroborated" | "unverified", string> = {
+  verified: "Verificado por personas",
+  corroborated: "Cotejado con otros medios",
+  unverified: "Sin corroborar",
+};
+
 function ReportView({ r }: { r: CredibilityReport }) {
   return (
     <section aria-labelledby="informe" className="stack" aria-live="polite">
       <h2 id="informe">{r.outletName}</h2>
-      <div className="card">
-        <ScoreBar score={r.overall} label={`Credibilidad general: ${credibilityVerdict(r.overall)}`} />
-        <p className="muted" style={{ marginTop: "var(--space-3)" }}>
+      <div className="card stack">
+        {r.verification?.status === "unverified" ? (
+          <Notice tone="info" title="Sin puntaje general: todavía no hay datos corroborados">
+            <p>{r.verification.note}</p>
+          </Notice>
+        ) : (
+          <>
+            <ScoreBar score={r.overall} label={`Credibilidad general: ${credibilityVerdict(r.overall)}`} />
+            {r.verification && <p style={{ margin: 0 }}>{VERIFICATION_LABELS[r.verification.status]}. {r.verification.note}</p>}
+          </>
+        )}
+        <p className="muted" style={{ margin: 0 }}>
           Basado en {r.sampleSize} notas. {r.disclaimer}
         </p>
       </div>

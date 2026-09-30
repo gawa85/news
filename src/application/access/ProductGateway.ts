@@ -26,6 +26,7 @@ import type { TraceOriginByUrlUseCase } from "../TraceOriginByUrlUseCase";
 import type { UserRulesResolver } from "../rules/UserRulesResolver";
 import type { AccessControl } from "./AccessControl";
 import type { PublicCorrection, PublicRebuttal } from "../rebuttals/Rebuttals";
+import type { CredibilityOverview, CredibilityOverviewUseCase, OverviewQuery } from "../credibility/CredibilityOverview";
 
 export interface CoreUseCases {
   analyzeSmoke: AnalyzeSmokeUseCase;
@@ -35,6 +36,7 @@ export interface CoreUseCases {
   traceOriginByUrl: TraceOriginByUrlUseCase;
   evaluateCredibility: EvaluateCredibilityUseCase;
   credibilityTimeline: CredibilityTimelineUseCase;
+  credibilityOverview: CredibilityOverviewUseCase;
 }
 
 /** Quién pide: el usuario, por qué canal y (si viene por API/MCP) con qué alcances. */
@@ -128,6 +130,11 @@ export class ProductGateway {
       const r = await this.core.evaluateCredibility.evaluate(query);
       return { ...r, ...(await this.publicRecord(query.outletId)) };
     });
+  }
+
+  /** Todos los medios juntos. Es el mismo permiso y la misma función del plan que la ficha de un medio. */
+  credibilityOverview(caller: Caller, query: OverviewQuery): Promise<CredibilityOverview> {
+    return this.run(caller, "evaluate_credibility", {}, () => this.core.credibilityOverview.execute(query));
   }
 
   credibilityTimeline(caller: Caller, query: CredibilityQuery, windows: number): Promise<CredibilityTimelinePoint[]> {

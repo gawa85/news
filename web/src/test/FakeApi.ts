@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument, OnboardingStatus, OnboardingStepId, UserDirectory } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, CredibilityOverview, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument, OnboardingStatus, OnboardingStepId, UserDirectory } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -60,8 +60,31 @@ export class FakeApi implements SinHumoApi {
   async compare(): Promise<never> {
     throw new ApiError(429, "Llegaste al límite de comparaciones del mes.", "quota_exceeded", "Disponible en el plan Personal.");
   }
-  async credibility(): Promise<CredibilityReport> {
-    return { outletName: "Diario del Valle", overall: 0.6, sampleSize: 8, disclaimer: "", dimensions: [], corrections: [], rebuttals: [] };
+  /** Por defecto, sin nada corroborado (como la mayoría de los medios al principio). */
+  credibilityResult: CredibilityReport = {
+    outletName: "Diario del Valle", overall: null, sampleSize: 8, disclaimer: "", corrections: [], rebuttals: [],
+    verification: { status: "unverified", note: "Todavía no se corroboró ningún dato de este medio sobre el tema." },
+    dimensions: [{ dimensionId: "language", label: "Humo en el lenguaje", score: 0.95, confidence: 1, summary: "Humo promedio: 5 de 100 en 8 notas.", evidence: [] }],
+  };
+  async credibility(input?: unknown): Promise<CredibilityReport> {
+    this.log("credibility", input);
+    return this.credibilityResult;
+  }
+  async credibilityOverview(input: { topic?: string; from: string; to: string }): Promise<CredibilityOverview> {
+    this.log("credibilityOverview", input);
+    const dim = (dimensionId: string, label: string, score: number | null) => ({ dimensionId, label, score, confidence: 1, summary: "" });
+    return {
+      query: { topic: input.topic, period: { from: input.from, to: input.to } },
+      rows: [
+        { outletId: "ddv", outletName: "Diario del Valle", articles: 40, overall: 0.7, verification: { status: "verified", note: "" }, dimensions: [dim("accuracy", "Exactitud verificable", 0.8), { ...dim("corroboration", "Cotejo con otros medios", 0.9), confidence: 0.05 }, dim("sourcing", "Calidad de las fuentes", 0.5), dim("language", "Humo en el lenguaje", 0.9)] },
+        { outletId: "nortehoy", outletName: "Norte Hoy", articles: 12, overall: null, verification: { status: "unverified", note: "" }, dimensions: [dim("corroboration", "Cotejo con otros medios", null), dim("language", "Humo en el lenguaje", 1)] },
+      ],
+      toVerify: [
+        { text: "La inflación de agosto fue del 2,1 %", outlets: ["Diario del Valle", "Norte Hoy", "Ámbito"], conflicting: false, numbers: [2.1] },
+        { text: "El desempleo subió al 7,9 %", outlets: ["Diario del Valle", "Norte Hoy"], conflicting: true, numbers: [7.9, 6.4] },
+      ],
+      totals: { articles: 52, factClaims: 300, verifiedClaims: 4 },
+    };
   }
   async credibilityTimeline(input: { windows: number }): Promise<TimelinePoint[]> {
     this.log("credibilityTimeline", input);
