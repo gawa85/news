@@ -1,6 +1,6 @@
 import { NavLink, Outlet, Link, useLocation } from "react-router";
 import { PageHelp } from "../features/help/PageHelp";
-import { PAGE_HELP } from "../features/help/helpContent";
+import { helpFor } from "../features/help/helpContent";
 import { PageHelpSlot } from "../ui/pageHelpSlot";
 import { useSession } from "../session/SessionContext";
 import { LegalBanner } from "../features/account/LegalBanner";
@@ -22,7 +22,7 @@ export function Layout() {
   const { me, can } = useSession();
   const backoffice = useHasBackoffice();
   const where = useLocation();
-  const help = PAGE_HELP[where.pathname.replace(/\/$/, "")];
+  const help = helpFor(where.pathname);
   return (
     <>
       <a className="skip-link" href="#contenido">

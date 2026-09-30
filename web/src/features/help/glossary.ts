@@ -10,6 +10,8 @@ export interface Term {
  * Lo usan la página /glosario y la ayuda de cada pantalla.
  */
 export const GLOSSARY: Record<string, Term> = {
+  cadena: { term: "Cadena", definition: "Un mensaje que se reenvía de persona en persona, casi siempre pidiendo que lo compartas. Muchas veces no dice quién lo escribió.", example: "«Reenviá a todos tus contactos antes de que lo borren»." },
+  gacetilla: { term: "Gacetilla", definition: "Un comunicado que una empresa, un gobierno o una organización manda a los medios. Si diez medios publican el mismo texto, suele ser una gacetilla copiada." },
   humo: { term: "Humo", definition: "Lo que en un texto suena a información pero no lo es: exageraciones, promesas vagas, alarma sin datos, afirmaciones sin fuente o pedidos de reenviar.", example: "«¡URGENTE! Mañana cortan el agua en todo el país, reenviá» es casi todo humo: no dice quién, dónde ni por qué." },
   indice_humo: { term: "Índice de humo", definition: "Un número de 0 a 100: 0 es sólo datos y 100 es todo humo. Es una ayuda para leer con más atención, no un veredicto.", example: "Un parte de prensa con cifras y fuentes suele dar entre 0 y 20; una cadena alarmista, más de 70." },
   credibilidad: { term: "Credibilidad de un medio", definition: "Cuánto conviene confiar en un medio sobre un tema, según qué tan preciso fue, si cita fuentes, si tiene conflictos de interés y cuánta pauta oficial recibe. Cambia según el tema.", example: "Un diario puede ser muy preciso en deportes y poco en economía." },

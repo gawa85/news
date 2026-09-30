@@ -8,7 +8,9 @@ import { renderApp } from "./render";
 import { FakeBackoffice } from "./FakeBackoffice";
 import { ADMIN_SECTIONS } from "../features/admin/sections";
 import { GLOSSARY } from "../features/help/glossary";
-import { PAGE_HELP } from "../features/help/helpContent";
+import { PAGE_HELP, helpFor } from "../features/help/helpContent";
+import { routes } from "../app/App";
+import type { RouteObject } from "react-router";
 
 describe("API por HTTP", () => {
   test("traduce los errores del servidor: código, plan sugerido, cuándo reintentar y captcha", async () => {
@@ -1154,6 +1156,19 @@ describe("Backoffice: planes nuevos", () => {
 });
 
 describe("Ayuda en cada pantalla y glosario", () => {
+  test("toda pantalla tiene ayuda (salvo las que ya son una explicación)", () => {
+    // La portada, la bienvenida y el glosario ya son explicaciones; la invitación se explica sola.
+    const EXCEPTIONS = ["/", "/bienvenida", "/glosario", "/unirme", "/admin"];
+    const walk = (list: RouteObject[], prefix = ""): string[] =>
+      list.flatMap((r) => {
+        if (r.path === "*") return [];
+        const here = r.path === undefined ? prefix : r.path.startsWith("/") ? r.path : `${prefix.replace(/\/$/, "")}/${r.path}`;
+        return [...(r.path === undefined ? [] : [here.replace(/:[a-z]+/gi, "x")]), ...walk(r.children ?? [], here)];
+      });
+    const missing = walk(routes).filter((p) => !EXCEPTIONS.includes(p) && !helpFor(p));
+    expect(missing).toEqual([]);
+  });
+
   test("todas las secciones del backoffice tienen ayuda, y cada palabra citada está en el glosario", () => {
     const missing = ADMIN_SECTIONS.filter((s) => !PAGE_HELP[`/admin/${s.path}`]).map((s) => s.path);
     expect(missing).toEqual([]);

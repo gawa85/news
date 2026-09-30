@@ -35,6 +35,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   "/origen": {
     summary: "Pegás el link de una nota y buscamos quién publicó primero lo mismo, y cuántas notas son casi copia de la misma gacetilla.",
     example: "Diez medios con el mismo texto en la misma hora suelen venir de una gacetilla: vale la pena buscar la fuente original.",
+    terms: ["gacetilla"],
   },
   "/credibilidad": {
     summary: "Cuánto confiar en un medio sobre un tema: si fue preciso, si cita fuentes, si tiene conflictos de interés y cuánta pauta oficial recibe.",
@@ -61,6 +62,11 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     steps: ["Elegí el tema.", "Elegí qué tiene que pasar para avisarte.", "Elegí por dónde (WhatsApp, Telegram o mail)."],
   },
   "/estadisticas": { summary: "Qué se analizó, cuánto humo había, de qué tipo y por dónde llegó, por día, semana o mes. Se pueden descargar y recibir por mail.", terms: ["humo"] },
+  "/salas/*": {
+    summary: "Una sala en vivo del equipo: los mensajes aparecen al instante. Quien modera puede publicar chequeos (quedan fijados arriba) y borrar mensajes.",
+    example: "Durante un debate, el equipo comenta en la sala y publica un chequeo cuando alguien dice una cifra dudosa.",
+    terms: ["sala", "organizacion"],
+  },
   "/salas": { summary: "Chats en vivo de tu organización para seguir un tema juntos, con chequeos.", terms: ["sala", "organizacion"] },
   "/organizacion": { summary: "Tu equipo: quiénes están, con qué rol, cuántos lugares quedan en el plan, e invitaciones.", terms: ["organizacion", "rol", "plan"] },
   "/marca": { summary: "Que las respuestas y los mails salgan con el nombre, logo y color de tu organización, y desde tu dominio.", terms: ["marca_propia", "dominio", "registro_txt"] },
@@ -72,6 +78,54 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     summary: "Tus datos, tu plan, tus preferencias y las herramientas para programas (claves de API y webhooks), si tu plan las incluye.",
     terms: ["plan", "suscripcion", "clave_api", "webhook"],
   },
+
+  // ---- Públicas (sin cuenta) ----
+  "/entrar": {
+    summary: "Escribís tu mail y te mandamos un enlace para entrar: no hace falta contraseña. Si no tenés cuenta, se crea sola.",
+    steps: ["Escribí tu mail y tocá «Mandame el enlace».", "Abrí el mail de Sin Humo (si no está, mirá en spam).", "Tocá el enlace: entrás directo. Vence a los 15 minutos y sirve una sola vez."],
+  },
+  "/planes": {
+    summary: "Qué incluye cada plan y cuánto cuesta. Podés empezar gratis y cambiar cuando quieras.",
+    steps: ["Compará qué funciones y cuántos análisis trae cada plan.", "Elegí mensual o anual (el anual suele tener meses de regalo).", "Si tenés un cupón, lo escribís al pagar."],
+    terms: ["plan", "limite", "cupon"],
+  },
+  "/observatorio": {
+    summary: "Qué humo está circulando: las cadenas más reenviadas, los tipos de manipulación más comunes, los temas y por qué canal llegan. Son números de todas las personas juntas, sin datos de nadie.",
+    example: "Si en septiembre subieron las cadenas sobre cortes de servicios, lo ves acá antes de que te llegue la próxima.",
+    terms: ["humo", "cadena", "datos_abiertos"],
+  },
+  "/medios": {
+    summary: "Quién es dueño de cada medio, cuánta pauta oficial recibe y cómo responde cuando se equivoca. Buscá un medio y tocá su nombre para ver el detalle.",
+    terms: ["pauta_oficial", "credibilidad", "replica"],
+  },
+  "/medios/*": {
+    summary: "La ficha de un medio: sus dueños (y en qué otros negocios están), la pauta oficial que recibe, sus réplicas y las correcciones que se publicaron.",
+    example: "Si el dueño tiene negocios en energía, conviene leer con más atención lo que ese medio publica sobre tarifas.",
+    terms: ["pauta_oficial", "replica", "fe_erratas"],
+  },
+  "/fe-de-erratas": { summary: "Cuando Sin Humo se equivoca, lo dice acá: qué se corrigió, cuándo y, si vino de un medio, por qué réplica.", terms: ["fe_erratas", "replica"] },
+  "/datos": {
+    summary: "Los números del observatorio para descargar y reusar (por ejemplo, en una nota o una investigación), en CSV o JSON. Nunca incluyen datos de personas.",
+    steps: ["Elegí el conjunto de datos.", "Elegí el período.", "Descargalo en CSV (se abre con Excel o Google Sheets) o en JSON (para programas)."],
+    terms: ["datos_abiertos", "csv"],
+  },
+  "/eventos": {
+    summary: "Debates, elecciones y cadenas nacionales con chequeos en el momento. Se siguen sin cuenta; si querés, recibís los chequeos por WhatsApp o Telegram.",
+  },
+  "/eventos/*": {
+    summary: "Un evento en vivo: arriba, los chequeos que publica el equipo (verdadero, falso, engañoso) y abajo el chat de quienes lo siguen.",
+    example: "Para recibir los chequeos por tu chat, mandale a Sin Humo «/evento» y el código del evento.",
+  },
+  "/legal/*": { summary: "El texto vigente. Con «Otras versiones» ves las anteriores: cada vez que aceptaste unos términos, quedó registrado qué versión fue." },
+  "/jugar": {
+    summary: "Un juego para entrenar el ojo: te mostramos un mensaje, decidís si es humo o un dato limpio y te explicamos por qué. No hay nota: sólo práctica.",
+    example: "«Científicos confirman que este té cura todo» → humo: promesa exagerada, sin decir qué científicos ni dónde se publicó.",
+    terms: ["humo"],
+  },
+  "/ayuda": {
+    summary: "Escribinos y te responde una persona del equipo. Ves tus consultas y sus respuestas acá; también podés escribir /soporte por WhatsApp o Telegram.",
+  },
+  "/historial/*": { summary: "El resultado completo de un análisis que hiciste: el texto, el índice de humo, qué humo encontró y lo que queda sin humo.", terms: ["humo", "indice_humo"] },
 
   // ---- Backoffice ----
   "/admin/puesta-en-marcha": { summary: "La lista de lo que falta para abrir Sin Humo al público. Cada punto tiene su guía paso a paso.", terms: ["https", "smtp", "cuit", "arca", "copia_seguridad"] },
@@ -157,3 +211,9 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["copia_seguridad"],
   },
 };
+
+/** La ayuda de una dirección: exacta, o la de su sección con parte variable ("/medios/diario-sur" → "/medios/*"). */
+export function helpFor(pathname: string): PageHelpContent | undefined {
+  const path = pathname.replace(/\/$/, "") || "/";
+  return PAGE_HELP[path] ?? PAGE_HELP[`${path.split("/").slice(0, 2).join("/")}/*`];
+}
