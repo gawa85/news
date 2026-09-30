@@ -64,6 +64,8 @@ import type {
   LegalDocument,
   OnboardingStatus,
   ChannelLinkCode,
+  UserDirectory,
+  DirectoryAddResult,
 } from "./types";
 
 
@@ -252,6 +254,12 @@ export class HttpSinHumoApi implements SinHumoApi {
     await this.request("POST", "/v1/subscription/resume");
   }
 
+  sourceDirectory() {
+    return this.request<UserDirectory>("GET", "/v1/sources/directory");
+  }
+  addFromDirectory(ids: string[]) {
+    return this.request<DirectoryAddResult>("POST", "/v1/sources/directory/add", { ids });
+  }
   onboarding() {
     return this.request<OnboardingStatus>("GET", "/v1/me/onboarding");
   }

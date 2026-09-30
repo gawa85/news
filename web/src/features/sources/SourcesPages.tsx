@@ -7,6 +7,7 @@ import { useSession } from "../../session/SessionContext";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
 import { TopicSuggestions, useOutlets, useTopics } from "../shared/catalog";
+import { DirectoryPicker } from "../shared/DirectoryPicker";
 
 const lines = (s: string) => s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
 
@@ -31,6 +32,7 @@ export function SourcesPage() {
           </p>
         </div>
       )}
+      {d?.available && <SuggestedSources onAdded={() => void list.reload()} />}
       {d?.available && (d.limit === null || d.connections.length < d.limit) && <ConnectSource onConnected={() => void list.reload()} />}
       {d?.available && d.limit !== null && d.connections.length >= d.limit && (
         <Notice title="Llegaste al máximo de tu plan">
@@ -386,5 +388,76 @@ export function RebuttalPage() {
         </ul>
       </section>
     </Page>
+  );
+}
+
+/** FUENTES SUGERIDAS: medios y organismos conocidos, para agregarlos sin escribir la dirección de su feed. */
+function SuggestedSources({ onAdded }: { onAdded: () => void }) {
+  const api = useApi();
+  const dir = useAsync(() => api.sourceDirectory(), [api]);
+  const [pickerKey, setPickerKey] = useState(0);
+  const add = useAction(async (ids: string[]) => {
+    const r = await api.addFromDirectory(ids);
+    await dir.reload();
+    setPickerKey((k) => k + 1);
+    onAdded();
+    return r;
+  });
+  const d = dir.data;
+  const room = d && d.limit !== null ? Math.max(0, d.limit - d.used) : null;
+  const failed = add.result?.results.filter((r) => !r.ok) ?? [];
+  const ok = add.result?.results.filter((r) => r.ok) ?? [];
+  return (
+    <section className="card stack" aria-labelledby="sugeridas">
+      <h2 id="sugeridas" style={{ margin: 0 }}>
+        Fuentes sugeridas
+      </h2>
+      <p className="muted" style={{ margin: 0 }}>
+        Medios, agencias, verificadores y organismos conocidos, con su feed ya comprobado. Marcá las que quieras y agregalas de una vez. Si la que buscás no está, agregala
+        abajo con su dirección.
+      </p>
+      {dir.loading && !d && <Spinner />}
+      <ErrorAlert error={dir.error} />
+      {d && room === 0 && (
+        <Notice title="No te quedan lugares">
+          <p>
+            Tu plan permite {d.limit} fuente(s). Desconectá una o <Link to="/planes">mirá los planes</Link>.
+          </p>
+        </Notice>
+      )}
+      {d && room !== 0 && (
+        <DirectoryPicker
+          key={pickerKey}
+          entries={d.entries}
+          isAdded={(e) => !!d.entries.find((x) => x.id === e.id)?.connected}
+          addedLabel="Ya la tenés"
+          room={room}
+          submitLabel="Agregar las elegidas"
+          pending={add.pending}
+          onSubmit={(ids) => void add.run(ids)}
+        />
+      )}
+      <ErrorAlert error={add.error} />
+      {add.result && (
+        <div role="status" className="stack">
+          {ok.length > 0 && (
+            <Notice tone="ok">
+              <p>Agregadas: {ok.map((r) => r.name).join(", ")}. La primera lectura es en unos minutos.</p>
+            </Notice>
+          )}
+          {failed.length > 0 && (
+            <Notice title="Algunas no se pudieron agregar">
+              <ul>
+                {failed.map((r) => (
+                  <li key={r.id}>
+                    {r.name}: {r.error}
+                  </li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

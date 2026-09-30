@@ -666,3 +666,29 @@ export interface ChannelLinkCode {
   whatsappUrl?: string;
   telegramUrl?: string;
 }
+
+// ---- Directorio de fuentes públicas conocidas ----
+export type DirectoryCategory = "nacional" | "agencia" | "verificador" | "oficial" | "internacional" | "provincial";
+
+export interface DirectoryEntry {
+  id: string;
+  name: string;
+  site: string;
+  feedUrl: string;
+  category: DirectoryCategory;
+  kind: string;
+  country: string;
+  province?: string;
+  description: string;
+}
+
+export interface UserDirectory {
+  available: boolean;
+  limit: number | null;
+  used: number;
+  entries: (DirectoryEntry & { connected: boolean })[];
+}
+
+export interface DirectoryAddResult {
+  results: { id: string; name: string; ok: boolean; error?: string }[];
+}

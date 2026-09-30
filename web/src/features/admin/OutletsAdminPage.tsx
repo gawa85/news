@@ -5,6 +5,7 @@ import type { AdminOutlet, OutletDraft, OutletFeed, OutletKind, OutletRecord } f
 import { formatDate, formatDateTime, OUTLET_KIND_LABELS } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
+import { DirectoryPicker } from "../shared/DirectoryPicker";
 
 const KINDS = Object.keys(OUTLET_KIND_LABELS) as OutletKind[];
 const words = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -40,6 +41,7 @@ export function OutletsAdminPage() {
           <OutletForm onSaved={created} />
         </section>
       )}
+      <KnownOutlets onImported={() => void all.reload()} />
       <section className="card stack" aria-labelledby="buscar-medio">
         <h2 id="buscar-medio">Buscar</h2>
         <Field label="Nombre, id o sitio del medio">{(p) => <input {...p} className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} />}</Field>
@@ -235,5 +237,78 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
       </form>
       <ErrorAlert error={add.error ?? toggle.error} />
     </div>
+  );
+}
+
+/** MEDIOS CONOCIDOS: cargar de una vez medios del directorio con su feed (y volver a verificar los feeds). */
+function KnownOutlets({ onImported }: { onImported: () => void }) {
+  const bo = useBackoffice();
+  const dir = useAsync(() => bo.catalogDirectory(), [bo]);
+  const [pickerKey, setPickerKey] = useState(0);
+  const load = useAction(async (ids: string[]) => {
+    const r = await bo.importDirectory(ids);
+    await dir.reload();
+    setPickerKey((k) => k + 1);
+    onImported();
+    return r;
+  });
+  const verify = useAction(() => bo.verifyDirectory());
+  const broken = verify.result?.filter((c) => !c.ok) ?? [];
+  return (
+    <details className="card">
+      <summary>
+        <strong>Agregar medios conocidos</strong> <span className="muted">(con su feed ya comprobado)</span>
+      </summary>
+      <div className="stack">
+        {dir.loading && !dir.data && <Spinner />}
+        <ErrorAlert error={dir.error} />
+        {dir.data && (
+          <DirectoryPicker
+            key={pickerKey}
+            entries={dir.data}
+            isAdded={(e) => !!dir.data!.find((x) => x.id === e.id)?.feedActive}
+            addedLabel="En el catálogo"
+            room={null}
+            submitLabel="Cargar en el catálogo"
+            pending={load.pending}
+            onSubmit={(ids) => void load.run(ids)}
+          />
+        )}
+        <ErrorAlert error={load.error} />
+        {load.result && (
+          <Notice tone="ok">
+            <p>
+              Listo: {load.result.outlets} medio(s) nuevo(s) y {load.result.feeds} feed(s) activado(s). Las notas empiezan a entrar en la próxima lectura (cada 30 minutos).
+            </p>
+          </Notice>
+        )}
+        <div className="row">
+          <button className="btn btn--ghost btn--small" type="button" disabled={verify.pending} onClick={() => void verify.run()}>
+            {verify.pending ? "Verificando…" : "Volver a verificar los feeds del directorio"}
+          </button>
+        </div>
+        <ErrorAlert error={verify.error} />
+        {verify.result && (
+          <div role="status">
+            {broken.length === 0 ? (
+              <Notice tone="ok">
+                <p>Los {verify.result.length} feeds responden y traen notas.</p>
+              </Notice>
+            ) : (
+              <Notice title={`${broken.length} de ${verify.result.length} no responden`}>
+                <p>Puede ser momentáneo. Si sigue, avisá para actualizar el directorio.</p>
+                <ul>
+                  {broken.map((c) => (
+                    <li key={c.id}>
+                      {c.name}: {c.error}
+                    </li>
+                  ))}
+                </ul>
+              </Notice>
+            )}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }

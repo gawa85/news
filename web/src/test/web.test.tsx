@@ -1155,6 +1155,62 @@ describe("Backoffice: planes nuevos", () => {
   });
 });
 
+describe("Fuentes sugeridas (directorio de fuentes públicas)", () => {
+  const withSources = () => new FakeApi(sampleMe({ plan: { ...sampleMe().plan, features: [...sampleMe().plan.features, "source_connections"] } }));
+
+  test("filtrar por tipo y provincia, elegir varias y agregarlas de una vez; las que fallan se explican", async () => {
+    const api = withSources();
+    renderApp(api, "/fuentes");
+    const user = userEvent.setup();
+    const section = await screen.findByRole("region", { name: "Fuentes sugeridas" });
+    const clarin = await within(section).findByRole("checkbox", { name: /Clarín/ });
+    expect(clarin).toBeChecked();
+    expect(clarin).toBeDisabled();
+    expect(within(section).getByText("Ya la tenés")).toBeInTheDocument();
+
+    await user.click(within(section).getByRole("button", { name: "Verificadores de datos" }));
+    expect(within(section).getByRole("button", { name: "Verificadores de datos" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(section).queryByRole("checkbox", { name: /Infobae/ })).not.toBeInTheDocument();
+    await user.click(within(section).getByRole("checkbox", { name: /Chequeado/ }));
+
+    await user.click(within(section).getByRole("button", { name: "Todas" }));
+    await user.selectOptions(within(section).getByLabelText("Provincia"), "Río Negro");
+    await user.click(within(section).getByRole("checkbox", { name: /Diario Río Negro/ }));
+    expect(within(section).getByText(/elegiste 2 · te quedan 2 lugar/)).toBeInTheDocument();
+
+    await user.click(within(section).getByRole("button", { name: "Agregar las elegidas (2)" }));
+    expect(await within(section).findByText(/Agregadas: Chequeado/)).toBeInTheDocument();
+    expect(within(section).getByText(/Diario Río Negro: La URL no devuelve un feed/)).toBeInTheDocument();
+    expect(api.calls.find((c) => c.method === "addFromDirectory")?.args[0]).toEqual(["chequeado", "rionegro"]);
+  });
+
+  test("con un solo lugar libre, al elegir una las demás quedan sin poder marcarse", async () => {
+    const api = withSources();
+    api.directory = { ...api.directory, used: 4 };
+    renderApp(api, "/fuentes");
+    const user = userEvent.setup();
+    const section = await screen.findByRole("region", { name: "Fuentes sugeridas" });
+    await user.click(await within(section).findByRole("checkbox", { name: /Infobae/ }));
+    expect(within(section).getByRole("checkbox", { name: /Chequeado/ })).toBeDisabled();
+    expect(within(section).getByText(/te quedan 0 lugar/)).toBeInTheDocument();
+  });
+
+  test("backoffice: cargar medios conocidos en el catálogo y volver a verificar sus feeds", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["outlets:write"] })), "/admin/medios", bo);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("Agregar medios conocidos", { exact: false, selector: "summary *" }));
+    expect(await screen.findByRole("checkbox", { name: /BBC Mundo/ })).toBeDisabled();
+    expect(screen.getByText("En el catálogo")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /Clarín/ }));
+    await user.click(screen.getByRole("button", { name: "Cargar en el catálogo (1)" }));
+    expect(await screen.findByText(/Listo: 1 medio\(s\) nuevo\(s\) y 1 feed\(s\) activado\(s\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Volver a verificar los feeds del directorio" }));
+    expect(await screen.findByText("1 de 2 no responden")).toBeInTheDocument();
+    expect(screen.getByText("BBC Mundo: HTTP 404")).toBeInTheDocument();
+  });
+});
+
 describe("Ayuda en cada pantalla y glosario", () => {
   test("toda pantalla tiene ayuda (salvo las que ya son una explicación)", () => {
     // La portada, la bienvenida y el glosario ya son explicaciones; la invitación se explica sola.

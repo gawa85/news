@@ -89,6 +89,8 @@ import { RoomService } from "../application/participation/Rooms";
 import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "../infrastructure/participation/Participation";
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
 import { OutletEditor } from "../application/catalog/OutletEditor";
+import { SourceDirectoryService } from "../application/content/SourceDirectory";
+import { SOURCE_DIRECTORY } from "../config/sourceDirectory";
 import { PlanAdmin } from "../application/commerce/PlanAdmin";
 import { PlanMigrations } from "../application/commerce/PlanMigrations";
 import { OnboardingService } from "../application/onboarding/Onboarding";
@@ -489,9 +491,10 @@ export function buildPlatform(cfg: PlatformConfig) {
 
   // ---- Datos reales: catálogo importable y noticias desde los feeds ----
   const importCatalog = new ImportCatalogUseCase(cfg.catalogSources ?? [], repos.catalog, repos.outlets, repos.users, authz, domainEvents, countries);
+  // Las direcciones de los feeds las carga el equipo (o un CSV, o el directorio): sólo destinos públicos.
+  const catalogFeedReader = cfg.feedReader ?? new HttpFeedReader(cfg.userDestinations?.http ?? cfg.http);
   const ingestFeeds = new IngestFeedsUseCase(
-    // Las direcciones de los feeds las carga el equipo (o un CSV): sólo destinos públicos, como las fuentes propias.
-    repos.catalog, repos.outlets, cfg.feedReader ?? new HttpFeedReader(cfg.userDestinations?.http ?? cfg.http), topicIndex,
+    repos.catalog, repos.outlets, catalogFeedReader, topicIndex,
     repos.articles, core.extractor, repos.claims, clock, logger,
   );
 
@@ -588,6 +591,8 @@ export function buildPlatform(cfg: PlatformConfig) {
     new ImapMailboxSource(mimeParser, 50, { allowPrivate: cfg.userDestinations?.allowPrivate }),
     new RssFeedSource(cfg.userDestinations?.http ?? cfg.http),
   ];
+  const connectSource = new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock);
+  const sourceSettings = new SourceSettings(repos.sourceConnections, authz, access);
   const syncSources = new SyncSourcesUseCase(contentSources, repos.sourceConnections, vault, gateway, clock, logger);
 
   // ---- Redes: cadena de lectores (del más rico al más básico) con caché ----
@@ -664,7 +669,13 @@ export function buildPlatform(cfg: PlatformConfig) {
       captcha: cfg.abuse?.captcha && cfg.abuse.captchaSiteKey ? { provider: cfg.abuse.captcha.id, siteKey: cfg.abuse.captchaSiteKey } : undefined,
     },
     content: {
-      connect: new ConnectSourceUseCase(contentSources, repos.sourceConnections, vault, authz, access, ids, clock),
+      connect: connectSource,
+      directory: new SourceDirectoryService(
+        SOURCE_DIRECTORY,
+        { list: (actorId) => sourceSettings.list(actorId), connect: (input) => connectSource.execute(input) },
+        { outlets: repos.outlets, feeds: repos.catalog },
+        repos.users, authz, domainEvents, catalogFeedReader,
+      ),
       sync: syncSources,
       receiveEmail: new ReceiveEmailUseCase(mimeParser, repos.users, register, gateway, composer, replies, logger),
     },
@@ -774,7 +785,7 @@ export function httpApiDeps(p: Platform, opts: { secrets: HttpApiDeps["secrets"]
     mediaCheck: p.mediaCheck,
     outletProfiles: p.outletProfiles,
     clock: p.core.clock,
-    sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect },
+    sources: { settings: new SourceSettings(p.store.repos.sourceConnections, p.authz, p.access), connect: p.content.connect, directory: p.content.directory },
     ruleSets: { settings: new RuleSetSettings(p.store.repos.ruleSets, p.authz, p.access), save: p.users.saveRules },
     lifecycle: p.billing.lifecycle, restrictions: p.abuse.admin, captcha: p.abuse.captcha, trustedProxies: opts.trustedProxies,
     users: { platform: p.users.platform, assignOutletRepresentative: p.users.assignOutletRepresentative, linkChannel: p.users.linkChannel },

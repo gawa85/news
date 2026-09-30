@@ -566,3 +566,26 @@ export interface FillLegalResult {
   published: { docId: string; version: string }[];
   remaining: Record<string, string[]>;
 }
+
+// ---- Directorio para el catálogo (outlets:write) ----
+export interface CatalogDirectoryEntry {
+  id: string;
+  name: string;
+  site: string;
+  feedUrl: string;
+  category: "nacional" | "agencia" | "verificador" | "oficial" | "internacional" | "provincial";
+  kind: string;
+  country: string;
+  province?: string;
+  description: string;
+  inCatalog: boolean;
+  feedActive: boolean;
+}
+
+export interface DirectoryCheck {
+  id: string;
+  name: string;
+  ok: boolean;
+  items: number;
+  error?: string;
+}

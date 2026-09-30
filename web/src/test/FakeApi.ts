@@ -1,6 +1,6 @@
 import { ApiError } from "../api/ApiError";
 import type { SinHumoApi } from "../api/SinHumoApi";
-import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument, OnboardingStatus, OnboardingStepId } from "../api/types";
+import type { AlertRule, AlertTrigger, Analysis, ApiKey, CredibilityReport, EvidenceSnapshot, EvidenceVerification, Me, OriginTrace, Preferences, PublicEvent, QuizResult, Branding, Campaign, ClassroomSummary, MyReview, OrganizationOverview, PublicRebuttal, ReplyDraft, ReportSchedule, RuleSet, SourceConnection, RoomEvent, Webhook, TeamRoom, Ticket, TimelinePoint, LegalDocument, OnboardingStatus, OnboardingStepId, UserDirectory } from "../api/types";
 
 /** API falsa (misma interfaz que la real): las pantallas se prueban sin servidor. */
 export class FakeApi implements SinHumoApi {
@@ -200,6 +200,27 @@ export class FakeApi implements SinHumoApi {
   async resumeSubscription() {
     this.log("resumeSubscription");
     if (this.session?.subscription) this.session = { ...this.session, subscription: { ...this.session.subscription, cancelAtPeriodEnd: false } };
+  }
+  directory: UserDirectory = {
+    available: true,
+    limit: 5,
+    used: 1,
+    entries: [
+      { id: "clarin", name: "Clarín", site: "https://www.clarin.com", feedUrl: "https://www.clarin.com/rss/lo-ultimo/", category: "nacional", kind: "newspaper", country: "AR", description: "Diario nacional (Buenos Aires).", connected: true },
+      { id: "infobae", name: "Infobae", site: "https://www.infobae.com", feedUrl: "https://www.infobae.com/arc/outboundfeeds/rss/", category: "nacional", kind: "digital", country: "AR", description: "Portal de noticias nacional.", connected: false },
+      { id: "chequeado", name: "Chequeado", site: "https://chequeado.com", feedUrl: "https://chequeado.com/feed/", category: "verificador", kind: "digital", country: "AR", description: "Verificación de datos y discursos públicos.", connected: false },
+      { id: "lagaceta", name: "La Gaceta", site: "https://www.lagaceta.com.ar", feedUrl: "https://www.lagaceta.com.ar/rss/ultimas-noticias.xml", category: "provincial", kind: "newspaper", country: "AR", province: "Tucumán", description: "Diario de Tucumán.", connected: false },
+      { id: "rionegro", name: "Diario Río Negro", site: "https://www.rionegro.com.ar", feedUrl: "https://www.rionegro.com.ar/feed/", category: "provincial", kind: "newspaper", country: "AR", province: "Río Negro", description: "Diario de Río Negro.", connected: false },
+    ],
+  };
+  async sourceDirectory() {
+    return this.directory;
+  }
+  async addFromDirectory(ids: string[]) {
+    this.log("addFromDirectory", ids);
+    const results = ids.map((id) => ({ id, name: this.directory.entries.find((e) => e.id === id)!.name, ok: id !== "rionegro", error: id === "rionegro" ? "La URL no devuelve un feed RSS/Atom válido." : undefined }));
+    this.directory = { ...this.directory, used: this.directory.used + results.filter((r) => r.ok).length, entries: this.directory.entries.map((e) => (results.some((r) => r.id === e.id && r.ok) ? { ...e, connected: true } : e)) };
+    return { results };
   }
   onboardingState: OnboardingStatus = {
     steps: (["topics", "chat", "notifications", "first_analysis"] as OnboardingStepId[]).map((id) => ({ id, done: false, skipped: false })),

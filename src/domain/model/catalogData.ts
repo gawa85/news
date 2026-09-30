@@ -1,5 +1,5 @@
 import type { AdvertisingSpend } from "./context";
-import type { Outlet, Owner, OwnershipRecord } from "./source";
+import type { Outlet, OutletKind, Owner, OwnershipRecord } from "./source";
 
 /** Feed RSS/Atom de un medio del catálogo (de ahí salen las notas reales). */
 export interface FeedSource {
@@ -39,4 +39,20 @@ export interface ImportReport {
   rejected: string[];
   /** Datos que se cargaron pero conviene revisar (p. ej. una provincia desconocida). */
   warnings: string[];
+}
+
+/** Tipo de fuente en el directorio de fuentes públicas conocidas. */
+export type DirectoryCategory = "nacional" | "agencia" | "verificador" | "oficial" | "internacional" | "provincial";
+
+/** Una fuente pública conocida con su feed verificado (config/sourceDirectory). */
+export interface DirectorySource {
+  id: string;
+  name: string;
+  site: string;
+  feedUrl: string;
+  category: DirectoryCategory;
+  kind: OutletKind;
+  country: string;
+  province?: string;
+  description: string;
 }

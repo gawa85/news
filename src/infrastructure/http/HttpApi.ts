@@ -74,6 +74,8 @@
  *    PUT /v1/organization/members/:id/role { roleId }   POST /v1/organization/members/:id/remove   POST /v1/organization/leave
  *  Webhooks (sólo con sesión web):  GET/POST /v1/webhooks { url, events }   POST /v1/webhooks/:id/(test|remove)
  *  Mis fuentes:  GET/POST /v1/sources { type: rss|email, name, config, secret? }   POST /v1/sources/:id/disconnect
+ *    GET /v1/sources/directory (fuentes públicas conocidas)   POST /v1/sources/directory/add { ids }
+ *    GET /v1/catalog/directory   POST /v1/catalog/directory/import { ids }   POST /v1/catalog/directory/verify   (outlets:write)
  *  Mis reglas de fuentes:  GET/POST /v1/rules { scope, name, urlRules }   POST /v1/rules/:id/deactivate
  *  Mis réplicas (representantes de medios):  GET /v1/rebuttals/mine
  *  Reseñas:  GET /v1/reviews/mine?type=&id=
@@ -127,6 +129,7 @@ import type { SetupService } from "../../application/ops/Setup";
 import type { OutletEditor } from "../../application/catalog/OutletEditor";
 import type { PlanAdmin } from "../../application/commerce/PlanAdmin";
 import type { PlanMigrations } from "../../application/commerce/PlanMigrations";
+import type { SourceDirectoryService } from "../../application/content/SourceDirectory";
 import type { CreateAlertUseCase } from "../../application/users/UserSettingsUseCases";
 import type { SubscriptionLifecycle } from "../../application/billing/SubscriptionLifecycle";
 import type { EventRoomService } from "../../application/participation/EventRooms";
@@ -203,7 +206,7 @@ export interface HttpApiDeps {
   /** Webhooks salientes: ver, crear, probar y apagar. */
   webhooks?: WebhookService;
   /** Mis fuentes: ver, conectar (se prueba antes) y desconectar. */
-  sources?: { settings: SourceSettings; connect: ConnectSourceUseCase };
+  sources?: { settings: SourceSettings; connect: ConnectSourceUseCase; directory: SourceDirectoryService };
   /** Mis reglas de fuentes (personales y de la organización). */
   ruleSets?: { settings: RuleSetSettings; save: SaveRuleSetUseCase };
   /** Mi organización: equipo, invitaciones y roles. */
@@ -827,6 +830,12 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     // ---- Mis fuentes (buzón IMAP, feeds RSS) ----
     if (req.method === "GET" && path === "/v1/sources") return json(res, 200, await need(deps.sources).settings.list(who.userId));
+    // Directorio de fuentes públicas conocidas: elegirlas en vez de escribir la dirección.
+    if (req.method === "GET" && path === "/v1/sources/directory") return json(res, 200, await need(deps.sources).directory.forUser(who.userId));
+    if (req.method === "POST" && path === "/v1/sources/directory/add") return json(res, 200, await need(deps.sources).directory.addForUser(who.userId, b.ids as string[]));
+    if (req.method === "GET" && path === "/v1/catalog/directory") return json(res, 200, await need(deps.sources).directory.forCatalog(who.userId));
+    if (req.method === "POST" && path === "/v1/catalog/directory/import") return json(res, 200, await need(deps.sources).directory.importToCatalog(who.userId, b.ids as string[]));
+    if (req.method === "POST" && path === "/v1/catalog/directory/verify") return json(res, 200, await need(deps.sources).directory.verify(who.userId));
     if (req.method === "POST" && path === "/v1/sources") {
       const type = str(b.type, "type");
       if (type !== "rss" && type !== "email") throw new ValidationError("Por ahora se conectan feeds (rss) y buzones de mail (email).");

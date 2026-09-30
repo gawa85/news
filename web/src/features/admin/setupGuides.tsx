@@ -203,7 +203,11 @@ export const SETUP_GUIDES: Record<string, Guide> = {
     what: "Los medios que Sin Humo sigue y sus «feeds»: la lista de notas nuevas que publica cada sitio (RSS).",
     why: "Sin feeds activos no entran notas nuevas: comparar fuentes y la credibilidad se quedan con datos viejos.",
     steps: [
-      <>Buscá el feed del medio: suele estar en <code>https://SITIO/rss</code>, <code>https://SITIO/feed</code> o en un ícono naranja de RSS al pie de la página.</>,
+      <>
+        Lo más rápido: en <Link to="/admin/medios">Medios</Link>, abrí «Agregar medios conocidos», marcá los que quieras (diarios nacionales, provinciales, agencias,
+        verificadores…) y tocá «Cargar en el catálogo». Sus feeds ya están comprobados.
+      </>,
+      <>Para uno que no esté en esa lista, buscá su feed: suele estar en <code>https://SITIO/rss</code>, <code>https://SITIO/feed</code> o en un ícono naranja de RSS al pie de la página.</>,
       <>En <Link to="/admin/medios">Medios</Link>, elegí el medio (o creá uno nuevo), pegá la dirección del feed en «Dirección de un feed nuevo» y tocá «Agregar feed».</>,
       <>Para cargar muchos medios de una vez, usá <Link to="/admin/catalogo">Importar catálogo</Link> con un archivo CSV.</>,
     ],

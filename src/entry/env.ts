@@ -155,7 +155,7 @@ export async function platformFromEnv() {
   await seedPlatform(store, { legalTexts: legalTexts() });
   if (env("LOAD_DEMO_DATA") === "1" && profile.allowDemoData) await seedCore(store, demoSeed);
 
-  const http = new FetchHttpClient();
+  const http = new FetchHttpClient(15_000, { userAgent: userAgent() });
   const senders: IMessageSender[] = [];
   if (env("WHATSAPP_TOKEN") && env("WHATSAPP_PHONE_NUMBER_ID")) {
     senders.push(new WhatsAppCloudSender(http, { accessToken: env("WHATSAPP_TOKEN")!, phoneNumberId: env("WHATSAPP_PHONE_NUMBER_ID")! }));
@@ -231,11 +231,11 @@ export async function platformFromEnv() {
       backups: !!(backupSinkFromEnv() && env("BACKUP_PASSPHRASE")),
     },
     userDestinations: {
-      http: new PublicDestinationHttpClient(new FetchHttpClient(15_000, { followRedirects: false }), { allowPrivate: profile.name === "development", allowHttp: true, maxRedirects: 5 }),
+      http: new PublicDestinationHttpClient(new FetchHttpClient(15_000, { followRedirects: false, userAgent: userAgent() }), { allowPrivate: profile.name === "development", allowHttp: true, maxRedirects: 5 }),
       allowPrivate: profile.name === "development",
     },
     webhooks: {
-      http: new PublicDestinationHttpClient(new FetchHttpClient(10_000, { followRedirects: false }), { allowPrivate: profile.name === "development" }),
+      http: new PublicDestinationHttpClient(new FetchHttpClient(10_000, { followRedirects: false, userAgent: userAgent() }), { allowPrivate: profile.name === "development" }),
       allowLocal: profile.name === "development",
     },
     senders,
@@ -258,4 +258,9 @@ function legalTexts(): Partial<Record<"terms" | "privacy", string>> {
     }
   };
   return { terms: read("TERMINOS.md"), privacy: read("PRIVACIDAD.md") };
+}
+
+/** Cómo se presenta Sin Humo al leer sitios y feeds (con su dirección, para que un medio sepa quién es). */
+function userAgent(): string {
+  return `SinHumoBot/1.0 (+${env("PUBLIC_BASE_URL", "http://localhost:8080")})`;
 }

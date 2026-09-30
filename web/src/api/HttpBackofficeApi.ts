@@ -54,6 +54,8 @@ import type {
   PlatformProfile,
   SetupOverview,
   FillLegalResult,
+  CatalogDirectoryEntry,
+  DirectoryCheck,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -321,5 +323,15 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   fillLegal() {
     return this.request<FillLegalResult>("POST", "/v1/admin/setup/fill-legal");
+  }
+
+  catalogDirectory() {
+    return this.request<CatalogDirectoryEntry[]>("GET", "/v1/catalog/directory");
+  }
+  importDirectory(ids: string[]) {
+    return this.request<{ outlets: number; feeds: number }>("POST", "/v1/catalog/directory/import", { ids });
+  }
+  verifyDirectory() {
+    return this.request<DirectoryCheck[]>("POST", "/v1/catalog/directory/verify");
   }
 }

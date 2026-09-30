@@ -26,7 +26,7 @@ export class FetchHttpClient implements IHttpClient {
   constructor(
     private readonly timeoutMs = 15_000,
     /** false: un 3xx se devuelve tal cual (para destinos que elige una persona: ver PublicDestinationHttpClient). */
-    private readonly opts: { followRedirects?: boolean } = {},
+    private readonly opts: { followRedirects?: boolean; userAgent?: string } = {},
   ) {}
 
   get(url: string, headers: Record<string, string> = {}): Promise<HttpResponse> {
@@ -41,7 +41,11 @@ export class FetchHttpClient implements IHttpClient {
     const isString = typeof body === "string";
     const res = await fetch(url, {
       method,
-      headers: { ...(body !== undefined && !isString ? { "content-type": "application/json" } : {}), ...headers },
+      headers: {
+        "user-agent": this.opts.userAgent ?? "SinHumoBot/1.0",
+        ...(body !== undefined && !isString ? { "content-type": "application/json" } : {}),
+        ...headers,
+      },
       body: body === undefined ? undefined : isString ? body : JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeoutMs),
       redirect: this.opts.followRedirects === false ? "manual" : "follow",

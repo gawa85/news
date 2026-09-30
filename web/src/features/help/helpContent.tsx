@@ -48,7 +48,11 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   },
   "/fuentes": {
     summary: "Conectás tu buzón de mail o los feeds que seguís, y lo nuevo se analiza solo: te avisamos si hay humo.",
-    steps: ["Elegí qué conectar: un feed o un buzón de mail.", "Pegá la dirección del feed (o los datos del buzón).", "Guardá: se revisa cada tanto."],
+    steps: [
+      "Lo más rápido: en «Fuentes sugeridas», filtrá por tipo o provincia, marcá las que quieras y tocá «Agregar las elegidas».",
+      "Para otra fuente: elegí qué conectar (un feed o un buzón de mail) y pegá su dirección o los datos del buzón.",
+      "Listo: se revisa sola cada tanto y te avisamos si llega humo.",
+    ],
     example: "Feed de un medio: https://www.ejemplo.com.ar/rss",
     terms: ["feed", "imap"],
   },
@@ -193,7 +197,10 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["ejemplo_etiquetado", "precision", "exhaustividad", "f1", "version_algoritmo"],
   },
   "/admin/documentos": { summary: "Resoluciones, informes y comunicados oficiales. Lo que cargás aparece como evidencia sugerida al verificar.", terms: ["verificacion"] },
-  "/admin/medios": { summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas).", terms: ["feed"] },
+  "/admin/medios": {
+    summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas). «Agregar medios conocidos» carga de una vez medios con su feed ya comprobado.",
+    terms: ["feed"],
+  },
   "/admin/catalogo": {
     summary: "Cargar muchos medios, dueños o pauta oficial de una vez, desde una planilla o una fuente de datos abiertos.",
     steps: ["Armá la planilla en Excel o Google Sheets con las columnas que se indican.", "Descargala como CSV.", "Elegí qué contiene, subila y revisá el informe: qué se cargó y qué no se reconoció."],

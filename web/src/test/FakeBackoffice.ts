@@ -43,6 +43,8 @@ import type {
   PlatformProfile,
   SetupOverview,
   FillLegalResult,
+  CatalogDirectoryEntry,
+  DirectoryCheck,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -512,5 +514,25 @@ export class FakeBackoffice implements BackofficeApi {
   async fillLegal(): Promise<FillLegalResult> {
     this.log("fillLegal");
     return { published: [{ docId: "terms", version: "2026-09-29" }, { docId: "privacy", version: "2026-09-29" }], remaining: { terms: ["[30]"], privacy: [] } };
+  }
+
+  dirEntries: CatalogDirectoryEntry[] = [
+    { id: "clarin", name: "Clarín", site: "https://www.clarin.com", feedUrl: "https://www.clarin.com/rss/lo-ultimo/", category: "nacional", kind: "newspaper", country: "AR", description: "Diario nacional (Buenos Aires).", inCatalog: false, feedActive: false },
+    { id: "bbcmundo", name: "BBC Mundo", site: "https://www.bbc.com/mundo", feedUrl: "https://feeds.bbci.co.uk/mundo/rss.xml", category: "internacional", kind: "digital", country: "GB", description: "Servicio en castellano de la BBC (Reino Unido).", inCatalog: true, feedActive: true },
+  ];
+  async catalogDirectory() {
+    return this.dirEntries;
+  }
+  async importDirectory(ids: string[]) {
+    this.log("importDirectory", ids);
+    this.dirEntries = this.dirEntries.map((e) => (ids.includes(e.id) ? { ...e, inCatalog: true, feedActive: true } : e));
+    return { outlets: ids.length, feeds: ids.length };
+  }
+  async verifyDirectory(): Promise<DirectoryCheck[]> {
+    this.log("verifyDirectory");
+    return [
+      { id: "clarin", name: "Clarín", ok: true, items: 10 },
+      { id: "bbcmundo", name: "BBC Mundo", ok: false, items: 0, error: "HTTP 404" },
+    ];
   }
 }

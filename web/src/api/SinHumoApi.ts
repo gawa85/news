@@ -61,6 +61,8 @@ import type {
   LegalDocument,
   OnboardingStatus,
   ChannelLinkCode,
+  UserDirectory,
+  DirectoryAddResult,
 } from "./types";
 
 /**
@@ -113,6 +115,9 @@ export interface SinHumoApi {
   cancelSubscription(): Promise<void>;
   resumeSubscription(): Promise<void>;
   acceptLegal(docId: string, version: string): Promise<void>;
+  /** Fuentes públicas conocidas para agregar sin escribir la dirección. */
+  sourceDirectory(): Promise<UserDirectory>;
+  addFromDirectory(ids: string[]): Promise<DirectoryAddResult>;
   // Guía de bienvenida
   onboarding(): Promise<OnboardingStatus>;
   markOnboardingStep(step: string, how: "done" | "skipped"): Promise<OnboardingStatus>;

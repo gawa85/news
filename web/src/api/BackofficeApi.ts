@@ -54,6 +54,8 @@ import type {
   PlatformProfile,
   SetupOverview,
   FillLegalResult,
+  CatalogDirectoryEntry,
+  DirectoryCheck,
 } from "./backofficeTypes";
 
 /**
@@ -182,4 +184,9 @@ export interface BackofficeApi {
   saveSetupProfile(input: PlatformProfile): Promise<PlatformProfile>;
   /** Publica borradores de términos y privacidad con los datos de la empresa completos. */
   fillLegal(): Promise<FillLegalResult>;
+
+  // Directorio de fuentes públicas para el catálogo (outlets:write)
+  catalogDirectory(): Promise<CatalogDirectoryEntry[]>;
+  importDirectory(ids: string[]): Promise<{ outlets: number; feeds: number }>;
+  verifyDirectory(): Promise<DirectoryCheck[]>;
 }

@@ -14,7 +14,7 @@ export class RssFeedSource implements IContentSource {
 
   async test(conn: SourceConnection): Promise<void> {
     const res = await this.http.get(conn.config.url!);
-    if (res.status !== 200 || !/<(rss|feed)[\s>]/i.test(res.text)) throw new Error("La URL no devuelve un feed RSS/Atom válido.");
+    if (res.status !== 200 || !/<(rss|feed|rdf:RDF)[\s>]/i.test(res.text)) throw new Error("La URL no devuelve un feed RSS/Atom válido.");
   }
 
   async pull(conn: SourceConnection): Promise<PullResult> {
@@ -70,7 +70,7 @@ export function parseFeed(xml: string): FeedEntry[] {
       title: tag(it, "title") ?? "",
       link: tag(it, "link"),
       body: tag(it, "content:encoded") ?? tag(it, "description") ?? "",
-      date: new Date(tag(it, "pubDate") ?? 0),
+      date: new Date(tag(it, "pubDate") ?? tag(it, "dc:date") ?? 0), // (RSS 1.0 usa dc:date)
       guid: tag(it, "guid"),
     }));
   }
