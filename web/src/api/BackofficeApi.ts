@@ -58,6 +58,7 @@ import type {
   DirectoryCheck,
   FeedReadResult,
   ReclassifyReport,
+  OutletArticles,
 } from "./backofficeTypes";
 
 /**
@@ -166,6 +167,8 @@ export interface BackofficeApi {
   /** Leer un feed ahora (una vez por minuto) o todos, en segundo plano (una vez cada 5 minutos). */
   readOutletFeed(outletId: string, feedId: string): Promise<FeedReadResult>;
   readAllFeeds(): Promise<{ queued: boolean }>;
+  /** Las últimas notas leídas de un medio, con su tema. */
+  outletArticles(outletId: string): Promise<OutletArticles>;
 
   // Fe de erratas (corrections:publish): corregir públicamente un error propio
   publishCorrection(input: NewCorrection): Promise<{ id: string }>;

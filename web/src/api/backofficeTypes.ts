@@ -593,8 +593,22 @@ export interface DirectoryCheck {
 /** Resultado de "Leer ahora" un feed del catálogo. */
 export interface FeedReadResult {
   articles: number;
+  /** De qué temas son las notas nuevas (de más a menos; "otros" al final). */
+  byTopic: TopicCount[];
   error?: string;
   feed: OutletFeed;
+}
+
+export interface TopicCount {
+  topic: string;
+  articles: number;
+}
+
+/** Lo último que se leyó de un medio. */
+export interface OutletArticles {
+  latest: { id: string; title: string; url: string; topic: string; publishedAt: string }[];
+  byTopic: TopicCount[];
+  total: number;
 }
 
 /** Resultado de volver a clasificar las notas por tema. */

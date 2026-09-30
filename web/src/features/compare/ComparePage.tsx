@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router";
 import { useApi } from "../../api/ApiContext";
 import type { Comparison } from "../../api/types";
 import { useSession } from "../../session/SessionContext";
@@ -17,7 +18,8 @@ export function ComparePage() {
   const api = useApi();
   const { me } = useSession();
   const topics = useTopics();
-  const [topic, setTopic] = useState("");
+  const [params] = useSearchParams();
+  const [topic, setTopic] = useState(() => params.get("tema")?.slice(0, 100) ?? "");
   const [from, setFrom] = useState(isoDay(30));
   const [to, setTo] = useState(isoDay(0));
   const [links, setLinks] = useState("");

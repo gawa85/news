@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { SEED_TOPICS } from "../src/config/topics";
 import { seedTaxonomy } from "../src/application/config/Taxonomy";
+import { countByTopic } from "../src/application/catalog/CatalogUseCases";
 import { SEED_CATEGORIES } from "../src/config/topics";
 import type { Article } from "../src/domain/model";
 import { testPlatform } from "./helpers/platform";
@@ -61,6 +62,15 @@ describe("Temas: más temas y reclasificar notas", () => {
     assert.equal((await reader("/v1/taxonomy/reclassify", post({}))).status, 403);
     const admin = await web.login("admin2.reclasificar@correo.example", ["platform_admin"]);
     assert.equal((await admin("/v1/taxonomy/reclassify", post({ scope: "cualquiera" }))).status, 400);
+  });
+
+  test("conteo por tema: de mayor a menor y 'otros' siempre al final", () => {
+    const list = ["otros", "otros", "otros", "deportes", "justicia", "deportes"].map((topic) => ({ topic }));
+    assert.deepEqual(countByTopic(list), [
+      { topic: "deportes", articles: 2 },
+      { topic: "justicia", articles: 1 },
+      { topic: "otros", articles: 3 },
+    ]);
   });
 
   test("la semilla actualiza las palabras de los temas que nadie editó, y no pisa los editados a mano", async () => {

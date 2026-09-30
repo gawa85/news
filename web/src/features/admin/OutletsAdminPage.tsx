@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useApi } from "../../api/ApiContext";
 import { useBackoffice } from "../../api/BackofficeContext";
-import type { AdminOutlet, OutletDraft, OutletFeed, OutletKind, OutletRecord } from "../../api/backofficeTypes";
+import { Link } from "react-router";
+import type { AdminOutlet, OutletDraft, OutletFeed, OutletKind, OutletRecord, TopicCount } from "../../api/backofficeTypes";
 import { formatDate, formatDateTime, OUTLET_KIND_LABELS } from "../../domain/labels";
 import { ErrorAlert, Field, Notice, Page, Spinner } from "../../ui/components";
 import { useAction, useAsync } from "../../ui/useAsync";
@@ -71,6 +72,7 @@ function OutletEditorCard({ id, onSaved }: { id: string; onSaved: () => void }) 
   const bo = useBackoffice();
   const rec = useAsync(() => bo.outletRecord(id), [bo, id]);
   const r = rec.data;
+  const [reads, setReads] = useState(0);
   return (
     <section className="card stack" aria-labelledby="medio-elegido">
       <h2 id="medio-elegido">{r ? r.outlet.name : "Medio"}</h2>
@@ -88,7 +90,8 @@ function OutletEditorCard({ id, onSaved }: { id: string; onSaved: () => void }) 
               onSaved();
             }}
           />
-          <FeedsSection record={r} onChange={(feeds) => rec.setData({ ...r, feeds })} />
+          <FeedsSection record={r} onChange={(feeds) => rec.setData({ ...r, feeds })} onRead={() => setReads((n) => n + 1)} />
+          <LatestArticles key={reads} outletId={r.outlet.id} />
           <div className="stack">
             <h3 style={{ margin: 0 }}>Propiedad</h3>
             {r.ownership.length === 0 ? (
@@ -184,7 +187,7 @@ function OutletForm({ outlet, onSaved }: { outlet?: AdminOutlet; onSaved: (o: Ad
   );
 }
 
-function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (feeds: OutletFeed[]) => void }) {
+function FeedsSection({ record, onChange, onRead }: { record: OutletRecord; onChange: (feeds: OutletFeed[]) => void; onRead: () => void }) {
   const bo = useBackoffice();
   const [url, setUrl] = useState("");
   const id = record.outlet.id;
@@ -197,11 +200,12 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
     const next = await bo.setOutletFeedActive(id, f.id, !f.active);
     onChange(record.feeds.map((x) => (x.id === next.id ? next : x)));
   });
-  const [readResult, setReadResult] = useState<{ url: string; articles: number; error?: string }>();
+  const [readResult, setReadResult] = useState<{ url: string; articles: number; byTopic: TopicCount[]; error?: string }>();
   const read = useAction(async (f: OutletFeed) => {
     const r = await bo.readOutletFeed(id, f.id);
     onChange(record.feeds.map((x) => (x.id === r.feed.id ? r.feed : x)));
-    setReadResult({ url: f.url, articles: r.articles, error: r.error });
+    setReadResult({ url: f.url, articles: r.articles, byTopic: r.byTopic ?? [], error: r.error });
+    onRead();
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -251,9 +255,12 @@ function FeedsSection({ record, onChange }: { record: OutletRecord; onChange: (f
       </form>
       <ErrorAlert error={add.error ?? toggle.error ?? read.error} />
       {readResult && (
-        <p role="status" style={{ margin: 0 }}>
-          {readResult.error ? `No se pudo leer ${readResult.url}: ${readResult.error}` : readResult.articles ? `Listo: ${readResult.articles} nota(s) nueva(s).` : "Listo: no había notas nuevas."}
-        </p>
+        <div role="status" className="stack">
+          <p style={{ margin: 0 }}>
+            {readResult.error ? `No se pudo leer ${readResult.url}: ${readResult.error}` : readResult.articles ? `Listo: ${readResult.articles} nota(s) nueva(s).` : "Listo: no había notas nuevas."}
+          </p>
+          {!readResult.error && readResult.byTopic.length > 0 && <TopicCounts counts={readResult.byTopic} label="Temas de las notas nuevas" />}
+        </div>
       )}
     </div>
   );
@@ -353,6 +360,79 @@ function ReadAllFeeds() {
               : "Ya se pidió hace poco (se puede una vez cada 5 minutos): en unos minutos aparecen las notas nuevas."}
           </p>
         </Notice>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Cuántas notas de cada tema, con un enlace a Comparar fuentes de ese tema. Las notas de los feeds
+ * no van al historial de nadie: sirven para comparar medios, su credibilidad y el origen de un dato.
+ */
+function TopicCounts({ counts, label }: { counts: TopicCount[]; label: string }) {
+  return (
+    <div className="stack">
+      <p className="muted" style={{ margin: 0 }}>
+        {label}. Estas notas no van a tu historial: se usan para comparar medios. Tocá un tema para compararlo.
+      </p>
+      <ul className="row" style={{ flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }} aria-label={label}>
+        {counts.map((c) => (
+          <li key={c.topic}>
+            {c.topic === "otros" ? (
+              <span className="badge badge--neutral">sin tema: {c.articles}</span>
+            ) : (
+              <Link className="badge" to={`/comparar?tema=${encodeURIComponent(c.topic)}`} aria-label={`Comparar fuentes sobre ${c.topic} (${c.articles} nota${c.articles === 1 ? "" : "s"})`}>
+                {c.topic}: {c.articles}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Lo último que se leyó de este medio, con el tema que le tocó a cada nota. */
+function LatestArticles({ outletId }: { outletId: string }) {
+  const bo = useBackoffice();
+  const list = useAsync(() => bo.outletArticles(outletId), [bo, outletId]);
+  const d = list.data;
+  return (
+    <div className="stack">
+      <h3 style={{ margin: 0 }}>Últimas notas leídas</h3>
+      {list.loading && !d && <Spinner />}
+      <ErrorAlert error={list.error} />
+      {d && d.total === 0 && <p className="muted" style={{ margin: 0 }}>Todavía no se leyó ninguna nota de este medio. Tocá «Leer ahora» en un feed, o esperá la lectura automática (cada 30 minutos).</p>}
+      {d && d.total > 0 && (
+        <>
+          <TopicCounts counts={d.byTopic} label={`Las ${d.total} notas guardadas de este medio, por tema`} />
+          <div className="table-wrap">
+            <table className="table">
+              <caption className="visually-hidden">Últimas notas leídas de este medio</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Nota</th>
+                  <th scope="col">Tema</th>
+                  <th scope="col">Publicada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.latest.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      <a href={a.url} target="_blank" rel="noopener noreferrer">
+                        {a.title}
+                        <span className="visually-hidden"> (se abre en otra pestaña)</span>
+                      </a>
+                    </td>
+                    <td>{a.topic === "otros" ? "sin tema" : a.topic}</td>
+                    <td>{formatDateTime(a.publishedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

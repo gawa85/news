@@ -732,7 +732,7 @@ export function buildPlatform(cfg: PlatformConfig) {
     metrics,
     requestContext,
     participation: { narratives, campaigns, perspectives, rooms, events: eventRooms },
-    catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries, { readFeed: (f) => ingestFeeds.readFeed(f), queue, clock }), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
+    catalog: { import: importCatalog, ingestFeeds, editor: new OutletEditor(repos.outlets, repos.catalog, repos.users, authz, domainEvents, countries, { readFeed: (f) => ingestFeeds.readFeed(f), queue, clock }, repos.articles), csvSource: (kind: "outlets" | "ownership" | "advertising", label: string, text: string) => new CsvCatalogSource(`subida-${kind}`, label, kind, { text }) },
     stats: { service: statsService, openData, biFeed, scheduledReports, anonymizer },
     config: { taxonomy, topics: topicIndex, preferences, businessRules, params, reclassify: new ReclassifyArticlesUseCase(repos.articles, topicIndex, repos.users, authz, domainEvents) },
     commerce: { service: commerce, referrals, branding, countries, plans: new PlanAdmin(repos.plans, repos.subscriptions, repos.users, authz, domainEvents, clock, PLANS, FEATURE_LABELS, "gratis"), migrations: planMigrations },

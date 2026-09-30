@@ -89,6 +89,7 @@
  *  Operación:  GET/POST /v1/ops/backups   POST /v1/ops/backups/verify { key }   (ops:backup, una operación por vez)   GET /health (con el ambiente)
  *  Catálogo:  GET /v1/catalog/sources   POST /v1/catalog/import { sourceId }   POST /v1/catalog/import-csv { kind, text }
  *    POST /v1/catalog/outlets { id?, name, url, kind, region, aliases }   GET /v1/catalog/outlets/:id (con feeds y propiedad)
+ *    GET /v1/catalog/outlets/:id/articles   últimas notas leídas del medio, con su tema
  *    POST /v1/catalog/outlets/:id/feeds { url }   POST /v1/catalog/outlets/:id/feeds/:feedId/(activate|deactivate|read)   POST /v1/catalog/feeds/read-all   (outlets:write)
  *  Planes (plans:manage):  GET /v1/admin/plans   POST /v1/admin/plans { basedOn, name, description, monthlyAmount, yearlyAmount, tier }
  *    GET/POST /v1/admin/plan-migrations { fromPlanId, toPlanId, effectiveAt, message? }   GET /v1/admin/plan-migrations/notice?from=&to=   POST /v1/admin/plan-migrations/:id/cancel
@@ -695,6 +696,8 @@ export function createHttpApi(deps: HttpApiDeps): Server {
     }
     // ---- Medios del catálogo (outlets:write) ----
     if (req.method === "POST" && path === "/v1/catalog/feeds/read-all") return json(res, 202, await deps.catalog.editor.readAllNow(who.userId));
+    const oa = path.match(/^\/v1\/catalog\/outlets\/([^/]+)\/articles$/);
+    if (oa && req.method === "GET") return json(res, 200, await deps.catalog.editor.recentArticles(who.userId, decodeURIComponent(oa[1]!), Number(url.searchParams.get("limit")) || 20));
     const om = path.match(/^\/v1\/catalog\/outlets(?:\/([^/]+)(?:\/feeds(?:\/([^/]+)\/(activate|deactivate|read))?)?)?$/);
     if (om) {
       const ed = deps.catalog.editor;

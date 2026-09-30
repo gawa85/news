@@ -203,7 +203,7 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
   },
   "/admin/documentos": { summary: "Resoluciones, informes y comunicados oficiales. Lo que cargás aparece como evidencia sugerida al verificar.", terms: ["verificacion"] },
   "/admin/medios": {
-    summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas). «Agregar medios conocidos» carga de una vez medios con su feed ya comprobado. Los feeds se leen solos cada 30 minutos; «Leer ahora» lee uno en el momento y «Leer todos los feeds ahora», todos en segundo plano.",
+    summary: "Los datos de cada medio y sus feeds (de donde salen sus notas nuevas). «Agregar medios conocidos» carga de una vez medios con su feed ya comprobado. Los feeds se leen solos cada 30 minutos; «Leer ahora» lee uno en el momento y «Leer todos los feeds ahora», todos en segundo plano. En «Últimas notas leídas» ves qué se trajo de cada medio y de qué tema quedó cada nota. Estas notas no van al historial de nadie: sirven para Comparar fuentes, la credibilidad de los medios y el origen de un dato.",
     terms: ["feed"],
   },
   "/admin/catalogo": {

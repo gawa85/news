@@ -58,6 +58,7 @@ import type {
   DirectoryCheck,
   FeedReadResult,
   ReclassifyReport,
+  OutletArticles,
 } from "./backofficeTypes";
 import { jsonRequest, type Fetch } from "./http";
 import type { PublicEvent } from "./types";
@@ -282,6 +283,9 @@ export class HttpBackofficeApi implements BackofficeApi {
   }
   readOutletFeed(outletId: string, feedId: string) {
     return this.request<FeedReadResult>("POST", `/v1/catalog/outlets/${enc(outletId)}/feeds/${enc(feedId)}/read`);
+  }
+  outletArticles(outletId: string) {
+    return this.request<OutletArticles>("GET", `/v1/catalog/outlets/${enc(outletId)}/articles`);
   }
   readAllFeeds() {
     return this.request<{ queued: boolean }>("POST", "/v1/catalog/feeds/read-all");

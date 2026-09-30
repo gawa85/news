@@ -124,9 +124,18 @@ describe("Directorio de fuentes públicas", () => {
     const feed = (await t.store.repos.catalog.findFeeds(outlet.id))[0]!;
     const url = `/v1/catalog/outlets/${outlet.id}/feeds/${encodeURIComponent(feed.id)}/read`;
 
-    const first = (await (await admin(url, post({}))).json()) as { articles: number; feed: { lastFetchedAt: string } };
+    const first = (await (await admin(url, post({}))).json()) as { articles: number; byTopic: { topic: string; articles: number }[]; feed: { lastFetchedAt: string } };
     assert.equal(first.articles, 2, "el catálogo guarda también la que sólo trae título");
+    assert.equal(first.byTopic.reduce((n, x) => n + x.articles, 0), 2, "de qué temas son las nuevas");
+
     assert.equal((await admin(url, post({}))).status, 409);
+    // Lo último que se leyó del medio, con su tema (de la más nueva a la más vieja).
+    const seen = (await (await admin(`/v1/catalog/outlets/${outlet.id}/articles`)).json()) as { latest: { title: string; topic: string }[]; byTopic: { topic: string; articles: number }[]; total: number };
+    assert.equal(seen.total, 2);
+    assert.deepEqual(seen.latest.map((a) => a.title), ["Sólo un video", `Nota de ${SOURCE_DIRECTORY.find((e) => e.id === "ambito")!.name}`], "la más nueva primero");
+    assert.ok(seen.latest.every((a) => a.topic));
+    assert.equal((await admin("/v1/catalog/outlets/no-existe/articles")).status, 404);
+    assert.equal((await (await web.login("lector2.leer@correo.example"))(`/v1/catalog/outlets/${outlet.id}/articles`)).status, 403);
 
     // El sitio se cae: el error queda, pero "desde cuándo buscar" no se mueve.
     await t.store.repos.catalog.saveFeed({ ...(await t.store.repos.catalog.findFeeds(outlet.id))[0]!, url: "https://caido.example/rss" });

@@ -204,6 +204,7 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     articles: {
       findById: (id) => articles.get(id),
       findByUrl: async (url) => (await articles.find({ where: { url: canonicalUrl(url) }, limit: 1 }))[0],
+      latest: (outletId, limit) => articles.find({ where: { outletId }, orderBy: { field: "publishedAt", direction: "desc" }, limit }),
       find: (flt: ArticleFilter) => {
         const where: Query["where"] = {};
         if (flt.topic) where.topic = flt.topic;

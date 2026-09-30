@@ -1249,6 +1249,27 @@ describe("Leer ahora", () => {
     await user.click(await screen.findByRole("button", { name: "Leer ahora el feed https://ddv.example/rss" }));
     expect(await screen.findByText("Listo: 4 nota(s) nueva(s).")).toBeInTheDocument();
     expect(screen.queryByText(/Último error: HTTP 503/)).not.toBeInTheDocument();
+
+    // De qué temas eran, con enlace a Comparar; y la lista de lo último que se leyó, que se recarga.
+    const nuevas = screen.getByRole("list", { name: "Temas de las notas nuevas" });
+    expect(within(nuevas).getByRole("link", { name: "Comparar fuentes sobre deportes (3 notas)" })).toHaveAttribute("href", "/comparar?tema=deportes");
+    expect(within(nuevas).getByText("sin tema: 1")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /^Boca ganó el clásico/ })).toHaveAttribute("href", "https://medio.example/boca");
+    expect(screen.getByRole("cell", { name: "sin tema" })).toBeInTheDocument();
+  });
+
+  test("backoffice: un medio sin notas leídas lo dice; Comparar toma el tema del enlace", async () => {
+    const bo = new FakeBackoffice();
+    renderApp(new FakeApi(sampleMe({ permissions: ["outlets:write"] })), "/admin/medios", bo);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Nombre, id o sitio del medio"), "valle");
+    await user.click(await screen.findByRole("button", { name: "Editar Diario del Valle" }));
+    expect(await screen.findByText(/Todavía no se leyó ninguna nota de este medio/)).toBeInTheDocument();
+  });
+
+  test("comparar: el tema puede venir en el enlace", async () => {
+    renderApp(new FakeApi(sampleMe()), "/comparar?tema=deportes");
+    expect(await screen.findByLabelText(/^Tema/)).toHaveValue("deportes");
   });
 });
 

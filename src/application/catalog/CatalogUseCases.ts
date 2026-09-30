@@ -123,7 +123,7 @@ export class IngestFeedsUseCase {
   }
 
   /** Lee UN feed: guarda las notas nuevas (sin duplicar) y sus afirmaciones. Un error queda en el feed. */
-  async readFeed(feed: FeedSource): Promise<{ articles: number; error?: string }> {
+  async readFeed(feed: FeedSource): Promise<FeedReadOutcome> {
     try {
       const outlet = await this.outlets.findById(feed.outletId);
       if (!outlet) throw new Error("medio inexistente");
@@ -138,13 +138,34 @@ export class IngestFeedsUseCase {
       await this.articles.saveMany(fresh);
       for (const a of fresh) await this.claims.saveMany(await this.extractor.extract(a));
       await this.catalog.saveFeed({ ...feed, lastFetchedAt: this.clock.now(), lastAttemptAt: this.clock.now(), lastError: undefined });
-      return { articles: fresh.length };
+      return { articles: fresh.length, byTopic: countByTopic(fresh) };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       // (lastFetchedAt no cambia: es desde cuándo buscar notas; si no, se saltearían las de mientras falló)
       await this.catalog.saveFeed({ ...feed, lastAttemptAt: this.clock.now(), lastError: error });
       this.logger.warn("Falló un feed", { feed: feed.url, error });
-      return { articles: 0, error };
+      return { articles: 0, byTopic: [], error };
     }
   }
+}
+
+/** Resultado de leer un feed: cuántas notas nuevas, de qué temas, y el error si falló. */
+export interface FeedReadOutcome {
+  articles: number;
+  byTopic: TopicCount[];
+  error?: string;
+}
+
+export interface TopicCount {
+  topic: string;
+  articles: number;
+}
+
+/** Cuántas notas hay de cada tema, de mayor a menor ("otros" al final). */
+export function countByTopic(list: Pick<Article, "topic">[]): TopicCount[] {
+  const count = new Map<string, number>();
+  for (const a of list) count.set(a.topic, (count.get(a.topic) ?? 0) + 1);
+  return [...count]
+    .map(([topic, articles]) => ({ topic, articles }))
+    .sort((a, b) => Number(a.topic === "otros") - Number(b.topic === "otros") || b.articles - a.articles || a.topic.localeCompare(b.topic));
 }

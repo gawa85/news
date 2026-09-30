@@ -47,6 +47,7 @@ import type {
   DirectoryCheck,
   FeedReadResult,
   ReclassifyReport,
+  OutletArticles,
 } from "../api/backofficeTypes";
 import type { PublicEvent } from "../api/types";
 
@@ -413,12 +414,26 @@ export class FakeBackoffice implements BackofficeApi {
     return feed;
   }
   readAllCalls = 0;
+  readCount = 0;
+  async outletArticles(outletId: string): Promise<OutletArticles> {
+    this.log("outletArticles", outletId);
+    if (this.readCount === 0) return { latest: [], byTopic: [], total: 0 };
+    return {
+      latest: [
+        { id: "n1", title: "Boca ganó el clásico", url: "https://medio.example/boca", topic: "deportes", publishedAt: "2026-09-30T12:00:00Z" },
+        { id: "n2", title: "¿Para qué sirve enojarse?", url: "https://medio.example/enojo", topic: "otros", publishedAt: "2026-09-30T11:00:00Z" },
+      ],
+      byTopic: [{ topic: "deportes", articles: 3 }, { topic: "otros", articles: 1 }],
+      total: 4,
+    };
+  }
   async readOutletFeed(outletId: string, feedId: string): Promise<FeedReadResult> {
     this.log("readOutletFeed", outletId, feedId);
     const r = this.record(outletId);
     const feed = { ...r.feeds.find((f) => f.id === feedId)!, lastFetchedAt: "2026-09-30T12:00:00Z", lastError: undefined };
     r.feeds = r.feeds.map((f) => (f.id === feedId ? feed : f));
-    return { articles: 4, feed };
+    this.readCount++;
+    return { articles: 4, byTopic: [{ topic: "deportes", articles: 3 }, { topic: "otros", articles: 1 }], feed };
   }
   async readAllFeeds() {
     this.log("readAllFeeds");

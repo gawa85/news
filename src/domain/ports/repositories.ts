@@ -15,6 +15,8 @@ export interface IArticleReader {
   find(filter: ArticleFilter): Promise<Article[]>;
   /** La nota guardada con ese link (se compara la URL canónica: sin esquema, "www." ni parámetros de rastreo). */
   findByUrl(url: string): Promise<Article | undefined>;
+  /** Las últimas notas de un medio (de la más nueva a la más vieja). */
+  latest(outletId: string, limit: number): Promise<Article[]>;
 }
 
 export interface IArticleWriter {

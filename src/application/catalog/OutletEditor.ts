@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { AccessDeniedError, ConflictError, NotFoundError, ValidationError } from "../../domain/errors";
 import { slugify, type FeedSource, type Outlet, type OutletKind, type Owner, type OwnershipRecord, type User } from "../../domain/model";
-import type { IAuthorizationService, ICatalogRepository, IClock, ICountryRegistry, IDomainEvents, IJobQueue, IOutletReader, IOutletWriter, IUserRepository } from "../../domain/ports";
+import type { IArticleReader, IAuthorizationService, ICatalogRepository, IClock, ICountryRegistry, IDomainEvents, IJobQueue, IOutletReader, IOutletWriter, IUserRepository } from "../../domain/ports";
+import { countByTopic, type FeedReadOutcome, type TopicCount } from "./CatalogUseCases";
 
 export const OUTLET_KINDS: OutletKind[] = ["newspaper", "digital", "tv", "radio", "wire_agency", "official"];
 
@@ -13,6 +14,14 @@ export interface OutletDraft {
   kind: OutletKind;
   region: { country: string; province?: string; locality?: string };
   aliases?: string[];
+}
+
+/** Lo último que se leyó de un medio: para ver que la lectura anda y cómo se clasificó. */
+export interface OutletArticles {
+  latest: { id: string; title: string; url: string; topic: string; publishedAt: Date }[];
+  /** Todas las notas guardadas del medio, por tema. */
+  byTopic: TopicCount[];
+  total: number;
 }
 
 export interface OutletRecord {
@@ -42,11 +51,26 @@ export class OutletEditor {
     private readonly events: IDomainEvents,
     private readonly countries?: ICountryRegistry,
     /** Leer a mano: un feed en el momento, o todos en segundo plano (cola). */
-    private readonly reading?: { readFeed(feed: FeedSource): Promise<{ articles: number; error?: string }>; queue: IJobQueue; clock: IClock },
+    private readonly reading?: { readFeed(feed: FeedSource): Promise<FeedReadOutcome>; queue: IJobQueue; clock: IClock },
+    private readonly articles?: IArticleReader,
   ) {}
 
+  /** Las últimas notas leídas de un medio, con su tema, y cuántas hay de cada tema. */
+  async recentArticles(actorId: string, outletId: string, limit = 20): Promise<OutletArticles> {
+    await this.editor(actorId);
+    if (!(await this.outlets.findById(outletId))) throw new NotFoundError("No existe ese medio.");
+    if (!this.articles) return { latest: [], byTopic: [], total: 0 };
+    const all = await this.articles.find({ outletId });
+    const latest = await this.articles.latest(outletId, Math.min(Math.max(1, limit), 50));
+    return {
+      latest: latest.map((a) => ({ id: a.id, title: a.title, url: a.url, topic: a.topic, publishedAt: a.publishedAt })),
+      byTopic: countByTopic(all),
+      total: all.length,
+    };
+  }
+
   /** "Leer ahora" un feed. Como mucho una vez por minuto (haya salido bien o mal): no se castiga al sitio. */
-  async readFeedNow(actorId: string, outletId: string, feedId: string): Promise<{ articles: number; error?: string; feed: FeedSource }> {
+  async readFeedNow(actorId: string, outletId: string, feedId: string): Promise<FeedReadOutcome & { feed: FeedSource }> {
     await this.editor(actorId);
     if (!this.reading) throw new ValidationError("La lectura de feeds no está configurada.");
     const feed = (await this.catalog.findFeeds(outletId)).find((f) => f.id === feedId);
