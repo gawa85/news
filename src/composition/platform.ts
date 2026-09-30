@@ -90,6 +90,8 @@ import { InMemoryRealtimeHub, SvgCardGenerator, TopicFollowersChannel } from "..
 import { ImportCatalogUseCase, IngestFeedsUseCase } from "../application/catalog/CatalogUseCases";
 import { OutletEditor } from "../application/catalog/OutletEditor";
 import { ReclassifyArticlesUseCase } from "../application/catalog/ReclassifyArticles";
+import { CatalogSmokeMeter } from "../application/catalog/CatalogSmoke";
+import { RuleBasedSmokeDetector } from "../infrastructure/heuristics/RuleBasedSmokeDetector";
 import { SourceDirectoryService } from "../application/content/SourceDirectory";
 import { SOURCE_DIRECTORY } from "../config/sourceDirectory";
 import { PlanAdmin } from "../application/commerce/PlanAdmin";
@@ -494,9 +496,11 @@ export function buildPlatform(cfg: PlatformConfig) {
   const importCatalog = new ImportCatalogUseCase(cfg.catalogSources ?? [], repos.catalog, repos.outlets, repos.users, authz, domainEvents, countries);
   // Las direcciones de los feeds las carga el equipo (o un CSV, o el directorio): sólo destinos públicos.
   const catalogFeedReader = cfg.feedReader ?? new HttpFeedReader(cfg.userDestinations?.http ?? cfg.http);
+  // Humo de las notas del catálogo: siempre con reglas (gratis), nunca con IA (serían miles de notas).
+  const catalogSmoke = new CatalogSmokeMeter(new RuleBasedSmokeDetector(), repos.articles, logger);
   const ingestFeeds = new IngestFeedsUseCase(
     repos.catalog, repos.outlets, catalogFeedReader, topicIndex,
-    repos.articles, core.extractor, repos.claims, clock, logger,
+    repos.articles, core.extractor, repos.claims, clock, logger, catalogSmoke,
   );
 
   // ---- Calidad medible: set de evaluación, versiones y "¿te sirvió?" ----
@@ -695,7 +699,10 @@ export function buildPlatform(cfg: PlatformConfig) {
         new JobWorker(repos.jobs, {
           sync_sources: async () => void (await syncSources.execute()),
           evaluate_alerts: async () => void (await evaluateAlerts.execute()),
-          ingest_feeds: async () => void (await ingestFeeds.execute()),
+          ingest_feeds: async () => {
+            await ingestFeeds.execute();
+            await catalogSmoke.backfill(); // las notas viejas se miden de a tandas
+          },
           send_reports: async () => void (await scheduledReports.runDue()),
           support_sla: async () => void (await support.checkSla()),
           backup_daily: async () => {

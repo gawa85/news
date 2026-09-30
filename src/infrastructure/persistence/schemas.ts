@@ -151,6 +151,7 @@ export const schemas = {
       topic: { type: "text", get: (a: Article) => a.topic },
       publishedAt: { type: "text", get: (a: Article) => a.publishedAt },
       url: { type: "text", get: (a: Article) => canonicalUrl(a.url) },
+      smokeVersion: { type: "text", get: (a: Article) => a.smoke?.version ?? "" },
     },
   } satisfies CollectionSchema<Article>,
   claims: {

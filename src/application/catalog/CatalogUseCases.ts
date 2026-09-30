@@ -1,5 +1,6 @@
 import { AccessDeniedError, NotFoundError } from "../../domain/errors";
 import { normalizeRegion, stableArticleId, type Article, type FeedSource, type ImportReport } from "../../domain/model";
+import type { CatalogSmokeMeter } from "./CatalogSmoke";
 import type {
   IArticleWriter,
   IAuthorizationService,
@@ -106,6 +107,8 @@ export class IngestFeedsUseCase {
     private readonly claims: IClaimWriter,
     private readonly clock: IClock,
     private readonly logger: ILogger,
+    /** Si está, cada nota nueva sale con su humo medido. */
+    private readonly smoke?: CatalogSmokeMeter,
     private readonly maxPerFeed = 50,
   ) {}
 
@@ -135,6 +138,7 @@ export class IngestFeedsUseCase {
           publishedAt: e.publishedAt, region: outlet.region, topic: (await this.classifier.classify(`${e.title}. ${e.text}`)) ?? "otros",
         });
       }
+      if (this.smoke) for (let i = 0; i < fresh.length; i++) fresh[i] = await this.smoke.measure(fresh[i]!);
       await this.articles.saveMany(fresh);
       for (const a of fresh) await this.claims.saveMany(await this.extractor.extract(a));
       await this.catalog.saveFeed({ ...feed, lastFetchedAt: this.clock.now(), lastAttemptAt: this.clock.now(), lastError: undefined });

@@ -1,4 +1,15 @@
 import type { Region } from "./common";
+import type { SmokeType } from "./smoke";
+
+/** Humo medido en una nota del catálogo (con el motor de reglas: sin costo de IA). */
+export interface ArticleSmoke {
+  /** 0 = sin humo, 100 = todo humo. */
+  index: number;
+  /** Tipos de humo encontrados (sin repetir). */
+  types: SmokeType[];
+  /** Versión de las reglas con que se midió. */
+  version: string;
+}
 
 export interface Article {
   id: string;
@@ -11,6 +22,8 @@ export interface Article {
   region: Region;
   topic: string;
   authorId?: string;
+  /** Sin medir todavía: falta. */
+  smoke?: ArticleSmoke;
 }
 
 /** Id ESTABLE de una nota a partir de su URL (sin parámetros): reingresar el feed no duplica. */

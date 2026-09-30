@@ -420,11 +420,12 @@ export class FakeBackoffice implements BackofficeApi {
     if (this.readCount === 0) return { latest: [], byTopic: [], total: 0 };
     return {
       latest: [
-        { id: "n1", title: "Boca ganó el clásico", url: "https://medio.example/boca", topic: "deportes", publishedAt: "2026-09-30T12:00:00Z" },
+        { id: "n1", title: "Boca ganó el clásico", url: "https://medio.example/boca", topic: "deportes", publishedAt: "2026-09-30T12:00:00Z", smoke: 62 },
         { id: "n2", title: "¿Para qué sirve enojarse?", url: "https://medio.example/enojo", topic: "otros", publishedAt: "2026-09-30T11:00:00Z" },
       ],
       byTopic: [{ topic: "deportes", articles: 3 }, { topic: "otros", articles: 1 }],
       total: 4,
+      smoke: { measured: 3, average: 24 },
     };
   }
   async readOutletFeed(outletId: string, feedId: string): Promise<FeedReadResult> {

@@ -18,10 +18,12 @@ export interface OutletDraft {
 
 /** Lo último que se leyó de un medio: para ver que la lectura anda y cómo se clasificó. */
 export interface OutletArticles {
-  latest: { id: string; title: string; url: string; topic: string; publishedAt: Date }[];
+  latest: { id: string; title: string; url: string; topic: string; publishedAt: Date; smoke?: number }[];
   /** Todas las notas guardadas del medio, por tema. */
   byTopic: TopicCount[];
   total: number;
+  /** Humo promedio (0 a 100) de las notas ya medidas; sin medir, no está. */
+  smoke?: { measured: number; average: number };
 }
 
 export interface OutletRecord {
@@ -55,17 +57,19 @@ export class OutletEditor {
     private readonly articles?: IArticleReader,
   ) {}
 
-  /** Las últimas notas leídas de un medio, con su tema, y cuántas hay de cada tema. */
+  /** Las últimas notas leídas de un medio, con su tema y su humo, y cuántas hay de cada tema. */
   async recentArticles(actorId: string, outletId: string, limit = 20): Promise<OutletArticles> {
     await this.editor(actorId);
     if (!(await this.outlets.findById(outletId))) throw new NotFoundError("No existe ese medio.");
     if (!this.articles) return { latest: [], byTopic: [], total: 0 };
     const all = await this.articles.find({ outletId });
     const latest = await this.articles.latest(outletId, Math.min(Math.max(1, limit), 50));
+    const measured = all.filter((a) => a.smoke);
     return {
-      latest: latest.map((a) => ({ id: a.id, title: a.title, url: a.url, topic: a.topic, publishedAt: a.publishedAt })),
+      latest: latest.map((a) => ({ id: a.id, title: a.title, url: a.url, topic: a.topic, publishedAt: a.publishedAt, smoke: a.smoke?.index })),
       byTopic: countByTopic(all),
       total: all.length,
+      smoke: measured.length ? { measured: measured.length, average: Math.round(measured.reduce((n, a) => n + a.smoke!.index, 0) / measured.length) } : undefined,
     };
   }
 

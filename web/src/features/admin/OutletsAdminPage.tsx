@@ -406,6 +406,14 @@ function LatestArticles({ outletId }: { outletId: string }) {
       {d && d.total > 0 && (
         <>
           <TopicCounts counts={d.byTopic} label={`Las ${d.total} notas guardadas de este medio, por tema`} />
+          {d.smoke && (
+            <p style={{ margin: 0 }}>
+              Humo promedio en sus notas: <strong>{d.smoke.average} de 100</strong>{" "}
+              <span className="muted">
+                ({d.smoke.measured} nota{d.smoke.measured === 1 ? "" : "s"} medida{d.smoke.measured === 1 ? "" : "s"} con las reglas; 0 = sin humo). Cuenta para «Humo en el lenguaje» en la credibilidad del medio.
+              </span>
+            </p>
+          )}
           <div className="table-wrap">
             <table className="table">
               <caption className="visually-hidden">Últimas notas leídas de este medio</caption>
@@ -413,6 +421,7 @@ function LatestArticles({ outletId }: { outletId: string }) {
                 <tr>
                   <th scope="col">Nota</th>
                   <th scope="col">Tema</th>
+                  <th scope="col">Humo</th>
                   <th scope="col">Publicada</th>
                 </tr>
               </thead>
@@ -426,6 +435,7 @@ function LatestArticles({ outletId }: { outletId: string }) {
                       </a>
                     </td>
                     <td>{a.topic === "otros" ? "sin tema" : a.topic}</td>
+                    <td>{a.smoke === undefined ? <span className="muted">sin medir</span> : `${a.smoke}/100`}</td>
                     <td>{formatDateTime(a.publishedAt)}</td>
                   </tr>
                 ))}

@@ -17,6 +17,8 @@ export interface IArticleReader {
   findByUrl(url: string): Promise<Article | undefined>;
   /** Las últimas notas de un medio (de la más nueva a la más vieja). */
   latest(outletId: string, limit: number): Promise<Article[]>;
+  /** Notas a las que todavía no se les midió el humo. */
+  unmeasured(limit: number): Promise<Article[]>;
 }
 
 export interface IArticleWriter {

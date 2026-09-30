@@ -38,9 +38,9 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["gacetilla"],
   },
   "/credibilidad": {
-    summary: "Cuánto confiar en un medio sobre un tema: si fue preciso, si cita fuentes, si tiene conflictos de interés y cuánta pauta oficial recibe.",
+    summary: "Cuánto confiar en un medio sobre un tema: si fue preciso, si cita fuentes, cuánto humo hay en sus notas, si tiene conflictos de interés y cuánta pauta oficial recibe.",
     steps: ["Elegí un medio.", "Elegí un tema.", "Mirá el puntaje y, sobre todo, por qué: cada dimensión dice de dónde sale."],
-    terms: ["credibilidad", "pauta_oficial", "replica"],
+    terms: ["credibilidad", "indice_humo", "pauta_oficial", "replica"],
   },
   "/revisar": {
     summary: "Subís una foto o un video y te decimos si ya circuló antes (y cuándo) y qué dicen sus datos internos: fecha, programa con que se editó, marcas de inteligencia artificial. Un video se reconoce aunque lo hayan reenviado por WhatsApp (que lo recomprime) o le hayan cortado una parte, y una foto que es una captura de un video también.",

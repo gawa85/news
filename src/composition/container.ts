@@ -36,6 +36,7 @@ import { AccuracyDimension } from "../infrastructure/credibility/AccuracyDimensi
 import { ConflictOfInterestDimension } from "../infrastructure/credibility/ConflictOfInterestDimension";
 import { ConsistencyDimension } from "../infrastructure/credibility/ConsistencyDimension";
 import { OfficialAdvertisingDimension } from "../infrastructure/credibility/OfficialAdvertisingDimension";
+import { LanguageSmokeDimension } from "../infrastructure/credibility/LanguageSmokeDimension";
 import { SourcingQualityDimension } from "../infrastructure/credibility/SourcingQualityDimension";
 import { WeightedAveragePolicy } from "../infrastructure/credibility/WeightedAveragePolicy";
 import { JaccardSimilarity } from "../infrastructure/heuristics/JaccardSimilarity";
@@ -167,8 +168,9 @@ export function buildApp(config: AppConfig) {
     new ConflictOfInterestDimension(ownership, sectors),
     new OfficialAdvertisingDimension(advertising, politics, { highMonthlyAmount: 10_000_000, currency: "ARS" }),
     new ConsistencyDimension(politics, new LexiconStanceDetector()),
+    new LanguageSmokeDimension(),
   ];
-  const aggregation = new WeightedAveragePolicy({ accuracy: 3, sourcing: 2, conflict_of_interest: 1, official_advertising: 1, consistency: 1 });
+  const aggregation = new WeightedAveragePolicy({ accuracy: 3, sourcing: 2, conflict_of_interest: 1, official_advertising: 1, consistency: 1, language: 1 });
   const evaluateCredibility = new EvaluateCredibilityUseCase(outlets, articles, claims, dimensions, aggregation, clock);
 
   const traceOrigin = new TraceOriginUseCase(articles, outlets, similarity);

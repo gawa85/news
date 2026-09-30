@@ -1256,6 +1256,10 @@ describe("Leer ahora", () => {
     expect(within(nuevas).getByText("sin tema: 1")).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: /^Boca ganó el clásico/ })).toHaveAttribute("href", "https://medio.example/boca");
     expect(screen.getByRole("cell", { name: "sin tema" })).toBeInTheDocument();
+    // El humo de cada nota y el promedio del medio.
+    expect(screen.getByRole("cell", { name: "62/100" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "sin medir" })).toBeInTheDocument();
+    expect(screen.getByText("24 de 100")).toBeInTheDocument();
   });
 
   test("backoffice: un medio sin notas leídas lo dice; Comparar toma el tema del enlace", async () => {

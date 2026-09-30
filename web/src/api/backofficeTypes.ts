@@ -606,9 +606,11 @@ export interface TopicCount {
 
 /** Lo último que se leyó de un medio. */
 export interface OutletArticles {
-  latest: { id: string; title: string; url: string; topic: string; publishedAt: string }[];
+  latest: { id: string; title: string; url: string; topic: string; publishedAt: string; smoke?: number }[];
   byTopic: TopicCount[];
   total: number;
+  /** Humo promedio (0 a 100) de las notas ya medidas. */
+  smoke?: { measured: number; average: number };
 }
 
 /** Resultado de volver a clasificar las notas por tema. */
