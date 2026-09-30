@@ -240,7 +240,9 @@ export function buildRepositories(f: ICollectionFactory): Repositories {
     mediaFingerprints: {
       get: (id) => mediaFps.get(id),
       findByBands: async (bands, limit) => {
-        const ids = [...new Set((await mediaBands.find({ where: { band: { in: bands } }, limit: limit * 8 })).map((b) => b.fingerprintId))].slice(0, limit);
+        // (un video trae hasta 64 partes: el tope de filas crece con ellas)
+        const rows = await mediaBands.find({ where: { band: { in: bands } }, limit: Math.min(5_000, limit * Math.max(8, bands.length)) });
+        const ids = [...new Set(rows.map((b) => b.fingerprintId))].slice(0, limit);
         return (await Promise.all(ids.map((id) => mediaFps.get(id)))).filter((f): f is MediaFingerprint => !!f);
       },
       save: async (fp, bands) => {

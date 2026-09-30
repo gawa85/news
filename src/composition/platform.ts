@@ -206,6 +206,8 @@ export interface PlatformConfig {
   speech?: ISpeechToText;
   /** Revisión de fotos y videos (por defecto, local: LocalMediaInspector). */
   mediaInspector?: IMediaInspector;
+  /** Cuadros de los videos (ffmpeg): para reconocer un video recomprimido. Sin esto, sólo el archivo exacto. */
+  videoFrames?: import("../domain/ports").IVideoFrameSampler;
   /** Lectura de capturas (sin esto, no se leen imágenes). */
   ocr?: IOcr;
   /**
@@ -538,7 +540,7 @@ export function buildPlatform(cfg: PlatformConfig) {
       })
     : undefined;
   // Fotos y videos: revisión local (sin servicios externos) y descarga única del archivo.
-  const mediaCheck = new MediaCheckService(cfg.mediaInspector ?? new LocalMediaInspector(), repos.mediaFingerprints, clock);
+  const mediaCheck = new MediaCheckService(cfg.mediaInspector ?? new LocalMediaInspector(), repos.mediaFingerprints, clock, undefined, cfg.videoFrames, logger);
   const mediaDownloader = new InboundMediaDownloader(mediaFetchers);
   const plainLanguage = cfg.plainLanguage ?? new RuleBasedPlainLanguage();
   const learning = new LearningService(repos.learning, repos.users, authz, access, domainEvents, ids, clock, { byType: SMOKE_TIPS, clean: CLEAN_TIP });

@@ -6,6 +6,14 @@ export interface IMediaInspector {
   inspect(data: Buffer, mime: string): Promise<MediaInspection | undefined>;
 }
 
+/**
+ * Cuadros de un video, repartidos a lo largo de su duración (para compararlo aunque esté
+ * recomprimido). undefined si no se pudo leer.
+ */
+export interface IVideoFrameSampler {
+  sample(data: Buffer, mime: string): Promise<{ frames: Buffer[]; durationSeconds?: number } | undefined>;
+}
+
 /** Huellas de lo que ya circuló (sin el archivo ni quién lo mandó). */
 export interface IMediaFingerprintRepository {
   get(sha256: string): Promise<MediaFingerprint | undefined>;

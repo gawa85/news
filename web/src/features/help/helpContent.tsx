@@ -43,8 +43,8 @@ export const PAGE_HELP: Record<string, PageHelpContent> = {
     terms: ["credibilidad", "pauta_oficial", "replica"],
   },
   "/revisar": {
-    summary: "Subís una foto o un video y te decimos si ya circuló antes (y cuándo) y qué dicen sus datos internos: fecha, programa con que se editó, marcas de inteligencia artificial.",
-    example: "Una foto «de hoy» que ya había circulado en 2019 es una señal fuerte de que la están usando fuera de contexto.",
+    summary: "Subís una foto o un video y te decimos si ya circuló antes (y cuándo) y qué dicen sus datos internos: fecha, programa con que se editó, marcas de inteligencia artificial. Un video se reconoce aunque lo hayan reenviado por WhatsApp (que lo recomprime) o le hayan cortado una parte, y una foto que es una captura de un video también.",
+    example: "Una foto «de hoy» que ya había circulado en 2019, o un video «de anoche» con las mismas escenas que uno de hace dos años, son señales fuertes de que los usan fuera de contexto.",
   },
   "/fuentes": {
     summary: "Conectás tu buzón de mail o los feeds que seguís, y lo nuevo se analiza solo: te avisamos si hay humo.",

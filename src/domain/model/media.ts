@@ -14,6 +14,9 @@ export interface MediaInspection {
   sha256: string;
   /** Huella perceptual (64 bits en hex): igual aunque se recomprima o cambie de tamaño. Sólo imágenes. */
   perceptualHash?: string;
+  /** Videos: la huella perceptual de cuadros repartidos a lo largo del video. */
+  frameHashes?: string[];
+  durationSeconds?: number;
   width?: number;
   height?: number;
   /** Cuándo se sacó la foto o se grabó el video, según el archivo. */
@@ -37,8 +40,10 @@ export interface MediaSighting {
   firstSeenAt: Date;
   lastSeenAt: Date;
   times: number;
-  /** "same" = mismo archivo; "similar" = misma imagen recomprimida o recortada levemente. */
+  /** "same" = mismo archivo; "similar" = misma imagen (o las mismas escenas) recomprimida o recortada levemente. */
   match: "same" | "similar";
+  /** Si coincidió con otro tipo: una foto que es un cuadro de un video que ya circuló, o al revés. */
+  otherKind?: MediaKind;
 }
 
 export interface MediaSignal {
@@ -61,6 +66,8 @@ export interface MediaFingerprint {
   id: string;
   kind: MediaKind;
   perceptualHash?: string;
+  /** Videos: huellas de sus cuadros. */
+  frameHashes?: string[];
   firstSeenAt: Date;
   lastSeenAt: Date;
   times: number;

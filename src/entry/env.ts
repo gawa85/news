@@ -15,6 +15,7 @@ import { Rfc3161TimestampAuthority, WaybackMachineArchive } from "../infrastruct
 import { HCaptcha, TurnstileCaptcha } from "../infrastructure/abuse/AbuseAdapters";
 import { DISPOSABLE_EMAIL_DOMAINS } from "../config/abuse";
 import { readFileSync } from "node:fs";
+import { FfmpegFrameSampler } from "../infrastructure/media/FfmpegFrameSampler";
 import { join } from "node:path";
 import type { ISocialSource, ITranslator } from "../domain/ports";
 import { OEmbedSocialSource, OpenGraphSocialSource, YouTubeDataApiSource } from "../infrastructure/social/SocialSources";
@@ -205,6 +206,8 @@ export async function platformFromEnv() {
     mediaFetchers: mediaFetchersFromEnv(),
     speech: speechFromEnv(),
     ocr: ocrFromEnv(http),
+    // Videos: cuadros con ffmpeg (viene en la imagen). VIDEO_FRAMES=0 lo apaga.
+    videoFrames: env("VIDEO_FRAMES") === "0" ? undefined : new FfmpegFrameSampler({ frames: Number(env("VIDEO_FRAMES", "8")) || 8 }),
     evidence: evidenceFromEnv(http),
     abuse: abuseFromEnv(),
     translator: translatorFromEnv(http),

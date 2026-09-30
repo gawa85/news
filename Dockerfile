@@ -10,6 +10,8 @@ RUN npm ci
 
 # --- Desarrollo y pruebas: código fuente + dependencias completas ---
 FROM deps AS dev
+# ffmpeg también en las pruebas: se prueba con videos de verdad.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY tsconfig.json ./
 COPY src ./src
 COPY tests ./tests
@@ -28,7 +30,8 @@ ENV NODE_ENV=production \
     APP_ENV=production \
     PORT=8080
 # OCR local (capturas de pantalla sin servicios externos): Tesseract con castellano, inglés y portugués.
-RUN apt-get update   && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng tesseract-ocr-por   && rm -rf /var/lib/apt/lists/*
+# Videos locales (cuadros para reconocer un video recomprimido): ffmpeg.
+RUN apt-get update   && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng tesseract-ocr-por ffmpeg   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=dev /app/dist/src ./dist/src
